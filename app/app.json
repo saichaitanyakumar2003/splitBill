@@ -26,7 +26,9 @@
       ]
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "backgroundColor": "#FF6B35",
+      "themeColor": "#FF6B35"
     },
     "plugins": [
       [

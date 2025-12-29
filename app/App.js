@@ -1,7 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Animated, Easing } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import ProfileScreen from './src/screens/ProfileScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import HelpCenterScreen from './src/screens/HelpCenterScreen';
+
+const Stack = createNativeStackNavigator();
+
+// URL Linking Configuration
+const linking = {
+  prefixes: ['http://localhost:8081', 'splitbill://'],
+  config: {
+    screens: {
+      Home: '',
+      Profile: 'profile',
+      Settings: 'settings',
+      HelpCenter: 'help',
+    },
+  },
+};
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -402,13 +422,129 @@ function Logo() {
   );
 }
 
-export default function App() {
+// Profile Menu Dropdown Component
+function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }) {
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.8);
+      fadeAnim.setValue(0);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const handleMenuPress = (action) => {
+    action();
+  };
+
+  return (
+    <>
+      {/* Overlay to close menu */}
+      <TouchableOpacity 
+        style={styles.menuOverlay} 
+        activeOpacity={1} 
+        onPress={onClose}
+      />
+      
+      {/* Dropdown Menu */}
+      <Animated.View 
+        style={[
+          styles.menuDropdown,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        {/* Arrow pointer */}
+        <View style={styles.menuArrow} />
+        
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => handleMenuPress(onViewProfile)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuIconContainer}>
+            <Text style={styles.menuIcon}>👤</Text>
+          </View>
+          <Text style={styles.menuText}>View Profile</Text>
+          <Text style={styles.menuChevron}>›</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.menuDivider} />
+        
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => handleMenuPress(onHelpCenter)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuIconContainer}>
+            <Text style={styles.menuIcon}>📞</Text>
+          </View>
+          <Text style={styles.menuText}>Help Center</Text>
+          <Text style={styles.menuChevron}>›</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.menuDivider} />
+        
+        <TouchableOpacity 
+          style={[styles.menuItem, styles.logoutItem]} 
+          onPress={() => handleMenuPress(onLogout)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.menuIconContainer, styles.logoutIconContainer]}>
+            <Text style={styles.powerIcon}>⏻</Text>
+          </View>
+          <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
+          <Text style={[styles.menuChevron, styles.logoutText]}>›</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </>
+  );
+}
+
+// Home Screen Component
+function HomeScreen({ navigation }) {
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
   const handleCustomSplit = () => {
     alert('Custom Split - Coming in Step 2!');
   };
 
   const handleUploadImage = () => {
     alert('Upload Image - Coming in Step 2!');
+  };
+
+  const handleViewProfile = () => {
+    setShowProfileMenu(false);
+    navigation.navigate('Profile');
+  };
+
+  const handleHelpCenter = () => {
+    setShowProfileMenu(false);
+    navigation.navigate('HelpCenter');
+  };
+
+  const handleLogout = () => {
+    setShowProfileMenu(false);
+    alert('Logout - Coming soon!');
   };
 
   return (
@@ -419,6 +555,29 @@ export default function App() {
         style={styles.gradient}
       >
         <StatusBar style="light" />
+        
+        {/* Profile Icon - Top Right */}
+        <View style={styles.headerBar}>
+          <View style={styles.headerLeft} />
+          <TouchableOpacity
+            style={styles.profileIconButton}
+            onPress={() => setShowProfileMenu(!showProfileMenu)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.profileIconCircle}>
+              <Text style={styles.profileIconText}>JD</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Profile Dropdown Menu */}
+        <ProfileMenu
+          visible={showProfileMenu}
+          onClose={() => setShowProfileMenu(false)}
+          onViewProfile={handleViewProfile}
+          onHelpCenter={handleHelpCenter}
+          onLogout={handleLogout}
+        />
         
         {/* Animated Background elements */}
         <DecorativeCircles />
@@ -475,12 +634,49 @@ export default function App() {
   );
 }
 
+// Main App with Navigation
+export default function App() {
+  return (
+    <NavigationContainer linking={linking}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      >
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: '100%',
+    minWidth: '100%',
+    ...(Platform.OS === 'web' && {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100vw',
+      height: '100vh',
+      overflow: 'hidden',
+    }),
   },
   gradient: {
     flex: 1,
+    minHeight: '100%',
+    minWidth: '100%',
+    ...(Platform.OS === 'web' && {
+      width: '100vw',
+      height: '100vh',
+    }),
   },
   content: {
     flex: 1,
@@ -488,6 +684,133 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
     zIndex: 10,
+  },
+
+  // Header Bar with Profile Icon
+  headerBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 100,
+  },
+  headerLeft: {
+    width: 44,
+  },
+  profileIconButton: {
+    position: 'relative',
+  },
+  profileIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  profileIconText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FF6B35',
+  },
+
+  // Profile Menu Dropdown
+  menuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    zIndex: 98,
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 108 : 88,
+    right: 16,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    minWidth: 220,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+    zIndex: 999,
+    paddingVertical: 8,
+  },
+  menuArrow: {
+    position: 'absolute',
+    top: -8,
+    right: 20,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FFF',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  menuIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 107, 53, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  menuIcon: {
+    fontSize: 18,
+  },
+  menuText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  menuChevron: {
+    fontSize: 20,
+    color: '#CCC',
+    fontWeight: '300',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F5F5F5',
+    marginHorizontal: 16,
+    marginVertical: 4,
+  },
+  logoutItem: {
+    marginTop: 4,
+  },
+  logoutIconContainer: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+  powerIcon: {
+    fontSize: 20,
+    color: '#FF3B30',
+    fontWeight: '700',
+  },
+  logoutText: {
+    color: '#FF3B30',
   },
   
   // Floating emojis
