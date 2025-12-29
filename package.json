@@ -1,0 +1,19 @@
+{
+  "name": "splitbill-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "app",
+    "backend"
+  ],
+  "scripts": {
+    "app": "cd app && npm start",
+    "app:web": "cd app && npm run web",
+    "app:android": "cd app && npm run android",
+    "app:ios": "cd app && npm run ios",
+    "backend": "cd backend && npm start",
+    "backend:dev": "cd backend && npm run dev",
+    "install:all": "npm install && cd app && npm install && cd ../backend && npm install"
+  }
+}
+
