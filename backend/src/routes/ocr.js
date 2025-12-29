@@ -7,6 +7,7 @@ const sharp = require('sharp');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { parseBillText } = require('../utils/billParser');
+const { classifyBillItems, getCategoriesForBillType } = require('../utils/itemClassifier');
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
@@ -78,11 +79,17 @@ router.post('/scan', upload.single('image'), async (req, res, next) => {
       // Parse the extracted text to find bill items
       const parsedBill = parseBillText(text);
 
+      // Classify items into dynamic categories based on bill type
+      const classifiedData = classifyBillItems(parsedBill.items, text);
+
       res.json({
         success: true,
         rawText: text,
         confidence,
-        bill: parsedBill
+        bill: {
+          ...parsedBill,
+          ...classifiedData
+        }
       });
 
     } finally {
@@ -94,6 +101,36 @@ router.post('/scan', upload.single('image'), async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// GET /api/ocr/categories/:billType - Get available categories for a bill type
+router.get('/categories/:billType', (req, res) => {
+  const { billType } = req.params;
+  const categories = getCategoriesForBillType(billType);
+  
+  res.json({
+    success: true,
+    billType,
+    categories
+  });
+});
+
+// GET /api/ocr/bill-types - Get all supported bill types
+router.get('/bill-types', (req, res) => {
+  const billTypes = [
+    { id: 'restaurant', name: '🍽️ Restaurant / Food', description: 'Veg, Non-Veg, Beverages, Desserts' },
+    { id: 'grocery', name: '🛒 Grocery Store', description: 'Vegetables, Fruits, Dairy, Grains' },
+    { id: 'pharmacy', name: '💊 Pharmacy / Medical', description: 'Tablets, Syrups, First Aid' },
+    { id: 'electronics', name: '📱 Electronics', description: 'Mobile, Computing, Audio, Accessories' },
+    { id: 'clothing', name: '👕 Clothing / Apparel', description: 'By type and brand' },
+    { id: 'fuel', name: '⛽ Fuel / Petrol', description: 'Fuel type and quantity' },
+    { id: 'utility', name: '🏠 Utility Bill', description: 'Electricity, Water, Internet' }
+  ];
+
+  res.json({
+    success: true,
+    billTypes
+  });
 });
 
 module.exports = router;

@@ -1,0 +1,22 @@
+# CODEOWNERS file for SplitBill Repository
+# This file defines who is responsible for code review
+# 
+# The owner(s) listed below will be automatically requested
+# for review when someone opens a pull request.
+
+# Default owner for everything in the repo
+* @saichaitanyakumar2003
+
+# Frontend (React Native/Expo)
+/app/ @saichaitanyakumar2003
+
+# Backend (Node.js/Express)
+/backend/ @saichaitanyakumar2003
+
+# Documentation
+*.md @saichaitanyakumar2003
+
+# Configuration files
+*.json @saichaitanyakumar2003
+*.js @saichaitanyakumar2003
+
