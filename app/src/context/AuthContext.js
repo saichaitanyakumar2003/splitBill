@@ -197,15 +197,26 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Login with Google OAuth
+   * @param {string} idToken - Google ID token (optional if userInfo provided)
+   * @param {string} mode - 'login' or 'signup'
+   * @param {object} userInfo - User info from Google (optional if idToken provided)
    */
-  const loginWithGoogle = async (idToken) => {
+  const loginWithGoogle = async (idToken, mode = 'login', userInfo = null) => {
     try {
+      const body = { mode };
+      if (idToken) {
+        body.idToken = idToken;
+      }
+      if (userInfo) {
+        body.userInfo = userInfo;
+      }
+
       const response = await fetch(`${API_BASE_URL}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify(body),
       });
       
       const data = await response.json();
@@ -342,7 +353,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Update user profile (name, phone_number, profile_image)
+   * Update user profile (name, phone_number)
    */
   const updateProfile = async (updates) => {
     try {

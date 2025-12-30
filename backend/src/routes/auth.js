@@ -6,7 +6,7 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 
 // Initialize Google OAuth client
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const googleClient = new OAuth2Client(process.env.SPLITBILL_GOOGLE_CLIENT_ID);
 
 // JWT configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key-change-in-production';
@@ -87,7 +87,6 @@ router.post('/register', async (req, res) => {
           mailId: user.mailId,
           name: user.name,
           phone_number: user.phone_number,
-          profile_image: user.profile_image,
           session_expires_at: user.session_expires_at,
         },
       },
@@ -160,7 +159,6 @@ router.post('/login', async (req, res) => {
           mailId: user.mailId,
           name: user.name,
           phone_number: user.phone_number,
-          profile_image: user.profile_image,
           group_ids: user.group_ids,
           session_expires_at: user.session_expires_at,
         },
@@ -179,52 +177,103 @@ router.post('/login', async (req, res) => {
 /**
  * POST /api/auth/google
  * Authenticate with Google OAuth
+ * mode: 'login' - Only login existing users
+ * mode: 'signup' - Only create new users
+ * Accepts either idToken (verified) or userInfo (from access token)
  */
 router.post('/google', async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, userInfo, mode } = req.body; // mode: 'login' or 'signup'
 
-    if (!idToken) {
+    let email, name, picture, googleId;
+
+    // Option 1: Verify ID token (preferred, more secure)
+    if (idToken) {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.SPLITBILL_GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      email = payload.email;
+      name = payload.name;
+      picture = payload.picture;
+      googleId = payload.sub;
+    }
+    // Option 2: Use user info from access token (for web/Expo)
+    else if (userInfo && userInfo.email) {
+      email = userInfo.email;
+      name = userInfo.name;
+      picture = userInfo.picture;
+      googleId = userInfo.id;
+    }
+    // No valid auth data
+    else {
       return res.status(400).json({
         success: false,
-        message: 'Google ID token is required',
+        message: 'Google ID token or user info is required',
       });
     }
 
-    // Verify Google token
-    const ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-    const { email, name, picture, sub: googleId } = payload;
-
-    // Find or create user
+    // Check if user exists
     let user = await User.findOne({ mailId: email.toLowerCase() });
 
-    if (user) {
-      // Update existing user's session and OAuth info
+    // Handle LOGIN mode
+    if (mode === 'login') {
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'No account found with this email. Please sign up first.',
+        });
+      }
+      
+      // Update existing user's session
       user.session_expires_at = getSessionExpiration();
       if (!user.oauth_provider) {
         user.oauth_provider = 'google';
         user.oauth_id = googleId;
       }
-      if (picture && !user.profile_image) {
-        user.profile_image = picture;
-      }
       await user.save();
-    } else {
+    }
+    // Handle SIGNUP mode
+    else if (mode === 'signup') {
+      if (user) {
+        return res.status(409).json({
+          success: false,
+          message: 'Account already exists with this email. Please login instead.',
+        });
+      }
+      
       // Create new user
       user = new User({
         mailId: email.toLowerCase(),
         name,
         oauth_provider: 'google',
         oauth_id: googleId,
-        profile_image: picture || null,
         session_expires_at: getSessionExpiration(),
       });
       await user.save();
+    }
+    // Handle legacy mode (no mode specified - auto login/signup)
+    else {
+      if (user) {
+        // Update existing user's session
+        user.session_expires_at = getSessionExpiration();
+        if (!user.oauth_provider) {
+          user.oauth_provider = 'google';
+          user.oauth_id = googleId;
+        }
+        await user.save();
+      } else {
+        // Create new user
+        user = new User({
+          mailId: email.toLowerCase(),
+          name,
+          oauth_provider: 'google',
+          oauth_id: googleId,
+          session_expires_at: getSessionExpiration(),
+        });
+        await user.save();
+      }
     }
 
     // Generate JWT token
@@ -232,15 +281,15 @@ router.post('/google', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Google authentication successful',
+      message: mode === 'signup' ? 'Account created successfully' : 'Login successful',
       data: {
         token,
         user: {
           mailId: user.mailId,
           name: user.name,
           phone_number: user.phone_number,
-          profile_image: user.profile_image,
           group_ids: user.group_ids,
+          oauth_provider: user.oauth_provider,
           session_expires_at: user.session_expires_at,
         },
       },
@@ -317,7 +366,6 @@ router.post('/apple', async (req, res) => {
           mailId: user.mailId,
           name: user.name,
           phone_number: user.phone_number,
-          profile_image: user.profile_image,
           group_ids: user.group_ids,
           session_expires_at: user.session_expires_at,
         },
@@ -467,7 +515,6 @@ router.get('/me', async (req, res) => {
         mailId: user.mailId,
         name: user.name,
         phone_number: user.phone_number,
-        profile_image: user.profile_image,
         group_ids: user.group_ids,
         session_expires_at: user.session_expires_at,
         oauth_provider: user.oauth_provider,
@@ -484,7 +531,7 @@ router.get('/me', async (req, res) => {
 
 /**
  * PUT /api/auth/profile
- * Update user profile (name, phone_number, profile_image)
+ * Update user profile (name, phone_number)
  * Note: Email (mailId) cannot be changed
  */
 router.put('/profile', async (req, res) => {
@@ -511,12 +558,11 @@ router.put('/profile', async (req, res) => {
       });
     }
 
-    const { name, phone_number, profile_image } = req.body;
+    const { name, phone_number } = req.body;
 
     // Update allowed fields only (NOT mailId/email)
     if (name !== undefined) user.name = name;
     if (phone_number !== undefined) user.phone_number = phone_number;
-    if (profile_image !== undefined) user.profile_image = profile_image;
 
     await user.save();
 
@@ -527,7 +573,6 @@ router.put('/profile', async (req, res) => {
         mailId: user.mailId,
         name: user.name,
         phone_number: user.phone_number,
-        profile_image: user.profile_image,
         group_ids: user.group_ids,
         session_expires_at: user.session_expires_at,
         oauth_provider: user.oauth_provider,

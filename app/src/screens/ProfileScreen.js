@@ -11,7 +11,6 @@ import {
   Easing,
   Platform,
   Dimensions,
-  Image,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -19,8 +18,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,8 +56,10 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const { user, updateProfile, changePassword, isLoading: authLoading } = useAuth();
   
+  // Check if user signed up with OAuth (no password)
+  const isOAuthUser = user?.oauth_provider === 'google' || user?.oauth_provider === 'apple';
+  
   // State from user context or defaults
-  const [profileImage, setProfileImage] = useState(user?.profile_image || null);
   const [userName, setUserName] = useState(user?.name || 'User');
   const [email, setEmail] = useState(user?.mailId || '');
   const [mobile, setMobile] = useState(user?.phone_number || '');
@@ -70,6 +69,7 @@ export default function ProfileScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSettingPassword, setIsSettingPassword] = useState(false); // For OAuth users setting password first time
   const [isSaving, setIsSaving] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -77,7 +77,6 @@ export default function ProfileScreen() {
   // Update state when user data changes
   useEffect(() => {
     if (user) {
-      setProfileImage(user.profile_image || null);
       setUserName(user.name || 'User');
       setEmail(user.mailId || '');
       setMobile(user.phone_number || '');
@@ -110,66 +109,6 @@ export default function ProfileScreen() {
     ]).start();
   }, []);
 
-  const handleImagePick = async () => {
-    try {
-      // Request permission
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera roll permissions to change your profile picture.');
-        return;
-      }
-
-      // Launch image picker
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5, // Compress to reduce size
-        base64: true, // Get base64 directly
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const image = result.assets[0];
-        
-        // Create base64 data URI
-        let base64Image;
-        if (image.base64) {
-          // Use the base64 from picker
-          const mimeType = image.mimeType || 'image/jpeg';
-          base64Image = `data:${mimeType};base64,${image.base64}`;
-        } else if (image.uri) {
-          // Read file and convert to base64
-          const base64 = await FileSystem.readAsStringAsync(image.uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          base64Image = `data:image/jpeg;base64,${base64}`;
-        }
-
-        if (base64Image) {
-          // Update local state immediately for preview
-          setProfileImage(base64Image);
-          
-          // Save to backend
-          setIsSaving(true);
-          const result = await updateProfile({ profile_image: base64Image });
-          setIsSaving(false);
-          
-          if (result.success) {
-            Alert.alert('Success', 'Profile picture updated!');
-          } else {
-            Alert.alert('Error', result.message || 'Failed to update profile picture');
-            // Revert on failure
-            setProfileImage(user?.profile_image || null);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
-    }
-  };
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -193,6 +132,15 @@ export default function ProfileScreen() {
 
   // Check if password form is valid for enabling save button
   const isPasswordFormValid = () => {
+    // OAuth users setting password for first time don't need current password
+    if (isOAuthUser && isSettingPassword) {
+      return (
+        newPassword.length >= 6 &&
+        confirmNewPassword.length > 0 &&
+        newPassword === confirmNewPassword
+      );
+    }
+    // Regular users changing password
     return (
       currentPassword.length > 0 &&
       newPassword.length >= 6 &&
@@ -204,6 +152,7 @@ export default function ProfileScreen() {
 
   const resetPasswordForm = () => {
     setIsChangingPassword(false);
+    setIsSettingPassword(false);
     setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
@@ -229,10 +178,15 @@ export default function ProfileScreen() {
     setSuccessMessage(null);
     
     try {
-      const result = await changePassword(currentPassword, newPassword);
+      // For OAuth users setting password first time, pass null as current password
+      const currentPwd = (isOAuthUser && isSettingPassword) ? null : currentPassword;
+      const result = await changePassword(currentPwd, newPassword);
       
       if (result.success) {
-        setSuccessMessage('Password changed successfully! 🎉');
+        const message = isSettingPassword 
+          ? 'Password set successfully! 🎉' 
+          : 'Password changed successfully! 🎉';
+        setSuccessMessage(message);
         // Reset form after a short delay to show success message
         setTimeout(() => {
           resetPasswordForm();
@@ -308,30 +262,11 @@ export default function ProfileScreen() {
           >
             <View style={styles.photoContainer}>
               <View style={styles.photoWrapper}>
-                {profileImage ? (
-                  <Image source={{ uri: profileImage }} style={styles.profilePhoto} />
-                ) : (
-                  <View style={styles.photoPlaceholder}>
-                    <Text style={styles.photoInitials}>
-                      {getInitials(userName)}
-                    </Text>
-                  </View>
-                )}
-                
-                {/* Camera Icon Overlay */}
-                <TouchableOpacity
-                  style={styles.cameraButton}
-                  onPress={handleImagePick}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.cameraIconContainer}>
-                    <View style={styles.cameraIconSimple}>
-                      <View style={styles.cameraBody} />
-                      <View style={styles.cameraLens} />
-                      <View style={styles.cameraFlash} />
-                    </View>
-                  </View>
-                </TouchableOpacity>
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoInitials}>
+                    {getInitials(userName)}
+                  </Text>
+                </View>
               </View>
             </View>
           </Animated.View>
@@ -423,17 +358,25 @@ export default function ProfileScreen() {
                   <Text style={styles.fieldIcon}>🔒</Text>
                   <Text style={styles.fieldLabel}>Password</Text>
                 </View>
-                {!isChangingPassword && (
+                {!isChangingPassword && !isSettingPassword && (
                   <TouchableOpacity
                     style={styles.editButtonInline}
-                    onPress={() => setIsChangingPassword(true)}
+                    onPress={() => {
+                      if (isOAuthUser) {
+                        setIsSettingPassword(true);
+                      } else {
+                        setIsChangingPassword(true);
+                      }
+                    }}
                   >
-                    <Text style={styles.editButtonInlineText}>Change</Text>
+                    <Text style={styles.editButtonInlineText}>
+                      {isOAuthUser ? 'Set Password' : 'Change'}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
               
-              {isChangingPassword ? (
+              {(isChangingPassword || isSettingPassword) ? (
                 <View>
                   {/* API Error Message */}
                   {apiError && (
@@ -460,39 +403,50 @@ export default function ProfileScreen() {
                     </View>
                   )}
                   
-                  {/* Current Password */}
-                  <View style={styles.passwordInputWrapper}>
-                    <TextInput
-                      style={[
-                        styles.fieldInput,
-                        apiError && styles.fieldInputError
-                      ]}
-                      value={currentPassword}
-                      onChangeText={handleCurrentPasswordChange}
-                      placeholder="Current password"
-                      placeholderTextColor="#999"
-                      secureTextEntry={!showPassword}
-                    />
-                  </View>
+                  {/* OAuth user info */}
+                  {isSettingPassword && (
+                    <View style={styles.oauthInfoContainer}>
+                      <Text style={styles.oauthInfoText}>
+                        You signed up with Google. Set a password to also login with email.
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Current Password - Only show for non-OAuth users */}
+                  {!isSettingPassword && (
+                    <View style={styles.passwordInputWrapper}>
+                      <TextInput
+                        style={[
+                          styles.fieldInput,
+                          apiError && styles.fieldInputError
+                        ]}
+                        value={currentPassword}
+                        onChangeText={handleCurrentPasswordChange}
+                        placeholder="Current password"
+                        placeholderTextColor="#999"
+                        secureTextEntry={!showPassword}
+                      />
+                    </View>
+                  )}
                   
                   {/* New Password */}
-                  <View style={[styles.passwordInputWrapper, { marginTop: 12 }]}>
+                  <View style={[styles.passwordInputWrapper, { marginTop: isSettingPassword ? 0 : 12 }]}>
                     <TextInput
                       style={[
                         styles.fieldInput,
                         newPassword && newPassword.length < 6 && styles.fieldInputError,
-                        newPassword && currentPassword && newPassword === currentPassword && styles.fieldInputError
+                        !isSettingPassword && newPassword && currentPassword && newPassword === currentPassword && styles.fieldInputError
                       ]}
                       value={newPassword}
                       onChangeText={setNewPassword}
-                      placeholder="New password (min 6 characters)"
+                      placeholder={isSettingPassword ? "Create password (min 6 characters)" : "New password (min 6 characters)"}
                       placeholderTextColor="#999"
                       secureTextEntry={!showPassword}
                     />
                     {newPassword && newPassword.length < 6 && (
                       <Text style={styles.errorText}>Password must be at least 6 characters</Text>
                     )}
-                    {newPassword && currentPassword && newPassword === currentPassword && (
+                    {!isSettingPassword && newPassword && currentPassword && newPassword === currentPassword && (
                       <Text style={styles.errorText}>New password must be different from current password</Text>
                     )}
                   </View>
@@ -557,12 +511,16 @@ export default function ProfileScreen() {
                 </View>
               ) : (
                 <Text style={[styles.fieldValue, styles.passwordValue]}>
-                  {maskPassword(8)}
+                  {isOAuthUser ? 'Not set' : maskPassword(8)}
                 </Text>
               )}
               
-              {!isChangingPassword && (
-                <Text style={styles.fieldHint}>Password is securely encrypted</Text>
+              {!isChangingPassword && !isSettingPassword && (
+                <Text style={styles.fieldHint}>
+                  {isOAuthUser 
+                    ? 'Signed in with Google. Set a password for email login.' 
+                    : 'Password is securely encrypted'}
+                </Text>
               )}
             </View>
           </Animated.View>
@@ -783,6 +741,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: '#FF6B35',
     paddingVertical: 8,
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+    }),
   },
   fieldInputError: {
     borderBottomColor: '#E74C3C',
@@ -857,6 +818,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#276749',
     flex: 1,
+  },
+  // OAuth Info Container
+  oauthInfoContainer: {
+    backgroundColor: '#EBF8FF',
+    borderWidth: 1,
+    borderColor: '#90CDF4',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  oauthInfoText: {
+    fontSize: 13,
+    color: '#2B6CB0',
+    lineHeight: 18,
   },
   fieldDivider: {
     height: 1,

@@ -25,12 +25,6 @@ const userSchema = new mongoose.Schema({
     select: false, // Don't return password by default in queries
   },
   
-  // Profile image stored as Base64 encoded string
-  profile_image: {
-    type: String,
-    default: null,
-  },
-  
   // Phone number
   phone_number: {
     type: String,
@@ -42,6 +36,12 @@ const userSchema = new mongoose.Schema({
   group_ids: {
     type: [mongoose.Schema.Types.ObjectId],
     ref: 'Group',
+    default: [],
+  },
+  
+  // List of friends (mail IDs)
+  friends: {
+    type: [String],
     default: [],
   },
   

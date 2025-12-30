@@ -13,8 +13,6 @@ const MONGODB_URI = process.env.MONGODB_URL || process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
   console.error('❌ Error: MONGODB_URL or MONGODB_URI environment variable is not set');
-  console.log('\n📝 Set it using:');
-  console.log('   export MONGODB_URL="mongodb+srv://username:password@cluster.mongodb.net/splitbill"');
   process.exit(1);
 }
 
@@ -55,7 +53,17 @@ async function initializeDatabase() {
     
     // Get collection stats
     const userCount = await User.countDocuments();
-    console.log(`   Documents: ${userCount}\n`);
+    console.log(`   Documents: ${userCount}`);
+    
+    // Migrate existing users - add friends field if missing
+    const migrateResult = await User.updateMany(
+      { friends: { $exists: false } },
+      { $set: { friends: [] } }
+    );
+    if (migrateResult.modifiedCount > 0) {
+      console.log(`   ✅ Migrated ${migrateResult.modifiedCount} users (added friends field)`);
+    }
+    console.log('');
     
     // ========================================
     // Create Groups Collection & Indexes
@@ -111,6 +119,7 @@ async function initializeDatabase() {
     console.log('   ├─ profile_image (base64)');
     console.log('   ├─ phone_number');
     console.log('   ├─ group_ids (array of ObjectIds)');
+    console.log('   ├─ friends (array of mail IDs)');
     console.log('   ├─ session_expires_at');
     console.log('   ├─ oauth_provider');
     console.log('   └─ oauth_id');

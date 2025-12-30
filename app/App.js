@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Animated, Easing, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Animated, Easing, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer } from '@react-navigation/native';
@@ -588,14 +588,7 @@ function HomeScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <View style={styles.profileIconCircle}>
-              {user?.profile_image ? (
-                <Image 
-                  source={{ uri: user.profile_image }} 
-                  style={styles.profileIconImage} 
-                />
-              ) : (
-                <Text style={styles.profileIconText}>{getUserInitials()}</Text>
-              )}
+              <Text style={styles.profileIconText}>{getUserInitials()}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -664,8 +657,46 @@ function HomeScreen({ navigation }) {
   );
 }
 
-// Loading Screen Component
+// Loading Screen Component with Spinning Logo
 function LoadingScreen() {
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    // Spinning animation
+    Animated.loop(
+      Animated.timing(spinAnim, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Scale pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.9,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const spin = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   return (
     <View style={styles.loadingContainer}>
       <LinearGradient
@@ -674,16 +705,68 @@ function LoadingScreen() {
         style={styles.gradient}
       >
         <View style={styles.loadingContent}>
-          <View style={styles.logoCircle}>
+          <Animated.View 
+            style={[
+              styles.logoCircle,
+              { 
+                transform: [
+                  { rotate: spin },
+                  { scale: scaleAnim }
+                ] 
+              }
+            ]}
+          >
             <Text style={styles.logoText}>
               <Text style={styles.logoS}>S</Text>
               <Text style={styles.logoB}>B</Text>
             </Text>
+          </Animated.View>
+          <Text style={styles.loadingAppName}>SplitBill</Text>
+          <View style={styles.loadingDotsContainer}>
+            <LoadingDots />
           </View>
-          <ActivityIndicator size="large" color="#FFF" style={{ marginTop: 20 }} />
-          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </LinearGradient>
+    </View>
+  );
+}
+
+// Animated Loading Dots
+function LoadingDots() {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animateDot = (dot, delay) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(600 - delay),
+        ])
+      ).start();
+    };
+
+    animateDot(dot1, 0);
+    animateDot(dot2, 200);
+    animateDot(dot3, 400);
+  }, []);
+
+  return (
+    <View style={styles.loadingDots}>
+      <Animated.View style={[styles.loadingDot, { opacity: dot1, transform: [{ scale: Animated.add(1, Animated.multiply(dot1, 0.3)) }] }]} />
+      <Animated.View style={[styles.loadingDot, { opacity: dot2, transform: [{ scale: Animated.add(1, Animated.multiply(dot2, 0.3)) }] }]} />
+      <Animated.View style={[styles.loadingDot, { opacity: dot3, transform: [{ scale: Animated.add(1, Animated.multiply(dot3, 0.3)) }] }]} />
     </View>
   );
 }
@@ -1329,6 +1412,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingAppName: {
+    color: '#FFF',
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 20,
+    letterSpacing: 1,
+  },
+  loadingDotsContainer: {
+    marginTop: 30,
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FFF',
   },
   loadingText: {
     color: '#FFF',

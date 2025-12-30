@@ -10,11 +10,21 @@ import {
   Easing,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import Svg, { Path } from 'react-native-svg';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+
+// Required for web browser auth to complete
+WebBrowser.maybeCompleteAuthSession();
+
+// Google OAuth Client ID - hardcoded for now, later use EXPO_PUBLIC_ env vars
+const GOOGLE_CLIENT_ID = 'xxx';
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -27,33 +37,142 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Animations
+  // Google OAuth Setup
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: GOOGLE_CLIENT_ID,
+    iosClientId: GOOGLE_CLIENT_ID,
+    androidClientId: GOOGLE_CLIENT_ID,
+  });
+
+  // Handle Google OAuth Response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      handleGoogleAuthSuccess(response.authentication);
+    } else if (response?.type === 'error') {
+      setIsGoogleLoading(false);
+      setApiError('Google sign in was cancelled or failed. Please try again.');
+    }
+  }, [response]);
+
+  // Process Google Auth Success
+  const handleGoogleAuthSuccess = async (authentication) => {
+    try {
+      // Get the ID token from the authentication response
+      const idToken = authentication?.idToken;
+      
+      const mode = isLogin ? 'login' : 'signup';
+      let result;
+
+      if (idToken) {
+        // Call backend with ID token (preferred)
+        result = await loginWithGoogle(idToken, mode);
+      } else {
+        // If no ID token, try to get user info with access token
+        const accessToken = authentication?.accessToken;
+        if (accessToken) {
+          // Fetch user info from Google
+          const userInfoResponse = await fetch(
+            'https://www.googleapis.com/userinfo/v2/me',
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const userInfo = await userInfoResponse.json();
+          
+          if (userInfo.email) {
+            // Call backend with user info
+            result = await loginWithGoogle(null, mode, userInfo);
+          } else {
+            setApiError('Failed to get user info from Google.');
+            setIsGoogleLoading(false);
+            return;
+          }
+        } else {
+          setApiError('Google authentication failed. No token received.');
+          setIsGoogleLoading(false);
+          return;
+        }
+      }
+
+      if (result.success) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      } else {
+        setApiError(result.message || 'Google authentication failed.');
+      }
+    } catch (error) {
+      console.error('Google auth error:', error);
+      setApiError('Failed to complete Google sign in. Please try again.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Splash Animation Values
+  const splashLogoScale = useRef(new Animated.Value(1.5)).current; // Start bigger
+  const splashLogoRotate = useRef(new Animated.Value(0)).current; // For spin effect
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+  
+  // Form Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const logoScale = useRef(new Animated.Value(0.5)).current;
+  const logoScale = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
+    // Splash Animation Sequence
+    Animated.sequence([
+      // Phase 1: Logo spins 360° fast in center
+      Animated.parallel([
+        Animated.timing(splashLogoRotate, {
+          toValue: 2, // Two full rotations (720°)
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(splashLogoScale, {
+          toValue: 1, // Scale down to normal while spinning
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+      // Phase 2: Brief pause
+      Animated.delay(200),
+      // Phase 3: Fade out splash
+      Animated.timing(splashOpacity, {
         toValue: 0,
-        duration: 700,
-        easing: Easing.out(Easing.back),
+        duration: 300,
         useNativeDriver: true,
       }),
-      Animated.spring(logoScale, {
-        toValue: 1,
-        friction: 4,
-        tension: 50,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    ]).start(() => {
+      // After splash animation, show form
+      setShowSplash(false);
+      
+      // Animate form elements
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.out(Easing.back),
+          useNativeDriver: true,
+        }),
+        Animated.spring(logoScale, {
+          toValue: 1,
+          friction: 5,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
   }, []);
 
   // Clear error when user types
@@ -133,13 +252,16 @@ export default function LoginScreen() {
   };
 
   const handleGoogleLogin = async () => {
-    // TODO: Implement Google OAuth with Expo AuthSession
-    setApiError('Google OAuth requires setting up Google Cloud Console credentials. Configure GOOGLE_CLIENT_ID in your backend .env file.');
-  };
-
-  const handleAppleLogin = () => {
-    // Placeholder for Apple Sign In
-    setApiError('Apple Sign In will be integrated soon!');
+    setApiError(null);
+    setIsGoogleLoading(true);
+    
+    try {
+      await promptAsync();
+    } catch (error) {
+      console.error('Google prompt error:', error);
+      setApiError('Failed to open Google sign in. Please try again.');
+      setIsGoogleLoading(false);
+    }
   };
 
   const handleSkip = async () => {
@@ -150,6 +272,12 @@ export default function LoginScreen() {
     });
   };
 
+  // Interpolate rotation (2 full rotations = 720°)
+  const spin = splashLogoRotate.interpolate({
+    inputRange: [0, 2],
+    outputRange: ['0deg', '720deg'],
+  });
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -158,6 +286,36 @@ export default function LoginScreen() {
         style={styles.gradient}
       >
         <StatusBar style="light" />
+        
+        {/* Splash Screen Overlay */}
+        {showSplash && (
+          <Animated.View 
+            style={[
+              styles.splashOverlay,
+              { opacity: splashOpacity }
+            ]}
+            pointerEvents="none"
+          >
+            <Animated.View
+              style={[
+                styles.splashLogoContainer,
+                {
+                  transform: [
+                    { scale: splashLogoScale },
+                    { rotate: spin },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.splashLogoCircle}>
+                <Text style={styles.splashLogoText}>
+                  <Text style={styles.splashLogoS}>S</Text>
+                  <Text style={styles.splashLogoB}>B</Text>
+                </Text>
+              </View>
+            </Animated.View>
+          </Animated.View>
+        )}
         
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -230,22 +388,6 @@ export default function LoginScreen() {
                 </Pressable>
               </View>
 
-              {/* Name Input (Sign Up only) */}
-              {!isLogin && (
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>👤</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Full Name"
-                    placeholderTextColor="#999"
-                    value={name}
-                    onChangeText={setName}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                  />
-                </View>
-              )}
-
               {/* Error Message */}
               {apiError && (
                 <View style={styles.errorContainer}>
@@ -260,6 +402,22 @@ export default function LoginScreen() {
                   >
                     <Text style={styles.errorCloseText}>✕</Text>
                   </Pressable>
+                </View>
+              )}
+
+              {/* Name Input (Sign Up only) */}
+              {!isLogin && (
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputIcon}>👤</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full Name"
+                    placeholderTextColor="#999"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                  />
                 </View>
               )}
 
@@ -355,35 +513,48 @@ export default function LoginScreen() {
                 <View style={styles.dividerLine} />
               </View>
 
-              {/* OAuth Buttons */}
-              <View style={styles.oauthContainer}>
-                {/* Google Button */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.oauthButton,
-                    pressed && styles.oauthButtonPressed,
-                  ]}
-                  onPress={handleGoogleLogin}
-                >
-                  <View style={styles.googleIcon}>
-                    <Text style={styles.googleG}>G</Text>
-                  </View>
-                  <Text style={styles.oauthButtonText}>Google</Text>
-                </Pressable>
-
-                {/* Apple Button */}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.oauthButton,
-                    styles.appleButton,
-                    pressed && styles.appleButtonPressed,
-                  ]}
-                  onPress={handleAppleLogin}
-                >
-                  <Text style={styles.appleIcon}></Text>
-                  <Text style={styles.appleButtonText}>Apple</Text>
-                </Pressable>
-              </View>
+              {/* Google SSO Button */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.googleSSOButton,
+                  pressed && styles.googleSSOButtonPressed,
+                  isGoogleLoading && styles.googleSSOButtonDisabled,
+                ]}
+                onPress={handleGoogleLogin}
+                disabled={isGoogleLoading || !request}
+              >
+                {isGoogleLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color="#4285F4" style={{ marginRight: 10 }} />
+                    <Text style={styles.googleSSOText}>Connecting to Google...</Text>
+                  </>
+                ) : (
+                  <>
+                    {/* Google Logo - Official G SVG */}
+                    <View style={styles.googleLogoWrap}>
+                      <Svg width={20} height={20} viewBox="0 0 48 48">
+                        <Path
+                          fill="#EA4335"
+                          d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                        />
+                        <Path
+                          fill="#4285F4"
+                          d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                        />
+                        <Path
+                          fill="#FBBC05"
+                          d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                        />
+                        <Path
+                          fill="#34A853"
+                          d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                        />
+                      </Svg>
+                    </View>
+                    <Text style={styles.googleSSOText}>{isLogin ? 'Login with Google SSO' : 'Sign up with Google SSO'}</Text>
+                  </>
+                )}
+              </Pressable>
             </Animated.View>
 
             {/* Skip Button */}
@@ -413,6 +584,39 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  // Splash Screen Styles
+  splashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  splashLogoContainer: {
+    alignItems: 'center',
+  },
+  splashLogoCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  splashLogoText: {
+    fontSize: 46,
+    fontWeight: '800',
+  },
+  splashLogoS: {
+    color: '#FF6B35',
+  },
+  splashLogoB: {
+    color: '#E64A19',
   },
   keyboardView: {
     flex: 1,
@@ -572,17 +776,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
   },
-  oauthContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  oauthButton: {
-    flex: 1,
+  // Google SSO Button
+  googleSSOButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
     backgroundColor: '#FFF',
     borderWidth: 1.5,
@@ -591,45 +791,20 @@ const styles = StyleSheet.create({
       cursor: 'pointer',
     }),
   },
-  oauthButtonPressed: {
+  googleSSOButtonPressed: {
     backgroundColor: '#F5F5F5',
     transform: [{ scale: 0.98 }],
   },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 6,
+  googleSSOButtonDisabled: {
+    opacity: 0.7,
   },
-  googleG: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4285F4',
+  googleLogoWrap: {
+    marginRight: 10,
   },
-  oauthButtonText: {
-    fontSize: 14,
+  googleSSOText: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
-  },
-  appleButton: {
-    backgroundColor: '#000',
-    borderColor: '#000',
-  },
-  appleButtonPressed: {
-    backgroundColor: '#333',
-  },
-  appleIcon: {
-    fontSize: 16,
-    color: '#FFF',
-    marginRight: 6,
-  },
-  appleButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFF',
   },
   skipButton: {
     alignItems: 'center',
