@@ -1,20 +1,28 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Import MongoDB connection
+const { connectDB, getConnectionStatus } = require('./utils/mongodb');
+
+// Import routes
 const ocrRoutes = require('./routes/ocr');
 const billRoutes = require('./routes/bills');
 const groupRoutes = require('./routes/groups');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+}));
+app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+app.use(express.urlencoded({ extended: true }));
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -23,24 +31,65 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/groups', groupRoutes);
 
-// Health check
+// Health check with DB status
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const dbStatus = getConnectionStatus();
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    database: dbStatus,
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    name: 'SplitBill API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      ocr: '/api/ocr',
+      bills: '/api/bills',
+      groups: '/api/groups',
+      health: '/health',
+    },
+  });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
-    error: err.message || 'Internal server error'
+    success: false,
+    error: err.message || 'Internal server error',
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 SplitBill server running on port ${PORT}`);
-});
+// Start server with MongoDB connection
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDB();
+    
+    // Start Express server
+    app.listen(PORT, () => {
+      console.log(`🚀 SplitBill server running on port ${PORT}`);
+      console.log(`📍 API available at http://localhost:${PORT}`);
+      console.log(`💚 Health check at http://localhost:${PORT}/health`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    // Start server anyway even if DB connection fails
+    // This allows health checks to work
+    app.listen(PORT, () => {
+      console.log(`⚠️ SplitBill server running on port ${PORT} (without database)`);
+    });
+  }
+};
 
+startServer();

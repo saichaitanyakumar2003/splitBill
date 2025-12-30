@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Animated, Easing, ActivityIndicator, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer } from '@react-navigation/native';
@@ -7,21 +7,24 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 const Stack = createNativeStackNavigator();
 
-// URL Linking Configuration
-const linking = {
+// URL Linking Configuration - will be set dynamically based on auth state
+const getLinkedScreens = (isAuthenticated) => ({
   prefixes: ['http://localhost:8081', 'splitbill://'],
   config: {
     screens: {
-      Home: '',
+      Login: isAuthenticated ? 'login' : '',  // Root path goes to Login when not authenticated
+      Home: isAuthenticated ? '' : 'home',     // Root path goes to Home when authenticated
       Profile: 'profile',
       Settings: 'settings',
       HelpCenter: 'help',
     },
   },
-};
+});
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -523,6 +526,7 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
 // Home Screen Component
 function HomeScreen({ navigation }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const { user, logout, isAuthenticated } = useAuth();
 
   const handleCustomSplit = () => {
     alert('Custom Split - Coming in Step 2!');
@@ -542,9 +546,28 @@ function HomeScreen({ navigation }) {
     navigation.navigate('HelpCenter');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setShowProfileMenu(false);
-    alert('Logout - Coming soon!');
+    await logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
+
+  // Get user initials for profile icon (max 2 characters)
+  // "Sai Chaitanya Kumar" → "SK" (first + last name initial)
+  const getUserInitials = () => {
+    if (user?.name) {
+      const parts = user.name.trim().split(' ').filter(p => p.length > 0);
+      if (parts.length >= 2) {
+        // First letter of first name + first letter of last name
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+      }
+      // Just first 2 letters of the name
+      return user.name.substring(0, 2).toUpperCase();
+    }
+    return 'U';
   };
 
   return (
@@ -565,7 +588,14 @@ function HomeScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <View style={styles.profileIconCircle}>
-              <Text style={styles.profileIconText}>JD</Text>
+              {user?.profile_image ? (
+                <Image 
+                  source={{ uri: user.profile_image }} 
+                  style={styles.profileIconImage} 
+                />
+              ) : (
+                <Text style={styles.profileIconText}>{getUserInitials()}</Text>
+              )}
             </View>
           </TouchableOpacity>
         </View>
@@ -634,8 +664,68 @@ function HomeScreen({ navigation }) {
   );
 }
 
-// Main App with Navigation
-export default function App() {
+// Loading Screen Component
+function LoadingScreen() {
+  return (
+    <View style={styles.loadingContainer}>
+      <LinearGradient
+        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
+        locations={[0, 0.3, 0.7, 1]}
+        style={styles.gradient}
+      >
+        <View style={styles.loadingContent}>
+          <View style={styles.logoCircle}>
+            <Text style={styles.logoText}>
+              <Text style={styles.logoS}>S</Text>
+              <Text style={styles.logoB}>B</Text>
+            </Text>
+          </View>
+          <ActivityIndicator size="large" color="#FFF" style={{ marginTop: 20 }} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+}
+
+// Auth-aware Login Screen wrapper
+// Redirects to Home if already authenticated
+function AuthAwareLoginScreen({ navigation }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      // User is authenticated, redirect to Home
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    }
+  }, [isAuthenticated, isLoading, navigation]);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  // If authenticated, show loading while redirecting
+  if (isAuthenticated) {
+    return <LoadingScreen />;
+  }
+
+  return <LoginScreen navigation={navigation} />;
+}
+
+// Navigation Container with Auth Logic
+function AppNavigator() {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  // Get dynamic linking config based on auth state
+  const linking = getLinkedScreens(isAuthenticated);
+
   return (
     <NavigationContainer linking={linking}>
       <Stack.Navigator
@@ -643,13 +733,24 @@ export default function App() {
           headerShown: false,
           animation: 'slide_from_right',
         }}
+        initialRouteName={isAuthenticated ? 'Home' : 'Login'}
       >
+        <Stack.Screen name="Login" component={AuthAwareLoginScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+// Main App with Auth Provider
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppNavigator />
+    </AuthProvider>
   );
 }
 
@@ -723,6 +824,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FF6B35',
+  },
+  profileIconImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
   },
 
   // Profile Menu Dropdown
@@ -1210,5 +1317,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  
+  // Loading Screen
+  loadingContainer: {
+    flex: 1,
+    minHeight: '100%',
+    minWidth: '100%',
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFF',
+    fontSize: 16,
+    marginTop: 12,
+    fontWeight: '500',
   },
 });

@@ -12,12 +12,29 @@ import {
   Platform,
   Dimensions,
   Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Helper function to get initials (max 2 characters)
+const getInitials = (name) => {
+  if (!name) return 'U';
+  const parts = name.trim().split(' ').filter(p => p.length > 0);
+  if (parts.length >= 2) {
+    // First letter of first name + first letter of last name
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  // Just first 2 letters of the name
+  return name.substring(0, 2).toUpperCase();
+};
 
 // Eye Icon Component
 const EyeIcon = ({ visible }) => (
@@ -40,12 +57,32 @@ const EyeIcon = ({ visible }) => (
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const [profileImage, setProfileImage] = useState(null);
-  const [userName, setUserName] = useState('John Doe');
-  const [mobile, setMobile] = useState('+91 98765 43210');
-  const [password, setPassword] = useState('mypassword123');
+  const { user, updateProfile, changePassword, isLoading: authLoading } = useAuth();
+  
+  // State from user context or defaults
+  const [profileImage, setProfileImage] = useState(user?.profile_image || null);
+  const [userName, setUserName] = useState(user?.name || 'User');
+  const [email, setEmail] = useState(user?.mailId || '');
+  const [mobile, setMobile] = useState(user?.phone_number || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+
+  // Update state when user data changes
+  useEffect(() => {
+    if (user) {
+      setProfileImage(user.profile_image || null);
+      setUserName(user.name || 'User');
+      setEmail(user.mailId || '');
+      setMobile(user.phone_number || '');
+    }
+  }, [user]);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -73,19 +110,146 @@ export default function ProfileScreen() {
     ]).start();
   }, []);
 
-  const handleImagePick = () => {
-    // TODO: Implement image picker
-    alert('Image picker coming soon!');
+  const handleImagePick = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'We need camera roll permissions to change your profile picture.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5, // Compress to reduce size
+        base64: true, // Get base64 directly
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const image = result.assets[0];
+        
+        // Create base64 data URI
+        let base64Image;
+        if (image.base64) {
+          // Use the base64 from picker
+          const mimeType = image.mimeType || 'image/jpeg';
+          base64Image = `data:${mimeType};base64,${image.base64}`;
+        } else if (image.uri) {
+          // Read file and convert to base64
+          const base64 = await FileSystem.readAsStringAsync(image.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          base64Image = `data:image/jpeg;base64,${base64}`;
+        }
+
+        if (base64Image) {
+          // Update local state immediately for preview
+          setProfileImage(base64Image);
+          
+          // Save to backend
+          setIsSaving(true);
+          const result = await updateProfile({ profile_image: base64Image });
+          setIsSaving(false);
+          
+          if (result.success) {
+            Alert.alert('Success', 'Profile picture updated!');
+          } else {
+            Alert.alert('Error', result.message || 'Failed to update profile picture');
+            // Revert on failure
+            setProfileImage(user?.profile_image || null);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
-    // TODO: Save to backend
-    alert('Profile saved successfully!');
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const result = await updateProfile({
+        name: userName,
+        phone_number: mobile,
+      });
+      
+      if (result.success) {
+        setIsEditing(false);
+        Alert.alert('Success', 'Profile updated successfully!');
+      } else {
+        Alert.alert('Error', result.message || 'Failed to update profile');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const maskPassword = (pwd) => {
-    return '•'.repeat(pwd.length);
+  // Check if password form is valid for enabling save button
+  const isPasswordFormValid = () => {
+    return (
+      currentPassword.length > 0 &&
+      newPassword.length >= 6 &&
+      confirmNewPassword.length > 0 &&
+      newPassword === confirmNewPassword &&
+      currentPassword !== newPassword
+    );
+  };
+
+  const resetPasswordForm = () => {
+    setIsChangingPassword(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setShowPassword(false);
+    setApiError(null);
+    setSuccessMessage(null);
+  };
+
+  // Clear error when user starts typing
+  const handleCurrentPasswordChange = (text) => {
+    setCurrentPassword(text);
+    if (apiError) setApiError(null);
+  };
+
+  const handleChangePassword = async () => {
+    // Double check validation (button should already be disabled if invalid)
+    if (!isPasswordFormValid()) {
+      return;
+    }
+
+    setIsSaving(true);
+    setApiError(null);
+    setSuccessMessage(null);
+    
+    try {
+      const result = await changePassword(currentPassword, newPassword);
+      
+      if (result.success) {
+        setSuccessMessage('Password changed successfully! 🎉');
+        // Reset form after a short delay to show success message
+        setTimeout(() => {
+          resetPasswordForm();
+        }, 2000);
+      } else {
+        // Show inline error instead of alert
+        setApiError(result.message || 'Failed to change password');
+      }
+    } catch (error) {
+      setApiError('Oops! Something went wrong. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const maskPassword = (length = 8) => {
+    return '•'.repeat(length);
   };
 
   return (
@@ -149,7 +313,7 @@ export default function ProfileScreen() {
                 ) : (
                   <View style={styles.photoPlaceholder}>
                     <Text style={styles.photoInitials}>
-                      {userName.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                      {getInitials(userName)}
                     </Text>
                   </View>
                 )}
@@ -192,10 +356,15 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   style={[styles.editButtonInline, isEditing && styles.editButtonActive]}
                   onPress={() => (isEditing ? handleSave() : setIsEditing(true))}
+                  disabled={isSaving}
                 >
-                  <Text style={[styles.editButtonInlineText, isEditing && styles.editButtonActiveText]}>
-                    {isEditing ? 'Save' : 'Edit'}
-                  </Text>
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  ) : (
+                    <Text style={[styles.editButtonInlineText, isEditing && styles.editButtonActiveText]}>
+                      {isEditing ? 'Save' : 'Edit'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
               {isEditing ? (
@@ -207,8 +376,20 @@ export default function ProfileScreen() {
                   placeholderTextColor="#999"
                 />
               ) : (
-                <Text style={styles.fieldValue}>{userName}</Text>
+                <Text style={styles.fieldValue}>{userName || 'Not set'}</Text>
               )}
+            </View>
+
+            <View style={styles.fieldDivider} />
+
+            {/* Email Field (Read-only) */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.fieldHeader}>
+                <Text style={styles.fieldIcon}>📧</Text>
+                <Text style={styles.fieldLabel}>Email Address</Text>
+              </View>
+              <Text style={styles.fieldValue}>{email || 'Not set'}</Text>
+              <Text style={styles.fieldHint}>Email cannot be changed</Text>
             </View>
 
             <View style={styles.fieldDivider} />
@@ -217,57 +398,172 @@ export default function ProfileScreen() {
             <View style={styles.fieldContainer}>
               <View style={styles.fieldHeader}>
                 <Text style={styles.fieldIcon}>📱</Text>
-                <Text style={styles.fieldLabel}>Mobile Number</Text>
+                <Text style={styles.fieldLabel}>Phone Number</Text>
               </View>
               {isEditing ? (
                 <TextInput
                   style={styles.fieldInput}
                   value={mobile}
                   onChangeText={setMobile}
-                  placeholder="Enter mobile number"
+                  placeholder="Enter phone number"
                   placeholderTextColor="#999"
                   keyboardType="phone-pad"
                 />
               ) : (
-                <Text style={styles.fieldValue}>{mobile}</Text>
+                <Text style={styles.fieldValue}>{mobile || 'Not set'}</Text>
               )}
             </View>
 
             <View style={styles.fieldDivider} />
 
-            {/* Password Field - Masked */}
+            {/* Password Section */}
             <View style={styles.fieldContainer}>
-              <View style={styles.fieldHeader}>
-                <Text style={styles.fieldIcon}>🔒</Text>
-                <Text style={styles.fieldLabel}>Password</Text>
-              </View>
-              <View style={styles.passwordContainer}>
-                {isEditing ? (
-                  <TextInput
-                    style={[styles.fieldInput, styles.passwordInput]}
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="Enter password"
-                    placeholderTextColor="#999"
-                    secureTextEntry={!showPassword}
-                  />
-                ) : (
-                  <Text style={[styles.fieldValue, styles.passwordValue]}>
-                    {showPassword ? password : maskPassword(password)}
-                  </Text>
+              <View style={styles.fieldHeaderWithEdit}>
+                <View style={styles.fieldHeader}>
+                  <Text style={styles.fieldIcon}>🔒</Text>
+                  <Text style={styles.fieldLabel}>Password</Text>
+                </View>
+                {!isChangingPassword && (
+                  <TouchableOpacity
+                    style={styles.editButtonInline}
+                    onPress={() => setIsChangingPassword(true)}
+                  >
+                    <Text style={styles.editButtonInlineText}>Change</Text>
+                  </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <View style={styles.eyeIconWrapper}>
-                    <View style={[styles.eyeShape, showPassword && styles.eyeShapeOpen]}>
-                      <View style={styles.eyeBall} />
-                    </View>
-                    {!showPassword && <View style={styles.eyeSlashLine} />}
-                  </View>
-                </TouchableOpacity>
               </View>
+              
+              {isChangingPassword ? (
+                <View>
+                  {/* API Error Message */}
+                  {apiError && (
+                    <View style={styles.apiErrorContainer}>
+                      <Text style={styles.apiErrorEmoji}>😅</Text>
+                      <View style={styles.apiErrorContent}>
+                        <Text style={styles.apiErrorTitle}>Oops!</Text>
+                        <Text style={styles.apiErrorMessage}>{apiError}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.apiErrorClose}
+                        onPress={() => setApiError(null)}
+                      >
+                        <Text style={styles.apiErrorCloseText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {/* Success Message */}
+                  {successMessage && (
+                    <View style={styles.successContainer}>
+                      <Text style={styles.successEmoji}>🎉</Text>
+                      <Text style={styles.successMessageText}>{successMessage}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Current Password */}
+                  <View style={styles.passwordInputWrapper}>
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        apiError && styles.fieldInputError
+                      ]}
+                      value={currentPassword}
+                      onChangeText={handleCurrentPasswordChange}
+                      placeholder="Current password"
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                    />
+                  </View>
+                  
+                  {/* New Password */}
+                  <View style={[styles.passwordInputWrapper, { marginTop: 12 }]}>
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        newPassword && newPassword.length < 6 && styles.fieldInputError,
+                        newPassword && currentPassword && newPassword === currentPassword && styles.fieldInputError
+                      ]}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="New password (min 6 characters)"
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                    />
+                    {newPassword && newPassword.length < 6 && (
+                      <Text style={styles.errorText}>Password must be at least 6 characters</Text>
+                    )}
+                    {newPassword && currentPassword && newPassword === currentPassword && (
+                      <Text style={styles.errorText}>New password must be different from current password</Text>
+                    )}
+                  </View>
+                  
+                  {/* Confirm New Password */}
+                  <View style={[styles.passwordInputWrapper, { marginTop: 12 }]}>
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        confirmNewPassword && newPassword !== confirmNewPassword && styles.fieldInputError
+                      ]}
+                      value={confirmNewPassword}
+                      onChangeText={setConfirmNewPassword}
+                      placeholder="Confirm new password"
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                    />
+                    {confirmNewPassword && newPassword !== confirmNewPassword && (
+                      <Text style={styles.errorText}>Passwords do not match</Text>
+                    )}
+                    {confirmNewPassword && newPassword === confirmNewPassword && newPassword.length >= 6 && (
+                      <Text style={styles.successText}>✓ Passwords match</Text>
+                    )}
+                  </View>
+                  
+                  {/* Show/Hide Password Toggle */}
+                  <TouchableOpacity
+                    style={styles.showPasswordToggle}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Text style={styles.showPasswordText}>
+                      {showPassword ? '🙈 Hide passwords' : '👁️ Show passwords'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  {/* Password Action Buttons */}
+                  <View style={styles.passwordActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={resetPasswordForm}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.savePasswordButton, 
+                        (isSaving || !isPasswordFormValid()) && styles.savePasswordButtonDisabled
+                      ]}
+                      onPress={handleChangePassword}
+                      disabled={isSaving || !isPasswordFormValid()}
+                    >
+                      {isSaving ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={[
+                          styles.savePasswordButtonText,
+                          !isPasswordFormValid() && styles.savePasswordButtonTextDisabled
+                        ]}>Save Password</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={[styles.fieldValue, styles.passwordValue]}>
+                  {maskPassword(8)}
+                </Text>
+              )}
+              
+              {!isChangingPassword && (
+                <Text style={styles.fieldHint}>Password is securely encrypted</Text>
+              )}
             </View>
           </Animated.View>
 
@@ -354,6 +650,7 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     borderWidth: 4,
     borderColor: '#FFF',
+    backgroundColor: '#FFF',
   },
   photoPlaceholder: {
     width: 120,
@@ -487,6 +784,80 @@ const styles = StyleSheet.create({
     borderBottomColor: '#FF6B35',
     paddingVertical: 8,
   },
+  fieldInputError: {
+    borderBottomColor: '#E74C3C',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#E74C3C',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  successText: {
+    fontSize: 12,
+    color: '#27AE60',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  // API Error Container
+  apiErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FED7D7',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  apiErrorEmoji: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  apiErrorContent: {
+    flex: 1,
+  },
+  apiErrorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#C53030',
+    marginBottom: 2,
+  },
+  apiErrorMessage: {
+    fontSize: 13,
+    color: '#742A2A',
+    lineHeight: 18,
+  },
+  apiErrorClose: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  apiErrorCloseText: {
+    fontSize: 16,
+    color: '#C53030',
+    fontWeight: '600',
+  },
+  // Success Container
+  successContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FFF4',
+    borderWidth: 1,
+    borderColor: '#9AE6B4',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  successMessageText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#276749',
+    flex: 1,
+  },
   fieldDivider: {
     height: 1,
     backgroundColor: '#EEE',
@@ -547,5 +918,59 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.6)',
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  passwordInputWrapper: {
+    marginTop: 8,
+  },
+  showPasswordToggle: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  showPasswordText: {
+    fontSize: 13,
+    color: '#FF6B35',
+    fontWeight: '500',
+  },
+  passwordActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+    gap: 12,
+  },
+  cancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDD',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  savePasswordButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#FF6B35',
+  },
+  savePasswordButtonDisabled: {
+    backgroundColor: '#CCC',
+    opacity: 0.7,
+  },
+  savePasswordButtonText: {
+    fontSize: 14,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  savePasswordButtonTextDisabled: {
+    color: '#999',
   },
 });

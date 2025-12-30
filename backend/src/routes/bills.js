@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { getSupabase } = require('../utils/supabase');
 
-// In-memory storage fallback (when Supabase is not configured)
+// In-memory storage (will be replaced with MongoDB model later)
 let billsStore = new Map();
 
 // POST /api/bills - Create a new bill
@@ -36,20 +35,6 @@ router.post('/', async (req, res, next) => {
       status: 'pending'
     };
 
-    // Try to save to Supabase, fallback to in-memory
-    const supabase = getSupabase();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('bills')
-        .insert(bill)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return res.status(201).json(data);
-    }
-
-    // In-memory fallback
     billsStore.set(bill.id, bill);
     res.status(201).json(bill);
 
@@ -63,18 +48,6 @@ router.get('/', async (req, res, next) => {
   try {
     const { groupId } = req.query;
     
-    const supabase = getSupabase();
-    if (supabase) {
-      let query = supabase.from('bills').select('*');
-      if (groupId) {
-        query = query.eq('groupId', groupId);
-      }
-      const { data, error } = await query.order('createdAt', { ascending: false });
-      if (error) throw error;
-      return res.json(data);
-    }
-
-    // In-memory fallback
     let bills = Array.from(billsStore.values());
     if (groupId) {
       bills = bills.filter(b => b.groupId === groupId);
@@ -91,20 +64,6 @@ router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const supabase = getSupabase();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error) throw error;
-      if (!data) return res.status(404).json({ error: 'Bill not found' });
-      return res.json(data);
-    }
-
-    // In-memory fallback
     const bill = billsStore.get(id);
     if (!bill) {
       return res.status(404).json({ error: 'Bill not found' });
@@ -122,20 +81,6 @@ router.put('/:id', async (req, res, next) => {
     const { id } = req.params;
     const updates = req.body;
 
-    const supabase = getSupabase();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('bills')
-        .update({ ...updates, updatedAt: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return res.json(data);
-    }
-
-    // In-memory fallback
     const bill = billsStore.get(id);
     if (!bill) {
       return res.status(404).json({ error: 'Bill not found' });
@@ -156,21 +101,7 @@ router.post('/:id/assign', async (req, res, next) => {
     const { id } = req.params;
     const { assignments } = req.body; // { itemId: [personId1, personId2], ... }
 
-    const supabase = getSupabase();
-    let bill;
-
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (error) throw error;
-      bill = data;
-    } else {
-      bill = billsStore.get(id);
-    }
-
+    const bill = billsStore.get(id);
     if (!bill) {
       return res.status(404).json({ error: 'Bill not found' });
     }
@@ -182,17 +113,6 @@ router.post('/:id/assign', async (req, res, next) => {
       }
       return item;
     });
-
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('bills')
-        .update({ items: bill.items, updatedAt: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return res.json(data);
-    }
 
     billsStore.set(id, bill);
     res.json(bill);
@@ -208,21 +128,7 @@ router.get('/:id/split', async (req, res, next) => {
     const { id } = req.params;
     const { splitTaxTip } = req.query; // 'equal' or 'proportional'
 
-    const supabase = getSupabase();
-    let bill;
-
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (error) throw error;
-      bill = data;
-    } else {
-      bill = billsStore.get(id);
-    }
-
+    const bill = billsStore.get(id);
     if (!bill) {
       return res.status(404).json({ error: 'Bill not found' });
     }
@@ -296,4 +202,3 @@ function calculateSplits(bill, proportionalTaxTip = true) {
 }
 
 module.exports = router;
-
