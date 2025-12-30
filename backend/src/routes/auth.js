@@ -185,7 +185,7 @@ router.post('/google', async (req, res) => {
   try {
     const { idToken, userInfo, mode } = req.body; // mode: 'login' or 'signup'
 
-    let email, name, picture, googleId;
+    let email, name, picture, googleId, emailVerified;
 
     // Option 1: Verify ID token (preferred, more secure)
     if (idToken) {
@@ -198,6 +198,7 @@ router.post('/google', async (req, res) => {
       name = payload.name;
       picture = payload.picture;
       googleId = payload.sub;
+      emailVerified = payload.email_verified; // From ID token
     }
     // Option 2: Use user info from access token (for web/Expo)
     else if (userInfo && userInfo.email) {
@@ -205,12 +206,21 @@ router.post('/google', async (req, res) => {
       name = userInfo.name;
       picture = userInfo.picture;
       googleId = userInfo.id;
+      emailVerified = userInfo.verified_email; // From userInfo API
     }
     // No valid auth data
     else {
       return res.status(400).json({
         success: false,
         message: 'Google ID token or user info is required',
+      });
+    }
+
+    // Check if email is verified
+    if (emailVerified === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email with Google before signing up.',
       });
     }
 

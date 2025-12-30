@@ -391,7 +391,7 @@ export default function LoginScreen() {
               {/* Error Message */}
               {apiError && (
                 <View style={styles.errorContainer}>
-                  <Text style={styles.errorEmoji}>😅</Text>
+                  <Text style={styles.errorEmoji}>😔</Text>
                   <View style={styles.errorContent}>
                     <Text style={styles.errorTitle}>Oops!</Text>
                     <Text style={styles.errorMessage}>{apiError}</Text>
