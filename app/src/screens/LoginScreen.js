@@ -287,6 +287,25 @@ export default function LoginScreen() {
       >
         <StatusBar style="light" />
         
+        {/* Hamburger Menu Icon - Top Left */}
+        {!showSplash && (
+          <View style={styles.menuIconContainer}>
+            <Pressable 
+              style={styles.menuIconButton}
+              onPress={() => {
+                // Menu action - can be expanded later
+                alert('Menu coming soon!');
+              }}
+            >
+              <View style={styles.menuIcon}>
+                <View style={styles.menuBar} />
+                <View style={styles.menuBar} />
+                <View style={styles.menuBar} />
+              </View>
+            </Pressable>
+          </View>
+        )}
+        
         {/* Splash Screen Overlay */}
         {showSplash && (
           <Animated.View 
@@ -584,6 +603,41 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  // Hamburger Menu Icon Styles
+  menuIconContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 20,
+    zIndex: 999,
+    elevation: 999,
+  },
+  menuIconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
+  },
+  menuIcon: {
+    width: 20,
+    alignItems: 'center',
+  },
+  menuBar: {
+    width: 20,
+    height: 2,
+    backgroundColor: '#FF6B35',
+    borderRadius: 1,
+    marginVertical: 2,
   },
   // Splash Screen Styles
   splashOverlay: {

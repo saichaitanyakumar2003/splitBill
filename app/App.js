@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, Animated, Easing, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer } from '@react-navigation/native';
@@ -7,6 +7,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
+import FriendsScreen from './src/screens/FriendsScreen';
+import GroupsScreen from './src/screens/GroupsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
@@ -22,6 +24,8 @@ const getLinkedScreens = (isAuthenticated) => ({
       Profile: 'profile',
       Settings: 'settings',
       HelpCenter: 'help',
+      Friends: 'friends',
+      Groups: 'groups',
     },
   },
 });
@@ -523,9 +527,59 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
   );
 }
 
+// Side Panel Component (Friends & Groups)
+function SidePanel({ visible, onClose, onFriends, onGroups }) {
+  if (!visible) return null;
+
+  return (
+    <>
+      {/* Overlay */}
+      <Pressable 
+        style={styles.sidePanelOverlay}
+        onPress={onClose}
+      />
+
+      {/* Side Panel */}
+      <View style={styles.sidePanel}>
+        {/* Header with Close Button */}
+        <View style={styles.sidePanelHeader}>
+          <Text style={styles.sidePanelTitle}>Info</Text>
+          <TouchableOpacity onPress={onClose} style={styles.sidePanelClose}>
+            <Text style={styles.sidePanelCloseText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Menu Items - Vertical */}
+        <View style={styles.sidePanelMenu}>
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onFriends}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>👥</Text>
+            <Text style={styles.sidePanelMenuText}>Friends</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onGroups}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>👨‍👩‍👧‍👦</Text>
+            <Text style={styles.sidePanelMenuText}>Groups</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+}
+
 // Home Screen Component
 function HomeScreen({ navigation }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showSidePanel, setShowSidePanel] = useState(false);
   const { user, logout, isAuthenticated } = useAuth();
 
   const handleCustomSplit = () => {
@@ -579,9 +633,24 @@ function HomeScreen({ navigation }) {
       >
         <StatusBar style="light" />
         
-        {/* Profile Icon - Top Right */}
+        {/* Header Bar - Menu on Left, Profile on Right */}
         <View style={styles.headerBar}>
-          <View style={styles.headerLeft} />
+          {/* Hamburger Menu - Left */}
+          <TouchableOpacity
+            style={styles.menuIconButton}
+            onPress={() => setShowSidePanel(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.menuIconCircle}>
+              <View style={styles.menuIcon}>
+                <View style={styles.menuBar} />
+                <View style={styles.menuBar} />
+                <View style={styles.menuBar} />
+              </View>
+            </View>
+          </TouchableOpacity>
+          
+          {/* Profile Icon - Right */}
           <TouchableOpacity
             style={styles.profileIconButton}
             onPress={() => setShowProfileMenu(!showProfileMenu)}
@@ -600,6 +669,20 @@ function HomeScreen({ navigation }) {
           onViewProfile={handleViewProfile}
           onHelpCenter={handleHelpCenter}
           onLogout={handleLogout}
+        />
+
+        {/* Side Panel (Friends & Groups) */}
+        <SidePanel
+          visible={showSidePanel}
+          onClose={() => setShowSidePanel(false)}
+          onFriends={() => {
+            setShowSidePanel(false);
+            navigation.navigate('Friends');
+          }}
+          onGroups={() => {
+            setShowSidePanel(false);
+            navigation.navigate('Groups');
+          }}
         />
         
         {/* Animated Background elements */}
@@ -628,7 +711,7 @@ function HomeScreen({ navigation }) {
               <Text style={styles.optionTitle}>Add Custom Split</Text>
               <Text style={styles.optionDesc}>Enter items manually</Text>
               <View style={styles.cardArrow}>
-                <Text style={styles.arrowText}>→</Text>
+                <Text style={styles.arrowText}>›</Text>
               </View>
             </TouchableOpacity>
 
@@ -643,7 +726,7 @@ function HomeScreen({ navigation }) {
               <Text style={styles.optionTitle}>Upload Image</Text>
               <Text style={styles.optionDesc}>Import a bill photo</Text>
               <View style={styles.cardArrow}>
-                <Text style={styles.arrowText}>→</Text>
+                <Text style={styles.arrowText}>›</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -823,6 +906,8 @@ function AppNavigator() {
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
+        <Stack.Screen name="Friends" component={FriendsScreen} />
+        <Stack.Screen name="Groups" component={GroupsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -882,8 +967,110 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     zIndex: 100,
   },
-  headerLeft: {
-    width: 44,
+  menuIconButton: {
+    position: 'relative',
+  },
+  menuIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  menuIcon: {
+    width: 20,
+    alignItems: 'center',
+  },
+  menuBar: {
+    width: 20,
+    height: 2,
+    backgroundColor: '#FF6B35',
+    borderRadius: 1,
+    marginVertical: 2,
+  },
+  // Side Panel Styles
+  sidePanelOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    zIndex: 200,
+  },
+  sidePanel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 300,
+    backgroundColor: '#FFFFFF',
+    zIndex: 201,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 20,
+  },
+  sidePanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  sidePanelTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  sidePanelClose: {
+    padding: 8,
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    right: 15,
+  },
+  sidePanelCloseText: {
+    fontSize: 28,
+    color: '#FF6B35',
+    fontWeight: '400',
+  },
+  sidePanelMenu: {
+    paddingVertical: 10,
+  },
+  sidePanelMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  sidePanelMenuIcon: {
+    fontSize: 24,
+    marginRight: 16,
+  },
+  sidePanelMenuText: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  sidePanelMenuArrow: {
+    fontSize: 24,
+    color: '#999',
+    fontWeight: '300',
   },
   profileIconButton: {
     position: 'relative',
@@ -1013,11 +1200,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   
-  // Rolling Bill Styles (Left side)
+  // Rolling Bill Styles (Left side - moved down to avoid hamburger menu)
   billContainer: {
     position: 'absolute',
-    left: Platform.OS === 'web' ? 20 : -20,
-    top: '12%',
+    left: Platform.OS === 'web' ? 40 : 10,
+    top: '18%',
     zIndex: 2,
   },
   bill: {
@@ -1370,11 +1557,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666666',
     textAlign: 'center',
+    marginBottom: 30,
   },
   cardArrow: {
     position: 'absolute',
-    bottom: 12,
-    right: 16,
+    bottom: 10,
+    right: 10,
     width: 28,
     height: 28,
     borderRadius: 14,
