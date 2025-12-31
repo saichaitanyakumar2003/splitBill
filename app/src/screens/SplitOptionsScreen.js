@@ -15,6 +15,24 @@ export default function SplitOptionsScreen() {
   const navigation = useNavigation();
 
   const handleBack = () => {
+    // Check the navigation state to determine where to go
+    const state = navigation.getState();
+    const routes = state?.routes || [];
+    const currentIndex = state?.index || 0;
+    
+    // If previous screen is CreateGroup or SelectGroup, go to Home instead
+    if (currentIndex > 0) {
+      const previousRoute = routes[currentIndex - 1];
+      if (previousRoute?.name === 'CreateGroup' || previousRoute?.name === 'SelectGroup') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+        return;
+      }
+    }
+    
+    // Otherwise normal back behavior
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
@@ -44,7 +62,7 @@ export default function SplitOptionsScreen() {
           <Pressable onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Custom Split</Text>
+          <Text style={styles.headerTitle}>Split Options</Text>
           <View style={styles.headerRight} />
         </View>
 

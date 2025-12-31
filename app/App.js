@@ -12,6 +12,7 @@ import GroupsScreen from './src/screens/GroupsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
 import SplitOptionsScreen from './src/screens/SplitOptionsScreen';
+import CreateGroupScreen from './src/screens/CreateGroupScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -902,6 +903,7 @@ function AppNavigator() {
         <Stack.Screen name="Friends" component={FriendsScreen} />
         <Stack.Screen name="Groups" component={GroupsScreen} />
         <Stack.Screen name="SplitOptions" component={SplitOptionsScreen} />
+        <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
