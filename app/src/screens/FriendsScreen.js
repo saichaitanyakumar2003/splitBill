@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useStore } from '../context/StoreContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Base URL
@@ -27,15 +28,23 @@ const MAX_FAVORITES = 20;
 export default function FriendsScreen() {
   const navigation = useNavigation();
   const { user, token, initializeAuth } = useAuth();
+  const { 
+    favorites: cachedFavorites, 
+    isLoadingFavorites,
+    loadFavorites: loadFavoritesFromStore,
+    updateFavorites: updateFavoritesInStore,
+    removeFavoriteFromCache,
+  } = useStore();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [favorites, setFavorites] = useState([]);
+  const [localFavorites, setLocalFavorites] = useState([]);
   const [originalFavorites, setOriginalFavorites] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Track pending additions only (removals are immediate)
   const [pendingAdditions, setPendingAdditions] = useState([]);
@@ -43,52 +52,27 @@ export default function FriendsScreen() {
   // Check if there are unsaved changes
   const hasChanges = pendingAdditions.length > 0;
   
-  // Load favorites from user data and fetch actual names
+  // Load favorites from store (cached or API)
   useEffect(() => {
-    const loadFavorites = async () => {
-      if (user?.friends && user.friends.length > 0) {
-        // Fetch actual names for all friends
-        try {
-          const response = await fetch(`${API_BASE_URL}/auth/friends/details`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ emails: user.friends }),
-          });
-          
-          const data = await response.json();
-          
-          if (data.success && data.data) {
-            setFavorites(data.data);
-            setOriginalFavorites(data.data);
-          } else {
-            // Fallback to email prefix
-            const favList = user.friends.map(mailId => ({
-              mailId,
-              name: mailId.split('@')[0]
-            }));
-            setFavorites(favList);
-            setOriginalFavorites(favList);
-          }
-        } catch (e) {
-          // Fallback to email prefix
-          const favList = user.friends.map(mailId => ({
-            mailId,
-            name: mailId.split('@')[0]
-          }));
-          setFavorites(favList);
-          setOriginalFavorites(favList);
-        }
+    const initFavorites = async () => {
+      if (user?.friends) {
+        const favs = await loadFavoritesFromStore(token, user.friends);
+        setLocalFavorites(favs);
+        setOriginalFavorites(favs);
+        setIsInitialized(true);
       } else {
-        setFavorites([]);
+        setLocalFavorites([]);
         setOriginalFavorites([]);
+        setIsInitialized(true);
       }
     };
     
-    loadFavorites();
-  }, [user, token]);
+    initFavorites();
+  }, [user?.friends, token, loadFavoritesFromStore]);
+
+  // Alias for local state
+  const favorites = localFavorites;
+  const setFavorites = setLocalFavorites;
 
   const handleBack = () => {
     if (hasChanges) {
@@ -165,11 +149,34 @@ export default function FriendsScreen() {
     setSearchResults(searchResults.filter(u => u.mailId !== userToAdd.mailId));
   };
 
+  // Helper to add user back to search results if matches current query
+  const addBackToSearchResults = (removedUser) => {
+    if (searchQuery.trim().length >= 2) {
+      const query = searchQuery.toLowerCase().trim();
+      const matchesName = removedUser.name?.toLowerCase().includes(query);
+      const matchesEmail = removedUser.mailId?.toLowerCase().includes(query);
+      if (matchesName || matchesEmail) {
+        // Add back to search results if not already there
+        setSearchResults(prev => {
+          if (!prev.some(u => u.mailId === removedUser.mailId)) {
+            return [...prev, removedUser];
+          }
+          return prev;
+        });
+      }
+    }
+  };
+
   const handleRemoveFavorite = async (mailId) => {
+    // Find the user being removed for potential re-add to search
+    const removedUser = favorites.find(f => f.mailId === mailId);
+    
     // If it was a pending addition, just remove from local state (not saved yet)
     if (pendingAdditions.includes(mailId)) {
       setFavorites(favorites.filter(f => f.mailId !== mailId));
       setPendingAdditions(pendingAdditions.filter(m => m !== mailId));
+      // Add back to search results if matches query
+      if (removedUser) addBackToSearchResults(removedUser);
       return;
     }
     
@@ -187,8 +194,15 @@ export default function FriendsScreen() {
       const data = await response.json();
       
       if (data.success) {
-        setFavorites(favorites.filter(f => f.mailId !== mailId));
+        const updatedFavorites = favorites.filter(f => f.mailId !== mailId);
+        setFavorites(updatedFavorites);
         setOriginalFavorites(originalFavorites.filter(f => f.mailId !== mailId));
+        
+        // Add back to search results if matches query
+        if (removedUser) addBackToSearchResults(removedUser);
+        
+        // Update store cache
+        await removeFavoriteFromCache(mailId);
         
         // Update local storage and refresh context
         const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -200,7 +214,6 @@ export default function FriendsScreen() {
         const meData = await meResponse.json();
         if (meData.success) {
           await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));
-          await initializeAuth();
         }
       } else {
         setError(data.message || 'Failed to remove');
@@ -246,15 +259,14 @@ export default function FriendsScreen() {
       const meData = await meResponse.json();
       if (meData.success) {
         await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));
-        // Refresh auth context to update user state
-        await initializeAuth();
       }
 
-      // Update original state and reset search
+      // Update store cache with the complete list
+      await updateFavoritesInStore(favorites);
+
+      // Update original state (keep search results visible)
       setOriginalFavorites(favorites);
       setPendingAdditions([]);
-      setSearchQuery('');
-      setSearchResults([]);
       setSuccessMsg('Saved!');
       setTimeout(() => setSuccessMsg(null), 2000);
       

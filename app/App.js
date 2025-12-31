@@ -11,8 +11,10 @@ import FriendsScreen from './src/screens/FriendsScreen';
 import GroupsScreen from './src/screens/GroupsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
+import SplitOptionsScreen from './src/screens/SplitOptionsScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
+import { StoreProvider, useStore } from './src/context/StoreContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,6 +30,9 @@ const getLinkedScreens = (isAuthenticated) => ({
       HelpCenter: 'help',
       Friends: 'friends',
       Groups: 'groups',
+      SplitOptions: 'split-options',
+      SelectGroup: 'select-group',
+      CreateGroup: 'create-group',
     },
   },
 });
@@ -575,7 +580,7 @@ function HomeScreen({ navigation }) {
   const { user, logout, isAuthenticated } = useAuth();
 
   const handleCustomSplit = () => {
-    alert('Custom Split - Coming in Step 2!');
+    navigation.navigate('SplitOptions');
   };
 
   const handleUploadImage = () => {
@@ -697,7 +702,7 @@ function HomeScreen({ navigation }) {
                 <Text style={styles.iconText}>🧮</Text>
               </View>
               <Text style={styles.optionTitle}>Add Custom Split</Text>
-              <Text style={styles.optionDesc}>Enter items manually</Text>
+              <Text style={styles.optionDesc} numberOfLines={1}>Enter expense amount manually</Text>
               <View style={styles.cardArrow}>
                 <Text style={styles.arrowText}>›</Text>
               </View>
@@ -712,7 +717,7 @@ function HomeScreen({ navigation }) {
                 <Text style={styles.iconText}>📷</Text>
               </View>
               <Text style={styles.optionTitle}>Upload Image</Text>
-              <Text style={styles.optionDesc}>Import a bill photo</Text>
+              <Text style={styles.optionDesc} numberOfLines={1}>Import a bill photo</Text>
               <View style={styles.cardArrow}>
                 <Text style={styles.arrowText}>›</Text>
               </View>
@@ -896,6 +901,7 @@ function AppNavigator() {
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
         <Stack.Screen name="Friends" component={FriendsScreen} />
         <Stack.Screen name="Groups" component={GroupsScreen} />
+        <Stack.Screen name="SplitOptions" component={SplitOptionsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -904,6 +910,18 @@ function AppNavigator() {
 // Network-aware App Content
 function AppContent() {
   const { isConnected, isChecking } = useNetwork();
+  const { isAuthenticated } = useAuth();
+  const { clearStore } = useStore();
+  const prevAuthRef = React.useRef(isAuthenticated);
+  
+  // Clear store cache on logout
+  React.useEffect(() => {
+    if (prevAuthRef.current && !isAuthenticated) {
+      // User logged out - clear cached data
+      clearStore();
+    }
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated, clearStore]);
   
   // Show error screen only after initial check and if disconnected
   if (!isChecking && !isConnected) {
@@ -918,7 +936,9 @@ export default function App() {
   return (
     <NetworkProvider>
       <AuthProvider>
-        <AppContent />
+        <StoreProvider>
+          <AppContent />
+        </StoreProvider>
       </AuthProvider>
     </NetworkProvider>
   );
@@ -1526,7 +1546,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    width: Platform.OS === 'web' ? 200 : '100%',
+    width: Platform.OS === 'web' ? 260 : '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
