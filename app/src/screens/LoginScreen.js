@@ -40,6 +40,12 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
+  // Refs for input fields to enable Enter key navigation
+  const nameInputRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
+
   // Google OAuth Setup
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_CLIENT_ID,
@@ -287,25 +293,6 @@ export default function LoginScreen() {
       >
         <StatusBar style="light" />
         
-        {/* Hamburger Menu Icon - Top Left */}
-        {!showSplash && (
-          <View style={styles.menuIconContainer}>
-            <Pressable 
-              style={styles.menuIconButton}
-              onPress={() => {
-                // Menu action - can be expanded later
-                alert('Menu coming soon!');
-              }}
-            >
-              <View style={styles.menuIcon}>
-                <View style={styles.menuBar} />
-                <View style={styles.menuBar} />
-                <View style={styles.menuBar} />
-              </View>
-            </Pressable>
-          </View>
-        )}
-        
         {/* Splash Screen Overlay */}
         {showSplash && (
           <Animated.View 
@@ -429,6 +416,7 @@ export default function LoginScreen() {
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputIcon}>👤</Text>
                   <TextInput
+                    ref={nameInputRef}
                     style={styles.input}
                     placeholder="Full Name"
                     placeholderTextColor="#999"
@@ -436,6 +424,9 @@ export default function LoginScreen() {
                     onChangeText={setName}
                     autoCapitalize="words"
                     autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => emailInputRef.current?.focus()}
+                    blurOnSubmit={false}
                   />
                 </View>
               )}
@@ -444,6 +435,7 @@ export default function LoginScreen() {
               <View style={[styles.inputContainer, apiError && styles.inputContainerError]}>
                 <Text style={styles.inputIcon}>📧</Text>
                 <TextInput
+                  ref={emailInputRef}
                   style={styles.input}
                   placeholder="Email address"
                   placeholderTextColor="#999"
@@ -452,6 +444,9 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  blurOnSubmit={false}
                 />
               </View>
 
@@ -464,12 +459,22 @@ export default function LoginScreen() {
                 ]}>
                   <Text style={styles.inputIcon}>🔒</Text>
                   <TextInput
+                    ref={passwordInputRef}
                     style={styles.input}
                     placeholder={isLogin ? "Password" : "Password (min 6 characters)"}
                     placeholderTextColor="#999"
                     value={password}
                     onChangeText={handlePasswordChange}
                     secureTextEntry={!showPassword}
+                    returnKeyType={isLogin ? "done" : "next"}
+                    onSubmitEditing={() => {
+                      if (isLogin) {
+                        handleEmailLogin();
+                      } else {
+                        confirmPasswordInputRef.current?.focus();
+                      }
+                    }}
+                    blurOnSubmit={isLogin}
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                     <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
@@ -490,12 +495,15 @@ export default function LoginScreen() {
                   ]}>
                     <Text style={styles.inputIcon}>🔒</Text>
                     <TextInput
+                      ref={confirmPasswordInputRef}
                       style={styles.input}
                       placeholder="Confirm Password"
                       placeholderTextColor="#999"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       secureTextEntry={!showPassword}
+                      returnKeyType="done"
+                      onSubmitEditing={handleEmailLogin}
                     />
                     {confirmPassword && password === confirmPassword && password.length >= 6 && (
                       <Text style={styles.matchIcon}>✓</Text>
@@ -603,41 +611,6 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
-  },
-  // Hamburger Menu Icon Styles
-  menuIconContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
-    left: 20,
-    zIndex: 999,
-    elevation: 999,
-  },
-  menuIconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-    }),
-  },
-  menuIcon: {
-    width: 20,
-    alignItems: 'center',
-  },
-  menuBar: {
-    width: 20,
-    height: 2,
-    backgroundColor: '#FF6B35',
-    borderRadius: 1,
-    marginVertical: 2,
   },
   // Splash Screen Styles
   splashOverlay: {
