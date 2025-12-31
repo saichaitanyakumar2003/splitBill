@@ -6,10 +6,10 @@ const { compressData, decompressData } = require('../utils/compression');
  * User Model
  * 
  * Schema:
- * - _id (PK): mail id (email)
+ * - _id (PK): mail id (email) - indexed
+ * - name: string (indexed for search)
  * - pswd: password hash
  * - compressedDetails: brotli compressed buffer containing:
- *   - name: string
  *   - phone: string (exactly 10 digits, validated)
  *   - groupIds: string[] (list of group IDs)
  *   - friends: string[] (list of friend mail IDs)
@@ -29,6 +29,14 @@ const UserSchema = new mongoose.Schema({
     }
   },
 
+  // Name - stored separately for indexing/search
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    index: true // Index for efficient search
+  },
+
   // Password hash
   pswd: {
     type: String,
@@ -36,7 +44,7 @@ const UserSchema = new mongoose.Schema({
     select: false // Don't include in queries by default
   },
 
-  // Compressed details (brotli) - contains name, phone, groupIds, friends
+  // Compressed details (brotli) - contains phone, groupIds, friends
   compressedDetails: {
     type: Buffer,
     required: true
@@ -51,6 +59,9 @@ const UserSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { _id: false });
+
+// Text index for full-text search on name and email
+UserSchema.index({ name: 'text', _id: 'text' });
 
 // ============ Static Methods ============
 
@@ -72,9 +83,9 @@ UserSchema.statics.createUser = async function(mailId, password, details) {
 
   const user = new this({
     _id: mailId.toLowerCase().trim(),
+    name: details.name || '',
     pswd: await this.hashPassword(password),
     compressedDetails: compressData({
-      name: details.name || '',
       phone: details.phone || '',
       groupIds: details.groupIds || [],
       friends: details.friends || []
@@ -88,6 +99,29 @@ UserSchema.statics.findByMailIdWithPassword = function(mailId) {
   return this.findById(mailId.toLowerCase().trim()).select('+pswd');
 };
 
+// Search users by name or email - uses index
+UserSchema.statics.searchUsers = async function(query, excludeMailId = null, limit = 20) {
+  const regex = new RegExp(query, 'i');
+  
+  const filter = {
+    $or: [
+      { name: regex },
+      { _id: regex }
+    ]
+  };
+  
+  if (excludeMailId) {
+    filter._id = { ...filter._id, $ne: excludeMailId };
+  }
+
+  const users = await this.find(filter).limit(limit);
+  
+  return users.map(user => ({
+    mailId: user._id,
+    name: user.name
+  }));
+};
+
 // ============ Instance Methods ============
 
 // Verify password
@@ -95,23 +129,45 @@ UserSchema.methods.verifyPassword = async function(password) {
   return bcrypt.compare(password, this.pswd);
 };
 
-// Get decompressed details
+// Get decompressed details (includes name from separate field)
 UserSchema.methods.getDetails = function() {
-  if (!this.compressedDetails) return { name: '', phone: '', groupIds: [], friends: [] };
-  return decompressData(this.compressedDetails);
+  const compressed = this.compressedDetails ? decompressData(this.compressedDetails) : {};
+  return {
+    name: this.name || '',
+    phone: compressed.phone || '',
+    groupIds: compressed.groupIds || [],
+    friends: compressed.friends || []
+  };
 };
 
 // Set details with phone validation (10 digits only, or empty)
 UserSchema.methods.setDetails = function(details) {
+  // Update name separately (indexed field)
+  if (details.name !== undefined) {
+    this.name = details.name;
+  }
+  
+  // Get current compressed data
+  const current = this.compressedDetails ? decompressData(this.compressedDetails) : {};
+  
   if (details.phone !== undefined && details.phone !== null) {
     const digits = String(details.phone).replace(/\D/g, '');
     // Allow empty phone or exactly 10 digits
     if (digits.length > 0 && digits.length !== 10) {
       throw new Error('Phone number must be exactly 10 digits');
     }
-    details.phone = digits;
+    current.phone = digits;
   }
-  this.compressedDetails = compressData(details);
+  
+  if (details.groupIds !== undefined) {
+    current.groupIds = details.groupIds;
+  }
+  
+  if (details.friends !== undefined) {
+    current.friends = details.friends;
+  }
+  
+  this.compressedDetails = compressData(current);
   this.updatedAt = new Date();
 };
 
@@ -120,7 +176,11 @@ UserSchema.methods.addGroupId = function(groupId) {
   const details = this.getDetails();
   if (!details.groupIds.includes(groupId)) {
     details.groupIds.push(groupId);
-    this.compressedDetails = compressData(details);
+    this.compressedDetails = compressData({
+      phone: details.phone,
+      groupIds: details.groupIds,
+      friends: details.friends
+    });
     this.updatedAt = new Date();
   }
 };
@@ -129,17 +189,34 @@ UserSchema.methods.addGroupId = function(groupId) {
 UserSchema.methods.removeGroupId = function(groupId) {
   const details = this.getDetails();
   details.groupIds = details.groupIds.filter(id => id !== groupId);
-  this.compressedDetails = compressData(details);
+  this.compressedDetails = compressData({
+    phone: details.phone,
+    groupIds: details.groupIds,
+    friends: details.friends
+  });
   this.updatedAt = new Date();
 };
+
+// Max favorites limit
+const MAX_FAVORITES = 20;
 
 // Add friend mail ID
 UserSchema.methods.addFriend = function(friendMailId) {
   const details = this.getDetails();
   const normalizedEmail = friendMailId.toLowerCase().trim();
+  
+  // Check max limit
+  if (details.friends.length >= MAX_FAVORITES) {
+    throw new Error(`Maximum ${MAX_FAVORITES} favorites allowed`);
+  }
+  
   if (!details.friends.includes(normalizedEmail)) {
     details.friends.push(normalizedEmail);
-    this.compressedDetails = compressData(details);
+    this.compressedDetails = compressData({
+      phone: details.phone,
+      groupIds: details.groupIds,
+      friends: details.friends
+    });
     this.updatedAt = new Date();
   }
 };
@@ -148,7 +225,11 @@ UserSchema.methods.addFriend = function(friendMailId) {
 UserSchema.methods.removeFriend = function(friendMailId) {
   const details = this.getDetails();
   details.friends = details.friends.filter(f => f !== friendMailId.toLowerCase().trim());
-  this.compressedDetails = compressData(details);
+  this.compressedDetails = compressData({
+    phone: details.phone,
+    groupIds: details.groupIds,
+    friends: details.friends
+  });
   this.updatedAt = new Date();
 };
 
@@ -157,7 +238,7 @@ UserSchema.methods.toJSON = function() {
   const details = this.getDetails();
   return {
     mailId: this._id,
-    name: details.name,
+    name: this.name,
     phone: details.phone,
     groupIds: details.groupIds,
     friends: details.friends,

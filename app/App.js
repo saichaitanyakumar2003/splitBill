@@ -529,8 +529,8 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
   );
 }
 
-// Side Panel Component (Friends & Groups)
-function SidePanel({ visible, onClose, onFriends, onGroups }) {
+// Side Panel Component
+function SidePanel({ visible, onClose, onFriends }) {
   if (!visible) return null;
 
   return (
@@ -558,18 +558,8 @@ function SidePanel({ visible, onClose, onFriends, onGroups }) {
             onPress={onFriends}
             activeOpacity={0.7}
           >
-            <Text style={styles.sidePanelMenuIcon}>👥</Text>
-            <Text style={styles.sidePanelMenuText}>Friends</Text>
-            <Text style={styles.sidePanelMenuArrow}>›</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.sidePanelMenuItem}
-            onPress={onGroups}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.sidePanelMenuIcon}>👨‍👩‍👧‍👦</Text>
-            <Text style={styles.sidePanelMenuText}>Groups</Text>
+            <Text style={styles.sidePanelMenuIcon}>🫂</Text>
+            <Text style={styles.sidePanelMenuText}>Favorites</Text>
             <Text style={styles.sidePanelMenuArrow}>›</Text>
           </TouchableOpacity>
         </View>
@@ -673,17 +663,13 @@ function HomeScreen({ navigation }) {
           onLogout={handleLogout}
         />
 
-        {/* Side Panel (Friends & Groups) */}
+        {/* Side Panel */}
         <SidePanel
           visible={showSidePanel}
           onClose={() => setShowSidePanel(false)}
           onFriends={() => {
             setShowSidePanel(false);
             navigation.navigate('Friends');
-          }}
-          onGroups={() => {
-            setShowSidePanel(false);
-            navigation.navigate('Groups');
           }}
         />
         
@@ -1085,8 +1071,8 @@ const styles = StyleSheet.create({
   },
   sidePanelMenuArrow: {
     fontSize: 24,
-    color: '#999',
-    fontWeight: '300',
+    color: '#FF6B35',
+    fontWeight: '600',
   },
   profileIconButton: {
     position: 'relative',

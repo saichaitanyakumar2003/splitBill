@@ -8,110 +8,264 @@ import {
   TextInput,
   ScrollView,
   Platform,
-  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Max friends limit
-const MAX_FRIENDS = 20;
+// API Base URL
+const API_BASE_URL = __DEV__ 
+  ? 'http://localhost:3001/api' 
+  : 'https://your-backend-url.onrender.com/api';
 
-// Mock data for friends (will be replaced with API data)
-const mockFriends = [];
-
-// Mock search results (will be replaced with API data)
-const mockSearchResults = [];
+// Max favorites limit
+const MAX_FAVORITES = 20;
 
 export default function FriendsScreen() {
   const navigation = useNavigation();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [friends, setFriends] = useState(mockFriends);
-  const [originalFriends, setOriginalFriends] = useState(mockFriends);
-  const [searchResults, setSearchResults] = useState([]);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [pendingAdditions, setPendingAdditions] = useState([]);
-  const [pendingDeletions, setPendingDeletions] = useState([]);
-  const [showMaxLimitWarning, setShowMaxLimitWarning] = useState(false);
+  const { user, token, initializeAuth } = useAuth();
   
-  // Check if max limit reached
-  const isMaxLimitReached = friends.length >= MAX_FRIENDS;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [favorites, setFavorites] = useState([]);
+  const [originalFavorites, setOriginalFavorites] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
+  
+  // Track pending additions only (removals are immediate)
+  const [pendingAdditions, setPendingAdditions] = useState([]);
+  
+  // Check if there are unsaved changes
+  const hasChanges = pendingAdditions.length > 0;
+  
+  // Load favorites from user data and fetch actual names
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (user?.friends && user.friends.length > 0) {
+        // Fetch actual names for all friends
+        try {
+          const response = await fetch(`${API_BASE_URL}/auth/friends/details`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ emails: user.friends }),
+          });
+          
+          const data = await response.json();
+          
+          if (data.success && data.data) {
+            setFavorites(data.data);
+            setOriginalFavorites(data.data);
+          } else {
+            // Fallback to email prefix
+            const favList = user.friends.map(mailId => ({
+              mailId,
+              name: mailId.split('@')[0]
+            }));
+            setFavorites(favList);
+            setOriginalFavorites(favList);
+          }
+        } catch (e) {
+          // Fallback to email prefix
+          const favList = user.friends.map(mailId => ({
+            mailId,
+            name: mailId.split('@')[0]
+          }));
+          setFavorites(favList);
+          setOriginalFavorites(favList);
+        }
+      } else {
+        setFavorites([]);
+        setOriginalFavorites([]);
+      }
+    };
+    
+    loadFavorites();
+  }, [user, token]);
 
   const handleBack = () => {
+    if (hasChanges) {
+      // Could show confirmation dialog here
+    }
     navigation.reset({
       index: 0,
       routes: [{ name: 'Home' }],
     });
   };
 
-  // Handle search
+  // Search users from API
   useEffect(() => {
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      // Filter mock search results based on query
-      const results = mockSearchResults.filter(
-        user => 
-          (user.name.toLowerCase().includes(query) || 
-           user.email.toLowerCase().includes(query)) &&
-          !friends.find(f => f.id === user.id) &&
-          !pendingAdditions.find(p => p.id === user.id)
-      );
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchQuery, friends, pendingAdditions]);
+    const searchUsers = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        return;
+      }
 
-  // Check for changes
-  useEffect(() => {
-    setHasChanges(pendingAdditions.length > 0 || pendingDeletions.length > 0);
-  }, [pendingAdditions, pendingDeletions]);
+      setIsSearching(true);
+      setError(null);
+      
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/auth/search?q=${encodeURIComponent(searchQuery.trim())}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          setSearchResults(data.data);
+        } else {
+          setError(data.message);
+        }
+      } catch (e) {
+        setError('Search failed');
+      } finally {
+        setIsSearching(false);
+      }
+    };
 
-  const handleAddFriend = (user) => {
-    if (friends.length >= MAX_FRIENDS) {
-      setShowMaxLimitWarning(true);
-      setTimeout(() => setShowMaxLimitWarning(false), 3000);
+    const debounce = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery, token]);
+
+  // Check if user is already in favorites (including pending additions)
+  const isInFavorites = (mailId) => {
+    return favorites.some(f => f.mailId === mailId);
+  };
+
+  // Check if user is pending removal
+  const isPendingRemoval = (mailId) => {
+    return pendingRemovals.includes(mailId);
+  };
+
+  const handleAddFavorite = (userToAdd) => {
+    if (favorites.length >= MAX_FAVORITES) {
+      setError(`Maximum ${MAX_FAVORITES} favorites allowed`);
+      setTimeout(() => setError(null), 3000);
       return;
     }
-    setPendingAdditions([...pendingAdditions, user]);
-    setFriends([...friends, user]);
-    setSearchQuery('');
-  };
-  
-  const handleDisabledAddPress = () => {
-    setShowMaxLimitWarning(true);
-    setTimeout(() => setShowMaxLimitWarning(false), 3000);
+
+    // Add to local state
+    setFavorites([...favorites, userToAdd]);
+    setPendingAdditions([...pendingAdditions, userToAdd.mailId]);
+    
+    // Remove from search results
+    setSearchResults(searchResults.filter(u => u.mailId !== userToAdd.mailId));
   };
 
-  const handleDeleteFriend = (userId) => {
-    const friendToDelete = friends.find(f => f.id === userId);
-    if (friendToDelete) {
-      // Check if it's a pending addition
-      if (pendingAdditions.find(p => p.id === userId)) {
-        setPendingAdditions(pendingAdditions.filter(p => p.id !== userId));
+  const handleRemoveFavorite = async (mailId) => {
+    // If it was a pending addition, just remove from local state (not saved yet)
+    if (pendingAdditions.includes(mailId)) {
+      setFavorites(favorites.filter(f => f.mailId !== mailId));
+      setPendingAdditions(pendingAdditions.filter(m => m !== mailId));
+      return;
+    }
+    
+    // Otherwise delete immediately from DB
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/friends/remove`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ friendEmail: mailId }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setFavorites(favorites.filter(f => f.mailId !== mailId));
+        setOriginalFavorites(originalFavorites.filter(f => f.mailId !== mailId));
+        
+        // Update local storage and refresh context
+        const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const meData = await meResponse.json();
+        if (meData.success) {
+          await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));
+          await initializeAuth();
+        }
       } else {
-        setPendingDeletions([...pendingDeletions, friendToDelete]);
+        setError(data.message || 'Failed to remove');
       }
-      setFriends(friends.filter(f => f.id !== userId));
+    } catch (e) {
+      setError('Failed to remove');
     }
   };
 
   const handleCancel = () => {
-    // Revert all changes
-    setFriends(originalFriends);
+    // Reset to original state (only pending additions)
+    setFavorites(originalFavorites);
     setPendingAdditions([]);
-    setPendingDeletions([]);
     setSearchQuery('');
+    setError(null);
+    setSuccessMsg(null);
   };
 
-  const handleSave = () => {
-    // TODO: Call API to save changes
-    // For now, just update the original state
-    setOriginalFriends(friends);
-    setPendingAdditions([]);
-    setPendingDeletions([]);
-    alert('Changes saved successfully!');
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      // Process all additions
+      for (const mailId of pendingAdditions) {
+        await fetch(`${API_BASE_URL}/auth/friends/add`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ friendEmail: mailId }),
+        });
+      }
+
+      // Fetch updated user data from backend and refresh context
+      const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const meData = await meResponse.json();
+      if (meData.success) {
+        await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));
+        // Refresh auth context to update user state
+        await initializeAuth();
+      }
+
+      // Update original state and reset search
+      setOriginalFavorites(favorites);
+      setPendingAdditions([]);
+      setSearchQuery('');
+      setSearchResults([]);
+      setSuccessMsg('Saved!');
+      setTimeout(() => setSuccessMsg(null), 2000);
+      
+    } catch (e) {
+      setError('Failed to save changes');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const isMaxLimitReached = favorites.length >= MAX_FAVORITES;
 
   return (
     <View style={styles.container}>
@@ -127,7 +281,7 @@ export default function FriendsScreen() {
           <Pressable onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Friends</Text>
+          <Text style={styles.headerTitle}>Favorites</Text>
           <View style={styles.headerRight} />
         </View>
 
@@ -147,7 +301,8 @@ export default function FriendsScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {searchQuery.length > 0 && (
+                {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
+                {searchQuery.length > 0 && !isSearching && (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
                     <Text style={styles.clearIcon}>✕</Text>
                   </TouchableOpacity>
@@ -155,12 +310,17 @@ export default function FriendsScreen() {
               </View>
             </View>
 
-            {/* Max Limit Warning */}
-            {showMaxLimitWarning && (
-              <View style={styles.warningContainer}>
-                <Text style={styles.warningText}>
-                  ⚠️ You have reached the maximum limit of {MAX_FRIENDS} friends
-                </Text>
+            {/* Error Message */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>⚠️ {error}</Text>
+              </View>
+            )}
+
+            {/* Success Message */}
+            {successMsg && (
+              <View style={styles.successContainer}>
+                <Text style={styles.successText}>✓ {successMsg}</Text>
               </View>
             )}
 
@@ -173,92 +333,118 @@ export default function FriendsScreen() {
                   showsVerticalScrollIndicator={true}
                   nestedScrollEnabled={true}
                 >
-                  {searchResults.map(user => (
-                    <View key={user.id} style={styles.friendRow}>
-                      <View style={styles.friendInfo}>
-                        <Text style={styles.friendName}>{user.name}</Text>
-                        <Text style={styles.friendEmail}>{user.email}</Text>
+                  {searchResults.map(searchUser => {
+                    const alreadyAdded = isInFavorites(searchUser.mailId);
+                    return (
+                      <View key={searchUser.mailId} style={styles.userRow}>
+                        <View style={styles.userInfo}>
+                          <Text style={styles.userName}>{searchUser.name}</Text>
+                          <Text style={styles.userEmail}>{searchUser.mailId}</Text>
+                        </View>
+                        {alreadyAdded ? (
+                          <TouchableOpacity 
+                            style={styles.removeButton}
+                            onPress={() => handleRemoveFavorite(searchUser.mailId)}
+                          >
+                            <Text style={styles.removeIcon}>🗑️</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity 
+                            style={[
+                              styles.addButton,
+                              isMaxLimitReached && styles.addButtonDisabled
+                            ]}
+                            onPress={() => handleAddFavorite(searchUser)}
+                            disabled={isMaxLimitReached}
+                          >
+                            <Text style={[
+                              styles.addButtonText,
+                              isMaxLimitReached && styles.addButtonTextDisabled
+                            ]}>Add</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
-                      <TouchableOpacity 
-                        style={[
-                          styles.addButton,
-                          isMaxLimitReached && styles.addButtonDisabled
-                        ]}
-                        onPress={isMaxLimitReached ? handleDisabledAddPress : () => handleAddFriend(user)}
-                        activeOpacity={isMaxLimitReached ? 1 : 0.7}
-                      >
-                        <Text style={[
-                          styles.addIcon,
-                          isMaxLimitReached && styles.addIconDisabled
-                        ]}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </ScrollView>
               </View>
             )}
 
             {/* No Search Results */}
-            {searchQuery.trim() !== '' && searchResults.length === 0 && (
+            {searchQuery.trim().length >= 2 && !isSearching && searchResults.length === 0 && (
               <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>No results found</Text>
+                <Text style={styles.noResultsText}>No users found</Text>
               </View>
             )}
 
-            {/* Friends List */}
-            <View style={styles.friendsSection}>
-              {friends.length > 0 && (
+            {/* Favorites List */}
+            <View style={styles.favoritesSection}>
+              {favorites.length > 0 && (
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitleNoMargin}>All Friends</Text>
-                  <Text style={styles.countText}>{friends.length}/{MAX_FRIENDS}</Text>
+                  <Text style={styles.sectionTitleNoMargin}>Following</Text>
+                  <Text style={styles.countText}>{favorites.length}/{MAX_FAVORITES}</Text>
                 </View>
               )}
-              {friends.length > 0 ? (
-                <ScrollView 
-                  style={styles.friendsList} 
-                  showsVerticalScrollIndicator={true}
-                  nestedScrollEnabled={true}
-                >
-                  {friends.map(friend => (
-                    <View key={friend.id} style={[
-                      styles.friendRow,
-                      pendingAdditions.find(p => p.id === friend.id) && styles.pendingRow
-                    ]}>
-                      <View style={styles.friendInfo}>
-                        <Text style={styles.friendName}>{friend.name}</Text>
-                        <Text style={styles.friendEmail}>{friend.email}</Text>
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteFriend(friend.id)}
+              {favorites.length > 0 ? (
+                <View style={[
+                  styles.favoritesList,
+                  favorites.length > 5 && styles.favoritesListScrollable
+                ]}>
+                  <ScrollView 
+                    showsVerticalScrollIndicator={favorites.length > 5}
+                    nestedScrollEnabled={true}
+                    scrollEnabled={favorites.length > 5}
+                  >
+                    {favorites.map(fav => (
+                      <View 
+                        key={fav.mailId} 
+                        style={[
+                          styles.userRow,
+                          pendingAdditions.includes(fav.mailId) && styles.pendingAddRow
+                        ]}
                       >
-                        <Text style={styles.deleteIcon}>🗑️</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </ScrollView>
+                        <View style={styles.userInfo}>
+                          <Text style={styles.userName}>{fav.name}</Text>
+                          <Text style={styles.userEmail}>{fav.mailId}</Text>
+                        </View>
+                        <TouchableOpacity 
+                          style={styles.removeButton}
+                          onPress={() => handleRemoveFavorite(fav.mailId)}
+                        >
+                          <Text style={styles.removeIcon}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
               ) : (
                 <View style={styles.emptyStateCard}>
-                  <Text style={styles.emptyTextBold}>You have no friends added</Text>
-                  <Text style={styles.emptySubtextBold}>Search to add friends</Text>
+                  <Text style={styles.emptyTextBold}>No favorites yet</Text>
+                  <Text style={styles.emptySubtextBold}>Search to add people you split bills with often</Text>
                 </View>
               )}
             </View>
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Only show when there are changes */}
             {hasChanges && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity 
                   style={styles.cancelButton}
                   onPress={handleCancel}
+                  disabled={isSaving}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={styles.saveButton}
+                  style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
                   onPress={handleSave}
+                  disabled={isSaving}
                 >
-                  <Text style={styles.saveButtonText}>Save</Text>
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
@@ -291,9 +477,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-    }),
   },
   backText: {
     fontSize: 28,
@@ -353,7 +536,7 @@ const styles = StyleSheet.create({
     color: '#999',
     padding: 5,
   },
-  warningContainer: {
+  errorContainer: {
     backgroundColor: '#FFF3CD',
     borderRadius: 12,
     padding: 12,
@@ -361,11 +544,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFE69C',
   },
-  warningText: {
+  errorText: {
     fontSize: 14,
     color: '#856404',
     textAlign: 'center',
     fontWeight: '500',
+  },
+  successContainer: {
+    backgroundColor: '#D4EDDA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#C3E6CB',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#155724',
+    textAlign: 'center',
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -385,7 +582,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
   },
   searchResultsList: {
-    maxHeight: 300, // ~5 items (60px each)
+    maxHeight: 200,
   },
   noResultsContainer: {
     paddingVertical: 20,
@@ -414,89 +611,74 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  friendsSection: {
+  favoritesSection: {
     flex: 1,
   },
-  friendsList: {
-    maxHeight: 300, // ~5 items (60px each)
+  favoritesList: {
     backgroundColor: '#F8F8F8',
     borderRadius: 12,
     paddingHorizontal: 12,
   },
-  friendRow: {
+  favoritesListScrollable: {
+    maxHeight: 300, // ~5 rows
+  },
+  userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: '#EFEFEF',
   },
-  pendingRow: {
+  pendingAddRow: {
     backgroundColor: '#FFF5F0',
-    marginHorizontal: -10,
-    paddingHorizontal: 10,
+    marginHorizontal: -12,
+    paddingHorizontal: 12,
     borderRadius: 8,
   },
-  friendInfo: {
+  userInfo: {
     flex: 1,
   },
-  friendName: {
+  userName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1A1A1A',
     marginBottom: 2,
   },
-  friendEmail: {
-    fontSize: 14,
-    color: '#666',
+  userEmail: {
+    fontSize: 13,
+    color: '#888',
   },
   addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: '#FF6B35',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addIcon: {
-    fontSize: 22,
-    color: '#FFF',
-    fontWeight: '600',
-    marginTop: -2,
   },
   addButtonDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: '#CCC',
   },
-  addIconDisabled: {
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  addButtonTextDisabled: {
     color: '#999',
   },
-  deleteButton: {
+  removeButton: {
     width: 36,
     height: 36,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteIcon: {
-    fontSize: 20,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
+  removeIcon: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#999',
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#BBB',
   },
   emptyStateCard: {
     alignItems: 'center',
     paddingVertical: 50,
     paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8F8F8',
     borderRadius: 16,
     marginTop: 10,
   },
@@ -508,9 +690,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptySubtextBold: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#888',
     textAlign: 'center',
   },
   actionButtons: {
@@ -519,6 +701,7 @@ const styles = StyleSheet.create({
     paddingTop: 15,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
+    marginTop: 15,
   },
   cancelButton: {
     flex: 1,
@@ -540,6 +723,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#FF6B35',
     alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
   },
   saveButtonText: {
     fontSize: 16,

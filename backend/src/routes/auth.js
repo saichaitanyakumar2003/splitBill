@@ -121,6 +121,66 @@ router.post('/friends/add', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Remove friend
+router.post('/friends/remove', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const { mailId } = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(mailId);
+    if (!user) return res.status(404).json({ success: false, message: 'Not found' });
+
+    user.removeFriend(req.body.friendEmail);
+    await user.save();
+    res.json({ success: true, data: user.toJSON() });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Get friend details by emails
+router.post('/friends/details', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    jwt.verify(token, JWT_SECRET);
+    
+    const { emails } = req.body;
+    if (!emails || !Array.isArray(emails)) {
+      return res.status(400).json({ success: false, message: 'Emails array required' });
+    }
+
+    const users = await User.find({ _id: { $in: emails.map(e => e.toLowerCase()) } });
+    
+    const result = users.map(u => ({
+      mailId: u._id,
+      name: u.name || u._id.split('@')[0]
+    }));
+
+    // Include emails not found with fallback name
+    const foundEmails = result.map(r => r.mailId);
+    emails.forEach(email => {
+      if (!foundEmails.includes(email.toLowerCase())) {
+        result.push({ mailId: email.toLowerCase(), name: email.split('@')[0] });
+      }
+    });
+
+    res.json({ success: true, data: result });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Search users by name or email
+router.get('/search', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const { mailId } = jwt.verify(token, JWT_SECRET);
+    const { q } = req.query;
+    
+    if (!q || q.trim().length < 2) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    const results = await User.searchUsers(q.trim(), mailId, 20);
+    res.json({ success: true, data: results });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // Logout
 router.post('/logout', (req, res) => res.json({ success: true }));
 
