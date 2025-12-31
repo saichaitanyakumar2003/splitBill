@@ -79,7 +79,9 @@ export default function ProfileScreen() {
     if (user) {
       setUserName(user.name || 'User');
       setEmail(user.mailId || '');
-      setMobile(user.phone_number || '');
+      // Clean phone number - only digits
+      const cleanPhone = (user.phone_number || '').replace(/[^0-9]/g, '');
+      setMobile(cleanPhone);
     }
   }, [user]);
 
@@ -109,7 +111,18 @@ export default function ProfileScreen() {
     ]).start();
   }, []);
 
+  const [profileError, setProfileError] = useState(null);
+  const [profileSuccess, setProfileSuccess] = useState(null);
+
   const handleSave = async () => {
+    setProfileError(null);
+    setProfileSuccess(null);
+    
+    // Validate phone number
+    if (mobile && mobile.length !== 10) {
+      return; // Error already shown inline
+    }
+    
     setIsSaving(true);
     try {
       const result = await updateProfile({
@@ -119,12 +132,13 @@ export default function ProfileScreen() {
       
       if (result.success) {
         setIsEditing(false);
-        Alert.alert('Success', 'Profile updated successfully!');
+        setProfileSuccess('Profile updated!');
+        setTimeout(() => setProfileSuccess(null), 2000);
       } else {
-        Alert.alert('Error', result.message || 'Failed to update profile');
+        setProfileError(result.message || 'Failed to update profile');
       }
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong');
+      setProfileError('Something went wrong');
     } finally {
       setIsSaving(false);
     }
@@ -281,6 +295,20 @@ export default function ProfileScreen() {
               },
             ]}
           >
+            {/* Profile Error/Success Messages */}
+            {profileError && (
+              <View style={styles.apiErrorContainer}>
+                <Text style={styles.apiErrorEmoji}>😅</Text>
+                <Text style={styles.apiErrorMessage}>{profileError}</Text>
+              </View>
+            )}
+            {profileSuccess && (
+              <View style={styles.successContainer}>
+                <Text style={styles.successEmoji}>✓</Text>
+                <Text style={styles.successMessageText}>{profileSuccess}</Text>
+              </View>
+            )}
+
             {/* Username Field with Edit Button */}
             <View style={styles.fieldContainer}>
               <View style={styles.fieldHeaderWithEdit}>
@@ -291,7 +319,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   style={[styles.editButtonInline, isEditing && styles.editButtonActive]}
                   onPress={() => (isEditing ? handleSave() : setIsEditing(true))}
-                  disabled={isSaving}
+                  disabled={isSaving || (isEditing && mobile.length > 0 && mobile.length !== 10)}
                 >
                   {isSaving ? (
                     <ActivityIndicator size="small" color="#FF6B35" />
@@ -336,14 +364,23 @@ export default function ProfileScreen() {
                 <Text style={styles.fieldLabel}>Phone Number</Text>
               </View>
               {isEditing ? (
-                <TextInput
-                  style={styles.fieldInput}
-                  value={mobile}
-                  onChangeText={setMobile}
-                  placeholder="Enter phone number"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                />
+                <View>
+                  <TextInput
+                    style={[styles.fieldInput, mobile.length > 0 && mobile.length !== 10 && styles.fieldInputError]}
+                    value={mobile}
+                    onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, '').slice(0, 10))}
+                    placeholder="Enter 10 digit phone number"
+                    placeholderTextColor="#999"
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                  {mobile.length > 0 && mobile.length !== 10 && (
+                    <Text style={styles.errorText}>Phone number must be exactly 10 digits ({mobile.length}/10)</Text>
+                  )}
+                  {mobile.length === 10 && (
+                    <Text style={styles.successText}>✓ Valid phone number</Text>
+                  )}
+                </View>
               ) : (
                 <Text style={styles.fieldValue}>{mobile || 'Not set'}</Text>
               )}

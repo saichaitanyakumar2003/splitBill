@@ -10,7 +10,9 @@ import HelpCenterScreen from './src/screens/HelpCenterScreen';
 import FriendsScreen from './src/screens/FriendsScreen';
 import GroupsScreen from './src/screens/GroupsScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -913,12 +915,26 @@ function AppNavigator() {
   );
 }
 
-// Main App with Auth Provider
+// Network-aware App Content
+function AppContent() {
+  const { isConnected, isChecking } = useNetwork();
+  
+  // Show error screen only after initial check and if disconnected
+  if (!isChecking && !isConnected) {
+    return <NetworkErrorScreen />;
+  }
+  
+  return <AppNavigator />;
+}
+
+// Main App with Network and Auth Providers
 export default function App() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <NetworkProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </NetworkProvider>
   );
 }
 

@@ -40,12 +40,6 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Refs for input fields to enable Enter key navigation
-  const nameInputRef = useRef(null);
-  const emailInputRef = useRef(null);
-  const passwordInputRef = useRef(null);
-  const confirmPasswordInputRef = useRef(null);
-
   // Google OAuth Setup
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_CLIENT_ID,
@@ -117,6 +111,12 @@ export default function LoginScreen() {
     }
   };
   const [showSplash, setShowSplash] = useState(true);
+
+  // Input refs for Enter key navigation
+  const nameInputRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
 
   // Splash Animation Values
   const splashLogoScale = useRef(new Animated.Value(1.5)).current; // Start bigger
@@ -426,7 +426,6 @@ export default function LoginScreen() {
                     autoCorrect={false}
                     returnKeyType="next"
                     onSubmitEditing={() => emailInputRef.current?.focus()}
-                    blurOnSubmit={false}
                   />
                 </View>
               )}
@@ -446,7 +445,6 @@ export default function LoginScreen() {
                   autoCorrect={false}
                   returnKeyType="next"
                   onSubmitEditing={() => passwordInputRef.current?.focus()}
-                  blurOnSubmit={false}
                 />
               </View>
 
@@ -467,14 +465,7 @@ export default function LoginScreen() {
                     onChangeText={handlePasswordChange}
                     secureTextEntry={!showPassword}
                     returnKeyType={isLogin ? "done" : "next"}
-                    onSubmitEditing={() => {
-                      if (isLogin) {
-                        handleEmailLogin();
-                      } else {
-                        confirmPasswordInputRef.current?.focus();
-                      }
-                    }}
-                    blurOnSubmit={isLogin}
+                    onSubmitEditing={isLogin ? handleEmailLogin : () => confirmPasswordInputRef.current?.focus()}
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                     <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
