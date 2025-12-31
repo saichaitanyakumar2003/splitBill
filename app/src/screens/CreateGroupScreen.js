@@ -42,7 +42,6 @@ export default function CreateGroupScreen() {
   const [isSearching, setIsSearching] = useState(false);
   
   // UI state
-  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
   // Load favorites on mount
@@ -122,51 +121,20 @@ export default function CreateGroupScreen() {
     return groupName.trim() && expenseTitle.trim() && amount && parseFloat(amount) > 0 && selectedMembers.length > 0;
   };
 
-  const handleCreateGroup = async () => {
+  const handleContinue = () => {
     if (!isFormValid()) {
       setError('Please fill all fields and select at least one member');
       return;
     }
 
-    setIsCreating(true);
-    setError(null);
-
-    try {
-      // Create group with initial expense
-      const response = await fetch(`${API_BASE_URL}/groups`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: groupName.trim(),
-          members: [user.mailId, ...selectedMembers.map(m => m.mailId)],
-          expense: {
-            name: expenseTitle.trim(),
-            amount: parseFloat(amount),
-            paidBy: user.mailId,
-            splitWith: selectedMembers.map(m => m.mailId),
-          },
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Navigate to group details or home
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
-      } else {
-        setError(data.message || 'Failed to create group');
-      }
-    } catch (e) {
-      setError('Network error. Please try again.');
-    } finally {
-      setIsCreating(false);
-    }
+    // Navigate to preview screen with data
+    navigation.navigate('GroupPreview', {
+      groupName: groupName.trim(),
+      expenseTitle: expenseTitle.trim(),
+      amount: parseFloat(amount),
+      selectedMembers: selectedMembers,
+      sourceScreen: 'CreateGroup',
+    });
   };
 
   // Filter favorites to exclude already selected members
@@ -358,14 +326,10 @@ export default function CreateGroupScreen() {
               {/* Create Button */}
               <TouchableOpacity
                 style={[styles.createButton, !isFormValid() && styles.createButtonDisabled]}
-                onPress={handleCreateGroup}
-                disabled={!isFormValid() || isCreating}
+                onPress={handleContinue}
+                disabled={!isFormValid()}
               >
-                {isCreating ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.createButtonText}>Continue</Text>
-                )}
+                <Text style={styles.createButtonText}>Continue</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -417,13 +381,14 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    padding: 20,
+    padding: 16,
     paddingTop: 0,
   },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 28,
+    minHeight: 500,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,

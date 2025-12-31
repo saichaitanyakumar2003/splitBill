@@ -171,30 +171,45 @@ UserSchema.methods.setDetails = function(details) {
   this.updatedAt = new Date();
 };
 
-// Add group ID to user's list
+// Add group ID to user's list (ensures uniqueness)
 UserSchema.methods.addGroupId = function(groupId) {
   const details = this.getDetails();
-  if (!details.groupIds.includes(groupId)) {
-    details.groupIds.push(groupId);
+  const groupIdStr = String(groupId); // Normalize to string
+  
+  // Ensure no duplicates - check both as-is and as string
+  const isDuplicate = details.groupIds.some(id => String(id) === groupIdStr);
+  
+  if (!isDuplicate) {
+    details.groupIds.push(groupIdStr);
     this.compressedDetails = compressData({
       phone: details.phone,
       groupIds: details.groupIds,
       friends: details.friends
     });
     this.updatedAt = new Date();
+    return true; // Added successfully
   }
+  return false; // Already exists
 };
 
 // Remove group ID from user's list
 UserSchema.methods.removeGroupId = function(groupId) {
   const details = this.getDetails();
-  details.groupIds = details.groupIds.filter(id => id !== groupId);
-  this.compressedDetails = compressData({
-    phone: details.phone,
-    groupIds: details.groupIds,
-    friends: details.friends
-  });
-  this.updatedAt = new Date();
+  const groupIdStr = String(groupId); // Normalize to string
+  const originalLength = details.groupIds.length;
+  
+  details.groupIds = details.groupIds.filter(id => String(id) !== groupIdStr);
+  
+  if (details.groupIds.length !== originalLength) {
+    this.compressedDetails = compressData({
+      phone: details.phone,
+      groupIds: details.groupIds,
+      friends: details.friends
+    });
+    this.updatedAt = new Date();
+    return true; // Removed successfully
+  }
+  return false; // Was not in list
 };
 
 // Max favorites limit

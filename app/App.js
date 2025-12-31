@@ -13,6 +13,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
 import SplitOptionsScreen from './src/screens/SplitOptionsScreen';
 import CreateGroupScreen from './src/screens/CreateGroupScreen';
+import GroupPreviewScreen from './src/screens/GroupPreviewScreen';
+import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -34,6 +36,7 @@ const getLinkedScreens = (isAuthenticated) => ({
       SplitOptions: 'split-options',
       SelectGroup: 'select-group',
       CreateGroup: 'create-group',
+      // GroupPreview not linked - refreshing redirects to Home
     },
   },
 });
@@ -904,6 +907,8 @@ function AppNavigator() {
         <Stack.Screen name="Groups" component={GroupsScreen} />
         <Stack.Screen name="SplitOptions" component={SplitOptionsScreen} />
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
+        <Stack.Screen name="GroupPreview" component={GroupPreviewScreen} />
+        <Stack.Screen name="SplitSummary" component={SplitSummaryScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

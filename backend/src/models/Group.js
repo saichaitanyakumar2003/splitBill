@@ -5,20 +5,19 @@ const { compressData, decompressData } = require('../utils/compression');
  * Group Model
  * 
  * Schema:
- * - _id (PK): unique id
+ * - _id (PK): UUID string
  * - name: group name
  * - status: enum('active', 'completed')
  * - compressedDetails: brotli compressed buffer containing:
- *   - expenses: array of { name, payer (mail id), payees (list of mail ids), amount }
+ *   - expenses: array of { name, payer (mail id), totalAmount, payees: [{ mailId, amount }] }
  *   - consolidatedExpenses: array of edges { from, to, amount } where 'from' pays 'to' amount
- * - createdBy: mail id of creator
  */
 
 const GroupSchema = new mongoose.Schema({
-  // Primary Key - Unique ID
+  // Primary Key - UUID string
   _id: {
     type: String,
-    default: () => new mongoose.Types.ObjectId().toString()
+    required: true
   },
 
   // Group name
@@ -40,14 +39,6 @@ const GroupSchema = new mongoose.Schema({
     type: Buffer,
     required: true,
     default: () => compressData({ expenses: [], consolidatedExpenses: [] })
-  },
-
-  // Creator mail ID
-  createdBy: {
-    type: String,
-    required: true,
-    lowercase: true,
-    trim: true
   },
 
   createdAt: { type: Date, default: Date.now },
@@ -103,7 +94,7 @@ GroupSchema.methods.removeExpense = function(expenseId) {
 };
 
 /**
- * Recalculate consolidated expenses
+ * Recalculate consolidated expenses using Splitwise algorithm
  * Creates minimal edges: { from, to, amount } where 'from' pays 'to' amount
  */
 GroupSchema.methods.recalculateConsolidated = function() {
@@ -112,15 +103,22 @@ GroupSchema.methods.recalculateConsolidated = function() {
 
   // Calculate net balance for each person
   for (const expense of details.expenses) {
-    const numPayees = expense.payees.length || 1;
-    const splitAmount = expense.amount / numPayees;
+    const payer = expense.payer;
+    const totalAmount = expense.totalAmount || expense.amount;
     
-    // Payer is owed money (positive balance)
-    balances[expense.payer] = (balances[expense.payer] || 0) + expense.amount;
+    // Payer gets credited for total amount paid
+    balances[payer] = (balances[payer] || 0) + totalAmount;
     
-    // Each payee owes money (negative balance)
-    for (const payee of expense.payees) {
-      balances[payee] = (balances[payee] || 0) - splitAmount;
+    // Each payee gets debited for their share
+    for (const payee of (expense.payees || [])) {
+      // Support both formats: { mailId, amount } or just string mailId
+      if (typeof payee === 'object') {
+        balances[payee.mailId] = (balances[payee.mailId] || 0) - payee.amount;
+      } else {
+        // Old format - equal split
+        const splitAmount = totalAmount / (expense.payees.length || 1);
+        balances[payee] = (balances[payee] || 0) - splitAmount;
+      }
     }
   }
 
@@ -129,10 +127,11 @@ GroupSchema.methods.recalculateConsolidated = function() {
   const debtors = [];   // people who owe money
 
   for (const [mailId, balance] of Object.entries(balances)) {
-    if (balance > 0.01) {
-      creditors.push({ mailId, amount: balance });
-    } else if (balance < -0.01) {
-      debtors.push({ mailId, amount: -balance }); // convert to positive
+    const roundedBalance = Math.round(balance * 100) / 100;
+    if (roundedBalance > 0.01) {
+      creditors.push({ mailId, amount: roundedBalance });
+    } else if (roundedBalance < -0.01) {
+      debtors.push({ mailId, amount: Math.abs(roundedBalance) }); // convert to positive
     }
   }
 
@@ -187,7 +186,6 @@ GroupSchema.methods.toJSON = function() {
     status: this.status,
     expenses: details.expenses,
     consolidatedExpenses: details.consolidatedExpenses,
-    createdBy: this.createdBy,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
   };
