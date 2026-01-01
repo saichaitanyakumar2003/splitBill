@@ -887,14 +887,6 @@ function HomeScreen({ navigation, route }) {
           />
         )}
 
-        {/* Mobile: Bottom Tab Bar */}
-        {isMobile && (
-          <MobileBottomTabBar 
-            navigation={navigation}
-            onScanImage={handleUploadImage}
-          />
-        )}
-
         {/* Web: Side Panel with all tabs */}
         {!isMobile && (
           <WebSidePanel
@@ -981,6 +973,14 @@ function HomeScreen({ navigation, route }) {
             <Text style={[styles.bottomText, isMobile && styles.bottomTextMobile]}>No more awkward calculations 🎉</Text>
           </View>
         </View>
+
+        {/* Mobile: Bottom Tab Bar - rendered last to be on top */}
+        {isMobile && (
+          <MobileBottomTabBar 
+            navigation={navigation}
+            onScanImage={handleUploadImage}
+          />
+        )}
       </LinearGradient>
     </View>
   );
@@ -1249,7 +1249,7 @@ const styles = StyleSheet.create({
   // Header Bar with Profile Icon
   headerBar: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 55 : 40,
+    top: Platform.OS === 'ios' ? 60 : 50,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -1299,7 +1299,7 @@ const styles = StyleSheet.create({
   },
   sidePanel: {
     position: 'absolute',
-    top: Platform.OS === 'web' ? 0 : (Platform.OS === 'ios' ? 55 : 40),
+    top: Platform.OS === 'web' ? 0 : (Platform.OS === 'ios' ? 60 : 50),
     left: 0,
     bottom: 0,
     width: Platform.OS === 'web' ? 300 : SCREEN_WIDTH * 0.65,
