@@ -395,10 +395,42 @@ export default function SplitSummaryScreen() {
 
           {/* Summary Card */}
           <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
+            {/* Action Icons - Top Right */}
+            <View style={styles.cardActions}>
+              <TouchableOpacity 
+                style={[styles.cardActionIcon, copied && styles.cardActionIconCopied]} 
+                onPress={handleCopy}
+              >
+                {copied ? (
+                  <Text style={styles.copiedText}>Copied!</Text>
+                ) : (
+                  <View style={styles.copyIcon}>
+                    <View style={styles.copyRect} />
+                    <View style={styles.copyRectBack} />
+                  </View>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.cardActionIcon} onPress={handleShare}>
+                <View style={styles.shareIconContainer}>
+                  {/* Arrow pointing up */}
+                  <View style={styles.shareArrow} />
+                  <View style={styles.shareArrowHead} />
+                  {/* Box base */}
+                  <View style={styles.shareBox} />
+                </View>
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.cardTitle}>Who Owes Whom</Text>
             
             {consolidatedExpenses.length > 0 ? (
-              <View style={styles.expensesList}>
+              <ScrollView 
+                style={styles.expensesScrollView}
+                contentContainerStyle={styles.expensesScrollContent}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
                 {consolidatedExpenses.map((exp, index) => (
                   <View key={index} style={styles.expenseRow}>
                     <View style={styles.expenseNames}>
@@ -409,26 +441,13 @@ export default function SplitSummaryScreen() {
                     <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
                   </View>
                 ))}
-              </View>
+              </ScrollView>
             ) : (
               <View style={styles.settledContainer}>
                 <Text style={styles.settledEmoji}>✅</Text>
                 <Text style={styles.settledText}>Everyone is settled up!</Text>
               </View>
             )}
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleCopy}>
-                <Text style={styles.actionIcon}>{copied ? '✓' : '📋'}</Text>
-                <Text style={styles.actionText}>{copied ? 'Copied!' : 'Copy'}</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-                <Text style={styles.actionIcon}>📤</Text>
-                <Text style={styles.actionText}>Share</Text>
-              </TouchableOpacity>
-            </View>
           </Animated.View>
 
           {/* Go to Home Button */}
@@ -533,6 +552,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderRadius: 24,
     padding: 24,
+    paddingTop: 50,
     width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -540,6 +560,96 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
     marginBottom: 24,
+    position: 'relative',
+  },
+  cardActions: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 10,
+  },
+  cardActionIcon: {
+    minWidth: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  cardActionIconCopied: {
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 12,
+  },
+  copiedText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  copyIcon: {
+    width: 18,
+    height: 18,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  copyRect: {
+    width: 12,
+    height: 14,
+    borderWidth: 2,
+    borderColor: '#666',
+    borderRadius: 2,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: '#FFF',
+  },
+  copyRectBack: {
+    width: 12,
+    height: 14,
+    borderWidth: 2,
+    borderColor: '#666',
+    borderRadius: 2,
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#F5F5F5',
+  },
+  shareIconContainer: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  shareArrow: {
+    width: 2,
+    height: 10,
+    backgroundColor: '#666',
+    position: 'absolute',
+    top: 2,
+  },
+  shareArrowHead: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#666',
+    position: 'absolute',
+    top: 0,
+  },
+  shareBox: {
+    width: 14,
+    height: 10,
+    borderWidth: 2,
+    borderTopWidth: 0,
+    borderColor: '#666',
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
   },
   cardTitle: {
     fontSize: 18,
@@ -548,8 +658,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  expensesList: {
-    marginBottom: 20,
+  expensesScrollView: {
+    maxHeight: 250,
+  },
+  expensesScrollContent: {
+    paddingBottom: 8,
   },
   expenseRow: {
     flexDirection: 'row',
@@ -597,30 +710,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#28A745',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  actionButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 12,
-  },
-  actionIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
   },
   homeButton: {
     backgroundColor: '#FFF',

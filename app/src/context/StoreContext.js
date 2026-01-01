@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// API Base URL
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-backend-url.onrender.com/api';
+import { authGet, authPost, reportNetworkError } from '../utils/apiHelper';
 
 // Storage keys for persistence
 const STORAGE_KEYS = {
@@ -73,15 +69,7 @@ export const StoreProvider = ({ children }) => {
       }
 
       // Fetch from API
-      const response = await fetch(`${API_BASE_URL}/auth/friends/details`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ emails: friendEmails }),
-      });
-      
+      const response = await authPost('/auth/friends/details', { emails: friendEmails });
       const data = await response.json();
       
       if (data.success && data.data) {
@@ -168,13 +156,7 @@ export const StoreProvider = ({ children }) => {
       }
 
       // Fetch from API
-      const response = await fetch(`${API_BASE_URL}/groups`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
+      const response = await authGet('/groups');
       const data = await response.json();
       
       if (data.success && data.data) {

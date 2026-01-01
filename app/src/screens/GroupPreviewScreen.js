@@ -15,11 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-
-// API Base URL
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-backend-url.onrender.com/api';
+import { authPost, reportNetworkError } from '../utils/apiHelper';
 
 export default function GroupPreviewScreen() {
   const navigation = useNavigation();
@@ -28,10 +24,10 @@ export default function GroupPreviewScreen() {
   
   // Get data from navigation params
   const params = route.params || {};
-  const { groupName, expenseTitle, amount, selectedMembers, sourceScreen } = params;
+  const { groupName, expenseTitle, amount, paidBy, selectedMembers, sourceScreen } = params;
   
   // Check if params are missing (e.g., on page refresh)
-  const paramsValid = Boolean(groupName && expenseTitle && amount && selectedMembers?.length > 0);
+  const paramsValid = Boolean(groupName && expenseTitle && amount && selectedMembers?.length > 0 && paidBy);
   
   // State for expense with member splits
   const [expenses, setExpenses] = useState([]);
@@ -47,30 +43,50 @@ export default function GroupPreviewScreen() {
 
   // Initialize expenses with equal split
   useEffect(() => {
-    if (paramsValid && amount && selectedMembers?.length > 0 && user) {
-      const totalMembers = selectedMembers.length + 1; // +1 for the payer
+    if (paramsValid && amount && selectedMembers?.length > 0 && paidBy) {
+      // Build list of all members involved (payer + selected members, no duplicates)
+      const allMembersMap = new Map();
+      
+      // Add payer first
+      allMembersMap.set(paidBy.mailId, { mailId: paidBy.mailId, name: paidBy.name });
+      
+      // Add selected members
+      selectedMembers.forEach(member => {
+        if (!allMembersMap.has(member.mailId)) {
+          allMembersMap.set(member.mailId, member);
+        }
+      });
+      
+      // Add current user if they're involved but not already in the list
+      if (user && !allMembersMap.has(user.mailId)) {
+        // Check if current user should be part of the split
+        // (they are if they're in selectedMembers or if they're the payer)
+        const isUserInvolved = paidBy.mailId === user.mailId || 
+          selectedMembers.some(m => m.mailId === user.mailId);
+        if (isUserInvolved) {
+          allMembersMap.set(user.mailId, { mailId: user.mailId, name: user.name });
+        }
+      }
+      
+      const allMembers = Array.from(allMembersMap.values());
+      const totalMembers = allMembers.length;
       const equalSplit = (parseFloat(amount) / totalMembers).toFixed(2);
       
       const initialSplits = {};
-      selectedMembers.forEach(member => {
+      allMembers.forEach(member => {
         initialSplits[member.mailId] = equalSplit;
       });
-      // Add payer's share
-      initialSplits[user.mailId] = equalSplit;
       
       setExpenses([{
         title: expenseTitle,
         totalAmount: parseFloat(amount),
-        paidBy: user.mailId,
-        paidByName: user.name,
+        paidBy: paidBy.mailId,
+        paidByName: paidBy.name,
         splits: initialSplits,
-        members: [
-          { mailId: user.mailId, name: user.name },
-          ...selectedMembers
-        ]
+        members: allMembers
       }]);
     }
-  }, [paramsValid, amount, selectedMembers, expenseTitle, user]);
+  }, [paramsValid, amount, selectedMembers, expenseTitle, paidBy, user]);
 
   // Redirect to Home if params are missing (e.g., on page refresh)
   useEffect(() => {
@@ -139,22 +155,15 @@ export default function GroupPreviewScreen() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/groups/checkout`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          groupName: groupName,
-          members: [user.mailId, ...selectedMembers.map(m => m.mailId)],
-          expenses: expenses.map(exp => ({
-            title: exp.title,
-            totalAmount: exp.totalAmount,
-            paidBy: exp.paidBy,
-            splits: exp.splits,
-          })),
-        }),
+      const response = await authPost('/groups/checkout', {
+        groupName: groupName,
+        members: [user.mailId, ...selectedMembers.map(m => m.mailId)],
+        expenses: expenses.map(exp => ({
+          title: exp.title,
+          totalAmount: exp.totalAmount,
+          paidBy: exp.paidBy,
+          splits: exp.splits,
+        })),
       });
 
       const data = await response.json();

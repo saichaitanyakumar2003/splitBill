@@ -20,11 +20,12 @@ const GroupSchema = new mongoose.Schema({
     required: true
   },
 
-  // Group name
+  // Group name - unique across all groups
   name: {
     type: String,
     required: [true, 'Group name is required'],
-    trim: true
+    trim: true,
+    unique: true
   },
 
   // Status: active or completed

@@ -1,24 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const Group = require('../models/Group');
 const User = require('../models/User');
 const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitwise');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key';
-
-const getMailId = (req) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    return jwt.verify(token, JWT_SECRET).mailId;
-  } catch { return null; }
-};
+// Note: authenticate middleware is applied at server level for all /api/groups routes
+// req.user.mailId is available in all routes
 
 // Create group (legacy)
 router.post('/', async (req, res) => {
   try {
-    const mailId = getMailId(req);
     if (!req.body.name) return res.status(400).json({ error: 'Name required' });
 
     const group = new Group({ 
@@ -28,10 +20,8 @@ router.post('/', async (req, res) => {
     });
     await group.save();
 
-    if (mailId) {
-      const user = await User.findById(mailId);
-      if (user) { user.addGroupId(group._id); await user.save(); }
-    }
+    const user = await User.findById(req.user.mailId);
+    if (user) { user.addGroupId(group._id); await user.save(); }
 
     res.status(201).json(group.toJSON());
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -40,8 +30,7 @@ router.post('/', async (req, res) => {
 // Checkout - Create new group or add expenses to existing group
 router.post('/checkout', async (req, res) => {
   try {
-    const mailId = getMailId(req);
-    if (!mailId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const mailId = req.user.mailId;
     
     const { groupId, groupName, expenses, members } = req.body;
     
@@ -83,41 +72,75 @@ router.post('/checkout', async (req, res) => {
       await group.save();
       
     } else {
-      // Create new group with UUID as ID
+      // Check if group with same name exists in the entire database
       if (!groupName) {
         return res.status(400).json({ success: false, message: 'Group name required for new group' });
       }
       
-      isNewGroup = true;
-      const newGroupId = uuidv4();
+      // Find existing group with same name (globally unique)
+      const existingGroup = await Group.findOne({ name: groupName });
       
-      // Format expenses for storage
-      const formattedExpenses = expenses.map(exp => ({
-        name: exp.name || exp.title,
-        payer: exp.paidBy || exp.payer,
-        totalAmount: exp.totalAmount || exp.amount,
-        payees: Object.entries(exp.splits || {}).map(([mailId, amount]) => ({
-          mailId,
-          amount: parseFloat(amount)
-        }))
-      }));
-      
-      // Calculate consolidated expenses using Splitwise algorithm
-      const consolidatedExpensesResult = consolidateExpenses(formattedExpenses);
-      
-      // Create group with compressed data
-      const { compressData } = require('../utils/compression');
-      group = new Group({
-        _id: newGroupId,
-        name: groupName,
-        status: 'active',
-        compressedDetails: compressData({
-          expenses: formattedExpenses,
-          consolidatedExpenses: consolidatedExpensesResult
-        })
-      });
-      
-      await group.save();
+      if (existingGroup) {
+        // Group with same name exists - add expense to it
+        group = existingGroup;
+        
+        // Get existing expenses and merge with new ones
+        const existingExpenses = group.getDetails().expenses || [];
+        const formattedNewExpenses = expenses.map(exp => ({
+          name: exp.name || exp.title,
+          payer: exp.paidBy || exp.payer,
+          totalAmount: exp.totalAmount || exp.amount,
+          payees: Object.entries(exp.splits || {}).map(([mailId, amount]) => ({
+            mailId,
+            amount: parseFloat(amount)
+          }))
+        }));
+        
+        // Merge and consolidate
+        const { allExpenses, consolidatedExpenses } = mergeAndConsolidate(existingExpenses, formattedNewExpenses);
+        
+        // Update group using setDetails
+        group.setDetails({
+          expenses: allExpenses,
+          consolidatedExpenses: consolidatedExpenses
+        });
+        await group.save();
+        
+        // Not a new group
+        isNewGroup = false;
+      } else {
+        // Create new group with UUID as ID
+        isNewGroup = true;
+        const newGroupId = uuidv4();
+        
+        // Format expenses for storage
+        const formattedExpenses = expenses.map(exp => ({
+          name: exp.name || exp.title,
+          payer: exp.paidBy || exp.payer,
+          totalAmount: exp.totalAmount || exp.amount,
+          payees: Object.entries(exp.splits || {}).map(([mailId, amount]) => ({
+            mailId,
+            amount: parseFloat(amount)
+          }))
+        }));
+        
+        // Calculate consolidated expenses using Splitwise algorithm
+        const consolidatedExpensesResult = consolidateExpenses(formattedExpenses);
+        
+        // Create group with compressed data
+        const { compressData } = require('../utils/compression');
+        group = new Group({
+          _id: newGroupId,
+          name: groupName,
+          status: 'active',
+          compressedDetails: compressData({
+            expenses: formattedExpenses,
+            consolidatedExpenses: consolidatedExpensesResult
+          })
+        });
+        
+        await group.save();
+      }
     }
     
     // Collect all unique members from expenses
@@ -185,12 +208,29 @@ router.post('/checkout', async (req, res) => {
   }
 });
 
+// Check if group name exists
+router.get('/check-name', async (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'Name required' });
+    }
+    
+    const existingGroup = await Group.findOne({ name: name.trim() });
+    res.json({ 
+      success: true, 
+      exists: !!existingGroup,
+      groupId: existingGroup ? existingGroup._id : null
+    });
+  } catch (e) { 
+    res.status(500).json({ success: false, message: e.message }); 
+  }
+});
+
 // Get user's groups
 router.get('/', async (req, res) => {
   try {
-    const mailId = getMailId(req);
-    if (!mailId) return res.json([]);
-    const user = await User.findById(mailId);
+    const user = await User.findById(req.user.mailId);
     if (!user) return res.json([]);
     const groups = await Group.find({ _id: { $in: user.getDetails().groupIds } });
     res.json(groups.map(g => g.toJSON()));

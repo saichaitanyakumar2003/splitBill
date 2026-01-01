@@ -15,6 +15,8 @@ import SplitOptionsScreen from './src/screens/SplitOptionsScreen';
 import CreateGroupScreen from './src/screens/CreateGroupScreen';
 import GroupPreviewScreen from './src/screens/GroupPreviewScreen';
 import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
+import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
+import HistoryScreen from './src/screens/HistoryScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -33,6 +35,8 @@ const getLinkedScreens = (isAuthenticated) => ({
       HelpCenter: 'help',
       Friends: 'friends',
       Groups: 'groups',
+      PendingExpenses: 'pending-expenses',
+      History: 'history',
       SplitOptions: 'split-options',
       SelectGroup: 'select-group',
       CreateGroup: 'create-group',
@@ -440,8 +444,69 @@ function Logo() {
   );
 }
 
-// Profile Menu Dropdown Component
-function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }) {
+
+// Web Side Panel Component - Has all tabs (Favorites, Groups, Pending, History)
+function WebSidePanel({ visible, onClose, onFavorites, onGroups, onPendingExpenses, onHistory }) {
+  if (!visible) return null;
+
+  return (
+    <>
+      <Pressable style={styles.sidePanelOverlay} onPress={onClose} />
+      <View style={styles.sidePanel}>
+        <View style={styles.sidePanelHeader}>
+          <Text style={styles.sidePanelTitle}>Info</Text>
+          <TouchableOpacity onPress={onClose} style={styles.sidePanelClose}>
+            <Text style={styles.sidePanelCloseText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.sidePanelMenu}>
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onFavorites}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>🫂</Text>
+            <Text style={styles.sidePanelMenuText}>Favorites</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onGroups}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>👥</Text>
+            <Text style={styles.sidePanelMenuText}>Groups</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onPendingExpenses}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>⏳</Text>
+            <Text style={styles.sidePanelMenuText}>Pending Expenses</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onHistory}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>📜</Text>
+            <Text style={styles.sidePanelMenuText}>History</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+}
+
+// Web Profile Menu Dropdown Component
+function WebProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -468,20 +533,13 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
 
   if (!visible) return null;
 
-  const handleMenuPress = (action) => {
-    action();
-  };
-
   return (
     <>
-      {/* Overlay to close menu */}
       <TouchableOpacity 
         style={styles.menuOverlay} 
         activeOpacity={1} 
         onPress={onClose}
       />
-      
-      {/* Dropdown Menu */}
       <Animated.View 
         style={[
           styles.menuDropdown,
@@ -491,12 +549,11 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
           },
         ]}
       >
-        {/* Arrow pointer */}
         <View style={styles.menuArrow} />
         
         <TouchableOpacity 
           style={styles.menuItem} 
-          onPress={() => handleMenuPress(onViewProfile)}
+          onPress={onViewProfile}
           activeOpacity={0.7}
         >
           <View style={styles.menuIconContainer}>
@@ -510,7 +567,7 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
         
         <TouchableOpacity 
           style={styles.menuItem} 
-          onPress={() => handleMenuPress(onHelpCenter)}
+          onPress={onHelpCenter}
           activeOpacity={0.7}
         >
           <View style={styles.menuIconContainer}>
@@ -524,51 +581,42 @@ function ProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogout }
         
         <TouchableOpacity 
           style={[styles.menuItem, styles.logoutItem]} 
-          onPress={() => handleMenuPress(onLogout)}
+          onPress={onLogout}
           activeOpacity={0.7}
         >
           <View style={[styles.menuIconContainer, styles.logoutIconContainer]}>
             <Text style={styles.powerIcon}>⏻</Text>
           </View>
-          <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
-          <Text style={[styles.menuChevron, styles.logoutText]}>›</Text>
+          <Text style={[styles.menuText, styles.logoutMenuText]}>Logout</Text>
+          <Text style={[styles.menuChevron, styles.logoutMenuText]}>›</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
   );
 }
 
-// Side Panel Component
-function SidePanel({ visible, onClose, onFriends }) {
+// Mobile Menu Panel Component (Left) - Only History
+function MobileMenuPanel({ visible, onClose, onHistory }) {
   if (!visible) return null;
 
   return (
     <>
-      {/* Overlay */}
-      <Pressable 
-        style={styles.sidePanelOverlay}
-        onPress={onClose}
-      />
-
-      {/* Side Panel */}
+      <Pressable style={styles.sidePanelOverlay} onPress={onClose} />
       <View style={styles.sidePanel}>
-        {/* Header with Close Button */}
         <View style={styles.sidePanelHeader}>
-          <Text style={styles.sidePanelTitle}>Info</Text>
+          <Text style={styles.sidePanelTitle}>Menu</Text>
           <TouchableOpacity onPress={onClose} style={styles.sidePanelClose}>
             <Text style={styles.sidePanelCloseText}>✕</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Menu Items - Vertical */}
         <View style={styles.sidePanelMenu}>
           <TouchableOpacity 
             style={styles.sidePanelMenuItem}
-            onPress={onFriends}
+            onPress={onHistory}
             activeOpacity={0.7}
           >
-            <Text style={styles.sidePanelMenuIcon}>🫂</Text>
-            <Text style={styles.sidePanelMenuText}>Favorites</Text>
+            <Text style={styles.sidePanelMenuIcon}>📜</Text>
+            <Text style={styles.sidePanelMenuText}>History</Text>
             <Text style={styles.sidePanelMenuArrow}>›</Text>
           </TouchableOpacity>
         </View>
@@ -577,11 +625,141 @@ function SidePanel({ visible, onClose, onFriends }) {
   );
 }
 
+// Mobile Settings Panel Component (Right) - Help Center and Logout
+function MobileSettingsPanel({ visible, onClose, onHelpCenter, onLogout }) {
+  if (!visible) return null;
+
+  return (
+    <>
+      <Pressable style={styles.sidePanelOverlay} onPress={onClose} />
+      <View style={[styles.sidePanel, styles.settingsPanel]}>
+        <View style={styles.sidePanelHeader}>
+          <Text style={styles.sidePanelTitle}>Settings</Text>
+          <TouchableOpacity onPress={onClose} style={styles.sidePanelClose}>
+            <Text style={styles.sidePanelCloseText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.sidePanelMenu}>
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onHelpCenter}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>📞</Text>
+            <Text style={styles.sidePanelMenuText}>Help Center</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.sidePanelMenuItem, styles.logoutMenuItem]}
+            onPress={onLogout}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>⏻</Text>
+            <Text style={[styles.sidePanelMenuText, styles.logoutText]}>Logout</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+}
+
+// Logout Confirmation Modal
+function LogoutModal({ visible, onCancel, onConfirm }) {
+  if (!visible) return null;
+
+  return (
+    <View style={styles.modalOverlay}>
+      <View style={styles.logoutModal}>
+        <Text style={styles.logoutModalTitle}>Logout</Text>
+        <Text style={styles.logoutModalMessage}>Are you sure you want to logout?</Text>
+        <View style={styles.logoutModalButtons}>
+          <TouchableOpacity 
+            style={[styles.logoutModalButton, styles.logoutModalCancel]}
+            onPress={onCancel}
+          >
+            <Text style={styles.logoutModalCancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.logoutModalButton, styles.logoutModalConfirm]}
+            onPress={onConfirm}
+          >
+            <Text style={styles.logoutModalConfirmText}>Confirm</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// Mobile Bottom Tab Bar Component
+function MobileBottomTabBar({ navigation, onScanImage }) {
+  return (
+    <View style={styles.bottomTabBar}>
+      <TouchableOpacity 
+        style={styles.bottomTab}
+        onPress={() => navigation.navigate('Friends')}
+      >
+        <Text style={styles.bottomTabIcon}>🫂</Text>
+        <Text style={styles.bottomTabTextOrange}>Favorites</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.bottomTab}
+        onPress={() => navigation.navigate('Groups')}
+      >
+        <Text style={styles.bottomTabIcon}>👥</Text>
+        <Text style={styles.bottomTabTextOrange}>Groups</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.bottomTabCenter}
+        onPress={onScanImage}
+      >
+        <View style={styles.bottomTabCenterButton}>
+          <View style={styles.qrCodeIcon}>
+            <View style={styles.qrCornerTL} />
+            <View style={styles.qrCornerTR} />
+            <View style={styles.qrCornerBL} />
+            <View style={styles.qrCenter} />
+          </View>
+        </View>
+        <Text style={styles.bottomTabCenterText}>Scan</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.bottomTab}
+        onPress={() => navigation.navigate('PendingExpenses')}
+      >
+        <Text style={styles.bottomTabIcon}>⏳</Text>
+        <Text style={styles.bottomTabText}>Pending</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.bottomTab}
+        onPress={() => navigation.navigate('Profile')}
+      >
+        <Text style={styles.bottomTabIcon}>👤</Text>
+        <Text style={styles.bottomTabTextOrange}>Profile</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // Home Screen Component
 function HomeScreen({ navigation }) {
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  // Mobile-specific states
+  const [showMenuPanel, setShowMenuPanel] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  
+  // Web-specific states
   const [showSidePanel, setShowSidePanel] = useState(false);
-  const { user, logout, isAuthenticated } = useAuth();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  const { user, logout } = useAuth();
+  const isMobile = Platform.OS === 'ios' || Platform.OS === 'android';
 
   const handleCustomSplit = () => {
     navigation.navigate('SplitOptions');
@@ -597,11 +775,32 @@ function HomeScreen({ navigation }) {
   };
 
   const handleHelpCenter = () => {
+    setShowSettingsPanel(false);
     setShowProfileMenu(false);
     navigation.navigate('HelpCenter');
   };
 
-  const handleLogout = async () => {
+  // Mobile logout with confirmation modal
+  const handleLogoutPress = () => {
+    setShowSettingsPanel(false);
+    setShowLogoutModal(true);
+  };
+
+  const handleLogoutConfirm = async () => {
+    setShowLogoutModal(false);
+    await logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutModal(false);
+  };
+
+  // Web logout (direct)
+  const handleWebLogout = async () => {
     setShowProfileMenu(false);
     await logout();
     navigation.reset({
@@ -610,16 +809,13 @@ function HomeScreen({ navigation }) {
     });
   };
 
-  // Get user initials for profile icon (max 2 characters)
-  // "Sai Chaitanya Kumar" → "SK" (first + last name initial)
+  // Get user initials for profile icon (max 2 characters) - Web only
   const getUserInitials = () => {
     if (user?.name) {
       const parts = user.name.trim().split(' ').filter(p => p.length > 0);
       if (parts.length >= 2) {
-        // First letter of first name + first letter of last name
         return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
       }
-      // Just first 2 letters of the name
       return user.name.substring(0, 2).toUpperCase();
     }
     return 'U';
@@ -634,12 +830,12 @@ function HomeScreen({ navigation }) {
       >
         <StatusBar style="light" />
         
-        {/* Header Bar - Menu on Left, Profile on Right */}
+        {/* Header Bar - Menu on Left, Profile/Settings on Right */}
         <View style={styles.headerBar}>
           {/* Hamburger Menu - Left */}
           <TouchableOpacity
             style={styles.menuIconButton}
-            onPress={() => setShowSidePanel(true)}
+            onPress={() => isMobile ? setShowMenuPanel(true) : setShowSidePanel(true)}
             activeOpacity={0.8}
           >
             <View style={styles.menuIconCircle}>
@@ -651,36 +847,103 @@ function HomeScreen({ navigation }) {
             </View>
           </TouchableOpacity>
           
-          {/* Profile Icon - Right */}
-          <TouchableOpacity
-            style={styles.profileIconButton}
-            onPress={() => setShowProfileMenu(!showProfileMenu)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.profileIconCircle}>
-              <Text style={styles.profileIconText}>{getUserInitials()}</Text>
-            </View>
-          </TouchableOpacity>
+          {/* Right Icon - Settings (Mobile) or Profile (Web) */}
+          {isMobile ? (
+            <TouchableOpacity
+              style={styles.settingsIconButton}
+              onPress={() => setShowSettingsPanel(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.settingsIconCircle}>
+                <Text style={styles.settingsIconText}>⚙️</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.profileIconButton}
+              onPress={() => setShowProfileMenu(!showProfileMenu)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.profileIconCircle}>
+                <Text style={styles.profileIconText}>{getUserInitials()}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Profile Dropdown Menu */}
-        <ProfileMenu
-          visible={showProfileMenu}
-          onClose={() => setShowProfileMenu(false)}
-          onViewProfile={handleViewProfile}
-          onHelpCenter={handleHelpCenter}
-          onLogout={handleLogout}
-        />
+        {/* Mobile: Menu Panel (Left) - Only History */}
+        {isMobile && (
+          <MobileMenuPanel
+            visible={showMenuPanel}
+            onClose={() => setShowMenuPanel(false)}
+            onHistory={() => {
+              setShowMenuPanel(false);
+              navigation.navigate('History');
+            }}
+          />
+        )}
 
-        {/* Side Panel */}
-        <SidePanel
-          visible={showSidePanel}
-          onClose={() => setShowSidePanel(false)}
-          onFriends={() => {
-            setShowSidePanel(false);
-            navigation.navigate('Friends');
-          }}
-        />
+        {/* Mobile: Settings Panel (Right) */}
+        {isMobile && (
+          <MobileSettingsPanel
+            visible={showSettingsPanel}
+            onClose={() => setShowSettingsPanel(false)}
+            onHelpCenter={handleHelpCenter}
+            onLogout={handleLogoutPress}
+          />
+        )}
+
+        {/* Mobile: Logout Confirmation Modal */}
+        {isMobile && (
+          <LogoutModal
+            visible={showLogoutModal}
+            onCancel={handleLogoutCancel}
+            onConfirm={handleLogoutConfirm}
+          />
+        )}
+
+        {/* Mobile: Bottom Tab Bar */}
+        {isMobile && (
+          <MobileBottomTabBar 
+            navigation={navigation}
+            onScanImage={handleUploadImage}
+          />
+        )}
+
+        {/* Web: Side Panel with all tabs */}
+        {!isMobile && (
+          <WebSidePanel
+            visible={showSidePanel}
+            onClose={() => setShowSidePanel(false)}
+            onFavorites={() => {
+              setShowSidePanel(false);
+              navigation.navigate('Friends');
+            }}
+            onGroups={() => {
+              setShowSidePanel(false);
+              navigation.navigate('Groups');
+            }}
+            onPendingExpenses={() => {
+              setShowSidePanel(false);
+              navigation.navigate('PendingExpenses');
+            }}
+            onHistory={() => {
+              setShowSidePanel(false);
+              navigation.navigate('History');
+            }}
+          />
+        )}
+
+        {/* Web: Profile Dropdown Menu */}
+        {!isMobile && (
+          <WebProfileMenu
+            visible={showProfileMenu}
+            onClose={() => setShowProfileMenu(false)}
+            onViewProfile={handleViewProfile}
+            onHelpCenter={handleHelpCenter}
+            onLogout={handleWebLogout}
+          />
+        )}
         
         {/* Animated Background elements */}
         <DecorativeCircles />
@@ -905,6 +1168,8 @@ function AppNavigator() {
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
         <Stack.Screen name="Friends" component={FriendsScreen} />
         <Stack.Screen name="Groups" component={GroupsScreen} />
+        <Stack.Screen name="PendingExpenses" component={PendingExpensesScreen} />
+        <Stack.Screen name="History" component={HistoryScreen} />
         <Stack.Screen name="SplitOptions" component={SplitOptionsScreen} />
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
         <Stack.Screen name="GroupPreview" component={GroupPreviewScreen} />
@@ -916,7 +1181,7 @@ function AppNavigator() {
 
 // Network-aware App Content
 function AppContent() {
-  const { isConnected, isChecking } = useNetwork();
+  const { isConnected } = useNetwork();
   const { isAuthenticated } = useAuth();
   const { clearStore } = useStore();
   const prevAuthRef = React.useRef(isAuthenticated);
@@ -930,12 +1195,18 @@ function AppContent() {
     prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated, clearStore]);
   
-  // Show error screen only after initial check and if disconnected
-  if (!isChecking && !isConnected) {
-    return <NetworkErrorScreen />;
-  }
-  
-  return <AppNavigator />;
+  // Keep AppNavigator mounted to preserve navigation state
+  // Overlay NetworkErrorScreen when disconnected
+  return (
+    <View style={{ flex: 1 }}>
+      <AppNavigator />
+      {!isConnected && (
+        <View style={StyleSheet.absoluteFill}>
+          <NetworkErrorScreen />
+        </View>
+      )}
+    </View>
+  );
 }
 
 // Main App with Network and Auth Providers
@@ -1100,6 +1371,212 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#FF6B35',
     fontWeight: '600',
+  },
+  settingsPanel: {
+    right: 0,
+    left: 'auto',
+  },
+  logoutMenuItem: {
+    borderBottomWidth: 0,
+  },
+  logoutText: {
+    color: '#DC3545',
+  },
+  // Logout Modal Styles
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  logoutModal: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '80%',
+    maxWidth: 320,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  logoutModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 12,
+  },
+  logoutModalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  logoutModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  logoutModalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  logoutModalCancel: {
+    backgroundColor: '#F5F5F5',
+  },
+  logoutModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  logoutModalConfirm: {
+    backgroundColor: '#FF6B35',
+  },
+  logoutModalConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  // Settings Icon Styles
+  settingsIconButton: {
+    position: 'relative',
+  },
+  settingsIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+  },
+  settingsIconText: {
+    fontSize: 22,
+  },
+  // Bottom Tab Bar Styles
+  bottomTabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    paddingBottom: Platform.OS === 'ios' ? 25 : 10,
+    paddingTop: 10,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  bottomTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomTabIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  bottomTabText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#666',
+  },
+  bottomTabTextOrange: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FF6B35',
+  },
+  bottomTabCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -30,
+  },
+  bottomTabCenterButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  bottomTabCenterIcon: {
+    fontSize: 28,
+  },
+  // QR Code Icon styles
+  qrCodeIcon: {
+    width: 28,
+    height: 28,
+    position: 'relative',
+  },
+  qrCornerTL: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 10,
+    height: 10,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: '#FFF',
+    borderTopLeftRadius: 2,
+  },
+  qrCornerTR: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderColor: '#FFF',
+    borderTopRightRadius: 2,
+  },
+  qrCornerBL: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 10,
+    height: 10,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: '#FFF',
+    borderBottomLeftRadius: 2,
+  },
+  qrCenter: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 8,
+    height: 8,
+    marginTop: -4,
+    marginLeft: -4,
+    backgroundColor: '#FFF',
+    borderRadius: 2,
+  },
+  bottomTabCenterText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FF6B35',
+    marginTop: 4,
   },
   profileIconButton: {
     position: 'relative',

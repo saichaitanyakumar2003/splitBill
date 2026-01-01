@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { apiFetch, reportNetworkError, setAuthToken } from '../utils/apiHelper';
 
 // API Base URL - update this when deploying backend
 const API_BASE_URL = __DEV__ 
@@ -94,6 +95,7 @@ export const AuthProvider = ({ children }) => {
         
         if (isValid) {
           setToken(storedToken);
+          setAuthToken(storedToken); // Set global token for apiHelper
           setUser(userData);
           setIsAuthenticated(true);
         } else {
@@ -116,7 +118,7 @@ export const AuthProvider = ({ children }) => {
    */
   const verifyToken = async (authToken) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -136,7 +138,7 @@ export const AuthProvider = ({ children }) => {
       return false;
     } catch (error) {
       console.error('Token verification error:', error);
-      // Network error - return false to show login (safer approach)
+      reportNetworkError(error);
       return false;
     }
   };
@@ -146,7 +148,7 @@ export const AuthProvider = ({ children }) => {
    */
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,6 +166,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Login error:', error);
+      reportNetworkError(error);
       return { success: false, message: 'Network error. Please try again.' };
     }
   };
@@ -173,7 +176,7 @@ export const AuthProvider = ({ children }) => {
    */
   const register = async (email, password, name, phone_number = null) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,6 +194,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Registration error:', error);
+      reportNetworkError(error);
       return { success: false, message: 'Network error. Please try again.' };
     }
   };
@@ -211,7 +215,7 @@ export const AuthProvider = ({ children }) => {
         body.userInfo = userInfo;
       }
 
-      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,6 +233,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Google login error:', error);
+      reportNetworkError(error);
       return { success: false, message: 'Google login failed. Please try again.' };
     }
   };
@@ -238,7 +243,7 @@ export const AuthProvider = ({ children }) => {
    */
   const loginWithApple = async (identityToken, email, fullName) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/apple`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/apple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -256,6 +261,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Apple login error:', error);
+      reportNetworkError(error);
       return { success: false, message: 'Apple login failed. Please try again.' };
     }
   };
@@ -268,6 +274,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, authToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
       setToken(authToken);
+      setAuthToken(authToken); // Set global token for apiHelper
       setUser(userData);
       setIsAuthenticated(true);
     } catch (error) {
@@ -283,6 +290,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem(STORAGE_KEYS.TOKEN);
       await AsyncStorage.removeItem(STORAGE_KEYS.USER);
       setToken(null);
+      setAuthToken(null); // Clear global token
       setUser(null);
       setIsAuthenticated(false);
     } catch (error) {
@@ -297,7 +305,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // Call backend to invalidate session
       if (token) {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
+        await apiFetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -307,6 +315,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Logout API error:', error);
+      // Don't report network error on logout - we still want to clear local state
     } finally {
       // Always clear local auth state
       await clearAuth();
@@ -320,7 +329,7 @@ export const AuthProvider = ({ children }) => {
     try {
       if (!token) return false;
       
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -348,6 +357,7 @@ export const AuthProvider = ({ children }) => {
       return false;
     } catch (error) {
       console.error('Session refresh error:', error);
+      reportNetworkError(error);
       return false;
     }
   };
@@ -361,7 +371,7 @@ export const AuthProvider = ({ children }) => {
         return { success: false, message: 'Not authenticated' };
       }
 
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -382,6 +392,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Profile update error:', error);
+      reportNetworkError(error);
       return { success: false, message: 'Network error. Please try again.' };
     }
   };
@@ -395,7 +406,7 @@ export const AuthProvider = ({ children }) => {
         return { success: false, message: 'Not authenticated' };
       }
 
-      const response = await fetch(`${API_BASE_URL}/auth/password`, {
+      const response = await apiFetch(`${API_BASE_URL}/auth/password`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -413,6 +424,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Password change error:', error);
+      reportNetworkError(error);
       return { success: false, message: 'Network error. Please try again.' };
     }
   };

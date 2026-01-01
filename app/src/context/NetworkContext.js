@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
+import { setNetworkErrorCallback, isNetworkError } from '../utils/apiHelper';
 
 const API_BASE = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://localhost:3001';
-const HEALTH_CHECK_INTERVAL = 3000; // Poll every 3 seconds when connected
 const HEALTH_CHECK_TIMEOUT = 5000;
 
 const NetworkContext = createContext();
@@ -11,11 +11,25 @@ export const useNetwork = () => useContext(NetworkContext);
 
 export function NetworkProvider({ children }) {
   const [isConnected, setIsConnected] = useState(true);
-  const [isChecking, setIsChecking] = useState(true);
+  const [isChecking, setIsChecking] = useState(false);
   const [lastError, setLastError] = useState(null);
-  const intervalRef = useRef(null);
 
-  const checkHealth = async () => {
+  // Call this when an API call fails due to network issues
+  const reportNetworkError = useCallback((error) => {
+    if (isNetworkError(error)) {
+      setIsConnected(false);
+      setLastError('Failed to fetch due to network issue or server down');
+    }
+  }, []);
+
+  // Register the callback globally so AuthContext and other modules can use it
+  useEffect(() => {
+    setNetworkErrorCallback(reportNetworkError);
+    return () => setNetworkErrorCallback(null);
+  }, [reportNetworkError]);
+
+  // Manual retry - checks health endpoint
+  const retryNow = useCallback(async () => {
     setIsChecking(true);
     try {
       const controller = new AbortController();
@@ -36,38 +50,27 @@ export function NetworkProvider({ children }) {
       }
     } catch (error) {
       setIsConnected(false);
-      setLastError(error.message || 'Connection failed');
+      setLastError('Failed to fetch due to network issue or server down');
     } finally {
       setIsChecking(false);
     }
-  };
-
-  // Initial check on mount
-  useEffect(() => {
-    checkHealth();
   }, []);
 
-  // Long poll only when connected to detect disconnection
-  useEffect(() => {
-    if (isConnected) {
-      intervalRef.current = setInterval(checkHealth, HEALTH_CHECK_INTERVAL);
-    } else {
-      // Stop polling when disconnected - user must click retry
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isConnected]);
+  // Reset network state (call this when user successfully makes an API call)
+  const resetNetworkState = useCallback(() => {
+    setIsConnected(true);
+    setLastError(null);
+  }, []);
 
   return (
-    <NetworkContext.Provider value={{ isConnected, isChecking, lastError, retryNow: checkHealth }}>
+    <NetworkContext.Provider value={{ 
+      isConnected, 
+      isChecking, 
+      lastError, 
+      retryNow,
+      reportNetworkError,
+      resetNetworkState
+    }}>
       {children}
     </NetworkContext.Provider>
   );

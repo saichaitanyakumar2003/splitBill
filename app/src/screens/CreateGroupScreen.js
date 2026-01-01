@@ -16,11 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
-
-// API Base URL
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-backend-url.onrender.com/api';
+import { authGet, reportNetworkError } from '../utils/apiHelper';
 
 export default function CreateGroupScreen() {
   const navigation = useNavigation();
@@ -32,17 +28,73 @@ export default function CreateGroupScreen() {
   const [expenseTitle, setExpenseTitle] = useState('');
   const [amount, setAmount] = useState('');
   
+  // Payer state - who paid the amount
+  const [paidBy, setPaidBy] = useState(null); // { mailId, name }
+  const [isPayerDropdownOpen, setIsPayerDropdownOpen] = useState(false);
+  const [payerSearchQuery, setPayerSearchQuery] = useState('');
+  const [payerSearchResults, setPayerSearchResults] = useState([]);
+  const [isPayerSearching, setIsPayerSearching] = useState(false);
+  
   // Members state
   const [selectedMembers, setSelectedMembers] = useState([]);
-  const [showMemberPicker, setShowMemberPicker] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
-  // Search state
+  // Search state for split with
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   
   // UI state
   const [error, setError] = useState(null);
+  
+  // Validation error states
+  const [validationErrors, setValidationErrors] = useState({
+    groupName: false,
+    groupNameExists: false, // New: for existing group name
+    expenseTitle: false,
+    paidBy: false,
+    amount: false,
+    selectedMembers: false,
+  });
+  const [isCheckingGroupName, setIsCheckingGroupName] = useState(false);
+  
+  // Set current user as default payer
+  useEffect(() => {
+    if (user && !paidBy) {
+      setPaidBy({ mailId: user.mailId, name: user.name || 'You' });
+    }
+  }, [user]);
+  
+  // Search users for payer
+  useEffect(() => {
+    const searchPayerUsers = async () => {
+      if (payerSearchQuery.trim().length < 2) {
+        setPayerSearchResults([]);
+        return;
+      }
+
+      setIsPayerSearching(true);
+      try {
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(payerSearchQuery.trim())}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // Filter out current payer and current user (they're shown separately)
+          const filtered = data.data.filter(
+            u => u.mailId !== paidBy?.mailId && u.mailId !== user?.mailId
+          );
+          setPayerSearchResults(filtered);
+        }
+      } catch (e) {
+        console.error('Payer search error:', e);
+      } finally {
+        setIsPayerSearching(false);
+      }
+    };
+
+    const debounce = setTimeout(searchPayerUsers, 300);
+    return () => clearTimeout(debounce);
+  }, [payerSearchQuery, token, paidBy?.mailId, user?.mailId]);
 
   // Load favorites on mount
   useEffect(() => {
@@ -61,22 +113,15 @@ export default function CreateGroupScreen() {
 
       setIsSearching(true);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/auth/search?q=${encodeURIComponent(searchQuery.trim())}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(searchQuery.trim())}`);
         const data = await response.json();
         
         if (data.success) {
-          // Filter out already selected members
+          // Filter out already selected members and payer
+          // Current user CAN be in split list if they are not the payer
           const filtered = data.data.filter(
-            u => !selectedMembers.some(m => m.mailId === u.mailId)
+            u => !selectedMembers.some(m => m.mailId === u.mailId) && 
+                 u.mailId !== paidBy?.mailId
           );
           setSearchResults(filtered);
         }
@@ -89,7 +134,7 @@ export default function CreateGroupScreen() {
 
     const debounce = setTimeout(searchUsers, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, token, selectedMembers]);
+  }, [searchQuery, token, selectedMembers, paidBy?.mailId]);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -102,6 +147,10 @@ export default function CreateGroupScreen() {
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {
       setSelectedMembers([...selectedMembers, member]);
+      // Clear validation error
+      if (validationErrors.selectedMembers) {
+        setValidationErrors(prev => ({ ...prev, selectedMembers: false }));
+      }
     }
     setSearchQuery('');
     setSearchResults([]);
@@ -109,21 +158,67 @@ export default function CreateGroupScreen() {
 
   const handleRemoveMember = (mailId) => {
     setSelectedMembers(selectedMembers.filter(m => m.mailId !== mailId));
+    // Reset payer if removed member was the payer
+    if (paidBy?.mailId === mailId) {
+      setPaidBy(user ? { mailId: user.mailId, name: user.name || 'You' } : null);
+    }
   };
 
   const handleSelectFromFavorites = (fav) => {
     if (!selectedMembers.some(m => m.mailId === fav.mailId)) {
       setSelectedMembers([...selectedMembers, fav]);
+      // Clear validation error
+      if (validationErrors.selectedMembers) {
+        setValidationErrors(prev => ({ ...prev, selectedMembers: false }));
+      }
     }
   };
 
-  const isFormValid = () => {
-    return groupName.trim() && expenseTitle.trim() && amount && parseFloat(amount) > 0 && selectedMembers.length > 0;
+  const validateForm = () => {
+    const errors = {
+      groupName: !groupName.trim(),
+      groupNameExists: false, // Will be set by async check
+      expenseTitle: !expenseTitle.trim(),
+      paidBy: !paidBy,
+      amount: !amount || parseFloat(amount) <= 0,
+      selectedMembers: selectedMembers.length === 0,
+    };
+    
+    setValidationErrors(errors);
+    
+    // Return true if no errors (excluding groupNameExists which is checked async)
+    return !errors.groupName && !errors.expenseTitle && !errors.paidBy && !errors.amount && !errors.selectedMembers;
   };
 
-  const handleContinue = () => {
-    if (!isFormValid()) {
-      setError('Please fill all fields and select at least one member');
+  const checkGroupNameExists = async (name) => {
+    try {
+      const response = await authGet(`/groups/check-name?name=${encodeURIComponent(name.trim())}`);
+      const data = await response.json();
+      return data.exists;
+    } catch (err) {
+      console.error('Error checking group name:', err);
+      return false;
+    }
+  };
+
+  const handleContinue = async () => {
+    // Clear previous error
+    setError(null);
+    
+    // Validate form (basic validation)
+    if (!validateForm()) {
+      setError('Please fill all required fields');
+      return;
+    }
+
+    // Check if group name already exists
+    setIsCheckingGroupName(true);
+    const groupExists = await checkGroupNameExists(groupName);
+    setIsCheckingGroupName(false);
+    
+    if (groupExists) {
+      setValidationErrors(prev => ({ ...prev, groupNameExists: true }));
+      setError('A group with this name already exists');
       return;
     }
 
@@ -132,15 +227,91 @@ export default function CreateGroupScreen() {
       groupName: groupName.trim(),
       expenseTitle: expenseTitle.trim(),
       amount: parseFloat(amount),
+      paidBy: paidBy, // Who paid the amount
       selectedMembers: selectedMembers,
       sourceScreen: 'CreateGroup',
     });
   };
+  
+  // Clear validation error when field is updated
+  const handleGroupNameChange = (text) => {
+    setGroupName(text);
+    if ((validationErrors.groupName || validationErrors.groupNameExists) && text.trim()) {
+      setValidationErrors(prev => ({ ...prev, groupName: false, groupNameExists: false }));
+    }
+  };
+  
+  const handleExpenseTitleChange = (text) => {
+    setExpenseTitle(text);
+    if (validationErrors.expenseTitle && text.trim()) {
+      setValidationErrors(prev => ({ ...prev, expenseTitle: false }));
+    }
+  };
+  
+  const handleAmountChange = (text) => {
+    const cleanedText = text.replace(/[^0-9.]/g, '');
+    setAmount(cleanedText);
+    if (validationErrors.amount && cleanedText && parseFloat(cleanedText) > 0) {
+      setValidationErrors(prev => ({ ...prev, amount: false }));
+    }
+  };
 
-  // Filter favorites to exclude already selected members
-  const availableFavorites = favorites.filter(
-    fav => !selectedMembers.some(m => m.mailId === fav.mailId)
+  const togglePayerDropdown = () => {
+    setIsPayerDropdownOpen(!isPayerDropdownOpen);
+    // Close members dropdown when opening payer dropdown
+    if (!isPayerDropdownOpen) {
+      setIsDropdownOpen(false);
+      setPayerSearchQuery('');
+      setPayerSearchResults([]);
+    }
+  };
+
+  const selectPayer = (payer) => {
+    setPaidBy(payer);
+    setPayerSearchQuery('');
+    setPayerSearchResults([]);
+    setIsPayerDropdownOpen(false);
+    // Clear validation error
+    if (validationErrors.paidBy) {
+      setValidationErrors(prev => ({ ...prev, paidBy: false }));
+    }
+    // Remove payer from selected members if they were already selected
+    if (selectedMembers.some(m => m.mailId === payer.mailId)) {
+      setSelectedMembers(selectedMembers.filter(m => m.mailId !== payer.mailId));
+    }
+  };
+
+  // Get available favorites for payer selection (exclude current payer)
+  const availablePayerFavorites = favorites.filter(
+    fav => fav.mailId !== paidBy?.mailId && fav.mailId !== user?.mailId
   );
+
+  // Filter favorites to exclude already selected members and payer
+  // Current user CAN be in split list if they are not the payer
+  const availableFavorites = favorites.filter(
+    fav => !selectedMembers.some(m => m.mailId === fav.mailId) && 
+           fav.mailId !== paidBy?.mailId
+  );
+
+  // Check if current user should be shown in split options (when they're not the payer)
+  const showCurrentUserInSplit = user && 
+    paidBy?.mailId !== user.mailId && 
+    !selectedMembers.some(m => m.mailId === user.mailId);
+  
+  // Current user option for split with
+  const currentUserOption = showCurrentUserInSplit ? {
+    mailId: user.mailId,
+    name: `${user.name || 'You'} (You)`
+  } : null;
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+    if (!isDropdownOpen) {
+      setSearchQuery('');
+      setSearchResults([]);
+      setIsPayerDropdownOpen(false); // Close payer dropdown
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -166,153 +337,339 @@ export default function CreateGroupScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           <ScrollView 
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
+            style={styles.cardScrollView}
+            contentContainerStyle={styles.cardScrollContent}
+            showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
           >
             <View style={styles.card}>
               {/* Group Name */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Group Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, (validationErrors.groupName || validationErrors.groupNameExists) && styles.inputError]}
                   placeholder="e.g., Dinner at Mario's"
                   placeholderTextColor="#999"
                   value={groupName}
-                  onChangeText={setGroupName}
+                  onChangeText={handleGroupNameChange}
                 />
+                {validationErrors.groupNameExists && (
+                  <Text style={styles.fieldErrorText}>A group with this name already exists</Text>
+                )}
               </View>
 
               {/* Expense Title */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Expense Title</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, validationErrors.expenseTitle && styles.inputError]}
                   placeholder="e.g., Food & Drinks"
                   placeholderTextColor="#999"
                   value={expenseTitle}
-                  onChangeText={setExpenseTitle}
+                  onChangeText={handleExpenseTitleChange}
                 />
+              </View>
+
+              {/* Paid By - Single Selection Dropdown with Search */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Paid By</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.payerDropdownTrigger, 
+                    isPayerDropdownOpen && styles.payerDropdownTriggerOpen,
+                    validationErrors.paidBy && styles.dropdownError
+                  ]}
+                  onPress={togglePayerDropdown}
+                  activeOpacity={0.8}
+                >
+                  {paidBy ? (
+                    <View style={styles.payerChipContainer}>
+                      <View style={styles.payerChip}>
+                        <Text style={styles.payerChipText} numberOfLines={1}>
+                          {paidBy.mailId === user?.mailId ? `${paidBy.name} (You)` : paidBy.name}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={styles.payerPlaceholder}>Select who paid</Text>
+                  )}
+                  <Text style={[styles.dropdownArrow, isPayerDropdownOpen && styles.dropdownArrowUp]}>
+                    {isPayerDropdownOpen ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+
+                {isPayerDropdownOpen && (
+                  <View style={styles.payerDropdownContent}>
+                    {/* Search Bar Inside Payer Dropdown */}
+                    <View style={styles.dropdownSearchBar}>
+                      <Text style={styles.searchIcon}>🔍</Text>
+                      <TextInput
+                        style={styles.dropdownSearchInput}
+                        placeholder="Search by name or email"
+                        placeholderTextColor="#999"
+                        value={payerSearchQuery}
+                        onChangeText={setPayerSearchQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {isPayerSearching && <ActivityIndicator size="small" color="#FF6B35" />}
+                    </View>
+
+                    <ScrollView 
+                      style={styles.payerDropdownScroll}
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled={true}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {/* Search Results */}
+                      {payerSearchResults.length > 0 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Search Results</Text>
+                          {payerSearchResults.map(result => (
+                            <TouchableOpacity
+                              key={result.mailId}
+                              style={styles.listItem}
+                              onPress={() => selectPayer(result)}
+                            >
+                              <View style={styles.userInfo}>
+                                <Text style={styles.userName}>{result.name}</Text>
+                                <Text style={styles.userEmail}>{result.mailId}</Text>
+                              </View>
+                              <Text style={styles.selectIcon}>○</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Current User Option (if not selected) */}
+                      {payerSearchResults.length === 0 && paidBy?.mailId !== user?.mailId && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>You</Text>
+                          <TouchableOpacity
+                            style={styles.listItem}
+                            onPress={() => selectPayer({ mailId: user?.mailId, name: user?.name || 'You' })}
+                          >
+                            <View style={styles.userInfo}>
+                              <Text style={styles.userName}>{user?.name || 'You'}</Text>
+                              <Text style={styles.userEmail}>{user?.mailId}</Text>
+                            </View>
+                            <Text style={styles.selectIcon}>○</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Favorites */}
+                      {availablePayerFavorites.length > 0 && payerSearchResults.length === 0 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Favorites</Text>
+                          {availablePayerFavorites.map(fav => (
+                            <TouchableOpacity
+                              key={fav.mailId}
+                              style={styles.listItem}
+                              onPress={() => selectPayer(fav)}
+                            >
+                              <View style={styles.userInfo}>
+                                <Text style={styles.userName}>{fav.name}</Text>
+                                <Text style={styles.userEmail}>{fav.mailId}</Text>
+                              </View>
+                              <Text style={styles.selectIcon}>○</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Empty State */}
+                      {availablePayerFavorites.length === 0 && payerSearchResults.length === 0 && payerSearchQuery.length < 2 && paidBy?.mailId === user?.mailId && (
+                        <Text style={styles.emptyText}>
+                          Search for a user or add favorites
+                        </Text>
+                      )}
+
+                      {payerSearchQuery.length >= 2 && payerSearchResults.length === 0 && !isPayerSearching && (
+                        <Text style={styles.emptyText}>
+                          No users found
+                        </Text>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
               </View>
 
               {/* Amount */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Amount Paid by You</Text>
-                <View style={styles.amountInputContainer}>
+                <Text style={styles.label}>Amount Paid</Text>
+                <View style={[styles.amountInputContainer, validationErrors.amount && styles.inputError]}>
                   <Text style={styles.currencySymbol}>₹</Text>
                   <TextInput
                     style={styles.amountInput}
                     placeholder="0.00"
                     placeholderTextColor="#999"
                     value={amount}
-                    onChangeText={(text) => setAmount(text.replace(/[^0-9.]/g, ''))}
+                    onChangeText={handleAmountChange}
                     keyboardType="decimal-pad"
                   />
                 </View>
               </View>
 
-              {/* Selected Members */}
-              <View style={styles.membersSection}>
+              {/* Split With - Dropdown */}
+              <View style={styles.splitWithSection}>
                 <Text style={styles.label}>
                   Split With ({selectedMembers.length} selected)
                 </Text>
                 
-                {selectedMembers.length > 0 && (
-                  <ScrollView 
-                    style={[
-                      styles.selectedMembersScroll,
-                      selectedMembers.length > 4 && styles.selectedMembersScrollLimited
-                    ]}
-                    showsVerticalScrollIndicator={selectedMembers.length > 4}
-                    nestedScrollEnabled={true}
-                  >
-                    <View style={styles.selectedMembersContainer}>
-                      {selectedMembers.map(member => (
-                        <View key={member.mailId} style={styles.memberChip}>
-                          <Text style={styles.memberChipText}>{member.name}</Text>
-                          <TouchableOpacity 
-                            onPress={() => handleRemoveMember(member.mailId)}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                          >
-                            <Text style={styles.memberChipRemove}>✕</Text>
-                          </TouchableOpacity>
+                {/* Dropdown Trigger */}
+                <TouchableOpacity 
+                  style={[
+                    styles.dropdownTrigger, 
+                    isDropdownOpen && styles.dropdownTriggerOpen,
+                    validationErrors.selectedMembers && styles.dropdownError
+                  ]}
+                  onPress={toggleDropdown}
+                  activeOpacity={0.8}
+                >
+                  {selectedMembers.length === 0 ? (
+                    <Text style={styles.dropdownPlaceholder}>Select members to split with</Text>
+                  ) : (
+                    <View style={styles.chipsPreview}>
+                      {selectedMembers.slice(0, 2).map(member => (
+                        <View key={member.mailId} style={styles.previewChip}>
+                          <Text style={styles.previewChipText} numberOfLines={1}>
+                            {member.name}
+                          </Text>
                         </View>
                       ))}
+                      {selectedMembers.length > 2 && (
+                        <Text style={styles.moreCount}>+{selectedMembers.length - 2} more</Text>
+                      )}
                     </View>
-                  </ScrollView>
-                )}
+                  )}
+                  <Text style={[styles.dropdownArrow, isDropdownOpen && styles.dropdownArrowUp]}>
+                    {isDropdownOpen ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
 
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                  <View style={styles.searchBar}>
-                    <Text style={styles.searchIcon}>🔍</Text>
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search by name or email"
-                      placeholderTextColor="#999"
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
-                  </View>
-                </View>
-
-                {/* Search Results */}
-                {searchResults.length > 0 && (
-                  <View style={styles.searchResults}>
-                    {searchResults.map(result => (
-                      <TouchableOpacity
-                        key={result.mailId}
-                        style={styles.searchResultItem}
-                        onPress={() => handleSelectMember(result)}
+                {/* Dropdown Content */}
+                {isDropdownOpen && (
+                  <View style={styles.dropdownContent}>
+                    {/* Selected Members Chips - Max 2 rows visible, scrollable */}
+                    {selectedMembers.length > 0 && (
+                      <ScrollView 
+                        style={styles.selectedChipsScrollContainer}
+                        showsVerticalScrollIndicator={selectedMembers.length > 4}
+                        nestedScrollEnabled={true}
                       >
-                        <View style={styles.userInfo}>
-                          <Text style={styles.userName}>{result.name}</Text>
-                          <Text style={styles.userEmail}>{result.mailId}</Text>
+                        <View style={styles.selectedChipsWrap}>
+                          {selectedMembers.map(member => (
+                            <View key={member.mailId} style={styles.memberChip}>
+                              <Text style={styles.memberChipText} numberOfLines={1}>
+                                {member.name}
+                              </Text>
+                              <TouchableOpacity 
+                                onPress={() => handleRemoveMember(member.mailId)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              >
+                                <Text style={styles.memberChipRemove}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
                         </View>
-                        <Text style={styles.addIcon}>+</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
+                      </ScrollView>
+                    )}
 
-                {/* Favorites Section */}
-                {availableFavorites.length > 0 && (
-                  <View style={styles.favoritesSection}>
-                    <Text style={styles.favoritesTitle}>From Favorites ({availableFavorites.length})</Text>
+                    {/* Search Bar Inside Dropdown */}
+                    <View style={styles.dropdownSearchBar}>
+                      <Text style={styles.searchIcon}>🔍</Text>
+                      <TextInput
+                        style={styles.dropdownSearchInput}
+                        placeholder="Search by name or email"
+                        placeholderTextColor="#999"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
+                    </View>
+
+                    {/* Scrollable List (Search Results or Favorites) */}
                     <ScrollView 
-                      style={[
-                        styles.favoritesScroll,
-                        availableFavorites.length > 4 && styles.favoritesScrollLimited
-                      ]}
-                      showsVerticalScrollIndicator={availableFavorites.length > 4}
+                      style={styles.dropdownScroll}
+                      showsVerticalScrollIndicator={true}
                       nestedScrollEnabled={true}
+                      keyboardShouldPersistTaps="handled"
                     >
-                      <View style={styles.favoritesList}>
-                        {availableFavorites.map(fav => (
+                      {/* Search Results */}
+                      {searchResults.length > 0 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Search Results</Text>
+                          {searchResults.map(result => (
+                            <TouchableOpacity
+                              key={result.mailId}
+                              style={styles.listItem}
+                              onPress={() => handleSelectMember(result)}
+                            >
+                              <View style={styles.userInfo}>
+                                <Text style={styles.userName}>{result.name}</Text>
+                                <Text style={styles.userEmail}>{result.mailId}</Text>
+                              </View>
+                              <Text style={styles.addIcon}>+</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Current User Option (when not payer) */}
+                      {currentUserOption && searchResults.length === 0 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Add Yourself</Text>
                           <TouchableOpacity
-                            key={fav.mailId}
-                            style={styles.favoriteItem}
-                            onPress={() => handleSelectFromFavorites(fav)}
+                            style={styles.listItem}
+                            onPress={() => handleSelectFromFavorites({ mailId: user.mailId, name: user.name || 'You' })}
                           >
                             <View style={styles.userInfo}>
-                              <Text style={styles.userName}>{fav.name}</Text>
-                              <Text style={styles.userEmail}>{fav.mailId}</Text>
+                              <Text style={styles.userName}>{user.name || 'You'} (You)</Text>
+                              <Text style={styles.userEmail}>{user.mailId}</Text>
                             </View>
                             <Text style={styles.addIcon}>+</Text>
                           </TouchableOpacity>
-                        ))}
-                      </View>
+                        </View>
+                      )}
+
+                      {/* Favorites */}
+                      {availableFavorites.length > 0 && searchResults.length === 0 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Favorites</Text>
+                          {availableFavorites.map(fav => (
+                            <TouchableOpacity
+                              key={fav.mailId}
+                              style={styles.listItem}
+                              onPress={() => handleSelectFromFavorites(fav)}
+                            >
+                              <View style={styles.userInfo}>
+                                <Text style={styles.userName}>{fav.name}</Text>
+                                <Text style={styles.userEmail}>{fav.mailId}</Text>
+                              </View>
+                              <Text style={styles.addIcon}>+</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Empty State */}
+                      {!currentUserOption && availableFavorites.length === 0 && searchResults.length === 0 && searchQuery.length < 2 && (
+                        <Text style={styles.emptyText}>
+                          Type to search for users
+                        </Text>
+                      )}
+
+                      {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+                        <Text style={styles.emptyText}>
+                          No users found
+                        </Text>
+                      )}
                     </ScrollView>
                   </View>
-                )}
-
-                {availableFavorites.length === 0 && searchQuery.length < 2 && selectedMembers.length === 0 && (
-                  <Text style={styles.hintText}>
-                    Search for users to add them to this group
-                  </Text>
                 )}
               </View>
 
@@ -323,13 +680,18 @@ export default function CreateGroupScreen() {
                 </View>
               )}
 
-              {/* Create Button */}
+              {/* Continue Button */}
               <TouchableOpacity
-                style={[styles.createButton, !isFormValid() && styles.createButtonDisabled]}
+                style={[styles.createButton, isCheckingGroupName && styles.createButtonLoading]}
                 onPress={handleContinue}
-                disabled={!isFormValid()}
+                activeOpacity={0.8}
+                disabled={isCheckingGroupName}
               >
-                <Text style={styles.createButtonText}>Continue</Text>
+                {isCheckingGroupName ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.createButtonText}>Continue</Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -353,6 +715,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
+    zIndex: 10,
   },
   backButton: {
     width: 44,
@@ -379,28 +742,25 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  scrollView: {
+  cardScrollView: {
     flex: 1,
-    padding: 16,
-    paddingTop: 0,
+  },
+  cardScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 24,
-    padding: 28,
-    minHeight: 500,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
-    marginBottom: 40,
   },
   inputGroup: {
-    marginBottom: 24,
-  },
-  membersSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
@@ -415,7 +775,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: '#333',
+    borderWidth: 2,
+    borderColor: 'transparent',
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
+  },
+  inputError: {
+    borderColor: '#DC3545',
+  },
+  fieldErrorText: {
+    color: '#DC3545',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
   },
   amountInputContainer: {
     flexDirection: 'row',
@@ -423,6 +794,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     borderRadius: 12,
     paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   currencySymbol: {
     fontSize: 20,
@@ -438,15 +811,161 @@ const styles = StyleSheet.create({
     color: '#333',
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
   },
-  selectedMembersScroll: {
-    marginBottom: 16,
+  // Payer dropdown styles
+  payerDropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  selectedMembersScrollLimited: {
+  payerDropdownTriggerOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  payerPlaceholder: {
+    fontSize: 16,
+    color: '#999',
+  },
+  payerChipContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  payerChip: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    maxWidth: 200,
+  },
+  payerChipText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  payerDropdownContent: {
+    backgroundColor: '#F5F5F5',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: 'hidden',
+  },
+  payerDropdownScroll: {
+    maxHeight: 180,
+  },
+  payerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  payerItemSelected: {
+    backgroundColor: '#FFF5F0',
+  },
+  payerItemText: {
+    fontSize: 15,
+    color: '#333',
+  },
+  payerItemTextSelected: {
+    color: '#FF6B35',
+    fontWeight: '600',
+  },
+  payerCheckmark: {
+    fontSize: 16,
+    color: '#FF6B35',
+    fontWeight: '700',
+  },
+  payerHint: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    paddingVertical: 12,
+    fontStyle: 'italic',
+  },
+  splitWithSection: {
+    marginBottom: 20,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  dropdownError: {
+    borderColor: '#DC3545',
+  },
+  dropdownTriggerOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  dropdownPlaceholder: {
+    fontSize: 16,
+    color: '#999',
+  },
+  chipsPreview: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewChip: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: 100,
+  },
+  previewChipText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  moreCount: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
+  },
+  dropdownArrowUp: {
+    color: '#FF6B35',
+  },
+  dropdownContent: {
+    backgroundColor: '#F5F5F5',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: 'hidden',
+  },
+  selectedChipsScrollContainer: {
     maxHeight: 88, // ~2 rows of chips (44px per row)
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    backgroundColor: '#FFF5F0',
   },
-  selectedMembersContainer: {
+  selectedChipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    padding: 10,
     gap: 8,
   },
   memberChip: {
@@ -457,52 +976,64 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingLeft: 14,
     paddingRight: 10,
-    gap: 8,
+    gap: 6,
   },
   memberChipText: {
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
+    maxWidth: 100,
   },
   memberChipRemove: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
     fontWeight: '600',
   },
-  searchContainer: {
-    marginBottom: 12,
-  },
-  searchBar: {
+  dropdownSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    backgroundColor: '#FFF',
+    margin: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   searchIcon: {
-    fontSize: 16,
-    marginRight: 10,
+    fontSize: 14,
+    marginRight: 8,
   },
-  searchInput: {
+  dropdownSearchInput: {
     flex: 1,
     fontSize: 15,
     color: '#333',
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
   },
-  searchResults: {
-    backgroundColor: '#F8F8F8',
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
+  dropdownScroll: {
+    maxHeight: 200,
   },
-  searchResultItem: {
+  listSection: {
+    paddingBottom: 8,
+  },
+  listSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#ECECEC',
+  },
+  listItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
+    backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
+    borderBottomColor: '#F0F0F0',
   },
   userInfo: {
     flex: 1,
@@ -522,47 +1053,23 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     fontWeight: '600',
   },
-  favoritesSection: {
-    marginTop: 8,
+  selectIcon: {
+    fontSize: 20,
+    color: '#FF6B35',
+    fontWeight: '400',
   },
-  favoritesTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#888',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  favoritesScroll: {
-    backgroundColor: '#F8F8F8',
-    borderRadius: 12,
-  },
-  favoritesScrollLimited: {
-    maxHeight: 220, // ~4 rows (55px per row)
-  },
-  favoritesList: {
-    overflow: 'hidden',
-  },
-  favoriteItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
-  },
-  hintText: {
+  emptyText: {
     fontSize: 14,
     color: '#888',
     textAlign: 'center',
-    paddingVertical: 20,
+    paddingVertical: 24,
     fontStyle: 'italic',
   },
   errorContainer: {
     backgroundColor: '#FFF3CD',
     borderRadius: 12,
     padding: 12,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#FFE69C',
   },
@@ -578,8 +1085,8 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  createButtonDisabled: {
-    backgroundColor: '#CCC',
+  createButtonLoading: {
+    opacity: 0.7,
   },
   createButtonText: {
     color: '#FFF',
@@ -587,4 +1094,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

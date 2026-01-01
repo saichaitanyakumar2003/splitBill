@@ -16,11 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// API Base URL
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-backend-url.onrender.com/api';
+import { authGet, authPost, authDelete, reportNetworkError } from '../utils/apiHelper';
 
 // Max favorites limit
 const MAX_FAVORITES = 20;
@@ -96,16 +92,7 @@ export default function FriendsScreen() {
       setError(null);
       
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/auth/search?q=${encodeURIComponent(searchQuery.trim())}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(searchQuery.trim())}`);
         const data = await response.json();
         
         if (data.success) {
@@ -182,15 +169,7 @@ export default function FriendsScreen() {
     
     // Otherwise delete immediately from DB
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/friends/remove`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ friendEmail: mailId }),
-      });
-
+      const response = await authPost('/auth/friends/remove', { friendEmail: mailId });
       const data = await response.json();
       
       if (data.success) {
@@ -205,12 +184,7 @@ export default function FriendsScreen() {
         await removeFavoriteFromCache(mailId);
         
         // Update local storage and refresh context
-        const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        const meResponse = await authGet('/auth/me');
         const meData = await meResponse.json();
         if (meData.success) {
           await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));
@@ -239,23 +213,11 @@ export default function FriendsScreen() {
     try {
       // Process all additions
       for (const mailId of pendingAdditions) {
-        await fetch(`${API_BASE_URL}/auth/friends/add`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ friendEmail: mailId }),
-        });
+        await authPost('/auth/friends/add', { friendEmail: mailId });
       }
 
       // Fetch updated user data from backend and refresh context
-      const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const meResponse = await authGet('/auth/me');
       const meData = await meResponse.json();
       if (meData.success) {
         await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));

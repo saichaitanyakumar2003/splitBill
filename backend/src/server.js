@@ -13,6 +13,9 @@ const billRoutes = require('./routes/bills');
 const groupRoutes = require('./routes/groups');
 const authRoutes = require('./routes/auth');
 
+// Import middleware
+const { authenticate } = require('./middleware/auth');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -31,10 +34,13 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Routes
+// Auth routes - some public (login, register), some protected (handled inside)
 app.use('/api/auth', authRoutes);
-app.use('/api/ocr', ocrRoutes);
-app.use('/api/bills', billRoutes);
-app.use('/api/groups', groupRoutes);
+
+// Protected routes - require valid JWT token
+app.use('/api/ocr', authenticate, ocrRoutes);
+app.use('/api/bills', authenticate, billRoutes);
+app.use('/api/groups', authenticate, groupRoutes);
 
 // Health check with DB status
 app.get('/health', (req, res) => {

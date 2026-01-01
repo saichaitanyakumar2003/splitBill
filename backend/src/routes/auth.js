@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
+const { authenticate } = require('../middleware/auth');
 
 const googleClient = new OAuth2Client(process.env.SPLITBILL_GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key';
@@ -76,28 +77,22 @@ router.post('/google', async (req, res) => {
 });
 
 // Me
-router.get('/me', async (req, res) => {
+router.get('/me', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, message: 'No token' });
-    const { mailId } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(mailId);
+    const user = await User.findById(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, data: user.toJSON() });
-  } catch (e) { res.status(401).json({ success: false, message: 'Invalid token' }); }
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Profile update
-router.put('/profile', async (req, res) => {
+// Profile update (protected)
+router.put('/profile', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const { mailId } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(mailId);
+    const user = await User.findById(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'Not found' });
 
     const d = user.getDetails();
     if (req.body.name) d.name = req.body.name;
-    // Accept both phone and phone_number from frontend
     const phoneValue = req.body.phone_number ?? req.body.phone;
     if (phoneValue !== undefined) d.phone = phoneValue;
     user.setDetails(d);
@@ -107,12 +102,10 @@ router.put('/profile', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Add friend
-router.post('/friends/add', async (req, res) => {
+// Add friend (protected)
+router.post('/friends/add', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const { mailId } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(mailId);
+    const user = await User.findById(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'Not found' });
 
     user.addFriend(req.body.friendEmail);
@@ -121,12 +114,10 @@ router.post('/friends/add', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Remove friend
-router.post('/friends/remove', async (req, res) => {
+// Remove friend (protected)
+router.post('/friends/remove', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const { mailId } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(mailId);
+    const user = await User.findById(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'Not found' });
 
     user.removeFriend(req.body.friendEmail);
@@ -135,25 +126,17 @@ router.post('/friends/remove', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Get friend details by emails
-router.post('/friends/details', async (req, res) => {
+// Get friend details (protected)
+router.post('/friends/details', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    jwt.verify(token, JWT_SECRET);
-    
     const { emails } = req.body;
     if (!emails || !Array.isArray(emails)) {
       return res.status(400).json({ success: false, message: 'Emails array required' });
     }
 
     const users = await User.find({ _id: { $in: emails.map(e => e.toLowerCase()) } });
-    
-    const result = users.map(u => ({
-      mailId: u._id,
-      name: u.name || u._id.split('@')[0]
-    }));
+    const result = users.map(u => ({ mailId: u._id, name: u.name || u._id.split('@')[0] }));
 
-    // Include emails not found with fallback name
     const foundEmails = result.map(r => r.mailId);
     emails.forEach(email => {
       if (!foundEmails.includes(email.toLowerCase())) {
@@ -165,36 +148,28 @@ router.post('/friends/details', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Search users by name or email
-router.get('/search', async (req, res) => {
+// Search users (protected)
+router.get('/search', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const { mailId } = jwt.verify(token, JWT_SECRET);
     const { q } = req.query;
-    
-    if (!q || q.trim().length < 2) {
-      return res.json({ success: true, data: [] });
-    }
-    
-    const results = await User.searchUsers(q.trim(), mailId, 20);
+    if (!q || q.trim().length < 2) return res.json({ success: true, data: [] });
+    const results = await User.searchUsers(q.trim(), req.user.mailId, 20);
     res.json({ success: true, data: results });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Logout
-router.post('/logout', (req, res) => res.json({ success: true }));
+// Logout (protected)
+router.post('/logout', authenticate, (req, res) => res.json({ success: true }));
 
-// Refresh
-router.post('/refresh', async (req, res) => {
+// Refresh token (protected)
+router.post('/refresh', authenticate, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const { mailId } = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(mailId);
+    const user = await User.findById(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'Not found' });
     user.sessionExpiresAt = getSessionExp();
     await user.save();
-    res.json({ success: true, data: { token: genToken(user._id, user.getDetails().name) } });
-  } catch (e) { res.status(401).json({ success: false, message: 'Invalid' }); }
+    res.json({ success: true, data: { token: genToken(user._id, user.name), session_expires_at: user.sessionExpiresAt } });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 module.exports = router;
