@@ -637,7 +637,7 @@ function MobileSettingsPanel({ visible, onClose, onViewProfile, onHelpCenter, on
             onPress={onLogout}
             activeOpacity={0.7}
           >
-            <Text style={styles.sidePanelMenuIcon}>⏻</Text>
+            <Ionicons name="log-out-outline" size={24} color="#DC3545" style={styles.logoutIcon} />
             <Text style={[styles.sidePanelMenuText, styles.logoutText]}>Logout</Text>
             <Text style={styles.sidePanelMenuArrow}>›</Text>
           </TouchableOpacity>
@@ -1367,6 +1367,8 @@ const styles = StyleSheet.create({
     left: 'auto',
     borderTopRightRadius: 0,
     borderTopLeftRadius: Platform.OS === 'web' ? 0 : 20,
+    borderBottomLeftRadius: Platform.OS === 'web' ? 0 : 20,
+    bottom: Platform.OS === 'web' ? 0 : 90, // Stop above bottom tab bar on mobile
   },
   headerPlaceholder: {
     width: 48,
@@ -1374,6 +1376,9 @@ const styles = StyleSheet.create({
   },
   logoutMenuItem: {
     borderBottomWidth: 0,
+  },
+  logoutIcon: {
+    marginRight: 16,
   },
   logoutText: {
     color: '#DC3545',

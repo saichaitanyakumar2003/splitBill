@@ -253,7 +253,7 @@ export default function ProfileScreen() {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {({ pressed }) => (
-              <Text style={[styles.backIcon, pressed && { opacity: 0.7 }]}>←</Text>
+              <Text style={[styles.backIcon, pressed && { opacity: 0.7 }]}>{Platform.OS === 'web' ? '←' : '<'}</Text>
             )}
           </Pressable>
           <Text style={styles.headerTitle}>My Profile</Text>

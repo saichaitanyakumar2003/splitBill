@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Platform,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +14,14 @@ import { useNavigation } from '@react-navigation/native';
 
 export default function PendingExpensesScreen({ route }) {
   const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    if (Platform.OS === 'web') return;
+    setRefreshing(true);
+    // TODO: Add pending expenses refresh logic when implemented
+    setTimeout(() => setRefreshing(false), 1000);
+  }, []);
 
   const handleBack = () => {
     // If we came from side panel on web, open it when going back
@@ -41,7 +51,20 @@ export default function PendingExpensesScreen({ route }) {
         </View>
 
         {/* Content */}
-        <View style={styles.content}>
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            Platform.OS !== 'web' ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#FFF"
+                colors={['#FF6B35']}
+              />
+            ) : undefined
+          }
+        >
           <View style={styles.card}>
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>⏳</Text>
@@ -51,7 +74,7 @@ export default function PendingExpensesScreen({ route }) {
               </Text>
             </View>
           </View>
-        </View>
+        </ScrollView>
       </LinearGradient>
     </View>
   );
@@ -99,7 +122,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+    flexGrow: 1,
   },
   card: {
     flex: 1,
