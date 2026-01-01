@@ -1,3 +1,5 @@
+// SplitBill Backend Server v1.0.1
+// Deployed via GitHub Actions → Render
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
