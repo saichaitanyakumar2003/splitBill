@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
@@ -397,7 +398,7 @@ function DecorativeCircles() {
 }
 
 // Logo Component with pulse
-function Logo() {
+function Logo({ isMobile = false }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -420,25 +421,25 @@ function Logo() {
   }, []);
 
   return (
-    <View style={styles.logoContainer}>
-      <View style={styles.logoGlow} />
+    <View style={[styles.logoContainer, isMobile && styles.logoContainerMobile]}>
+      <View style={[styles.logoGlow, isMobile && styles.logoGlowMobile]} />
       
-      <Animated.View style={[styles.logoCircle, { transform: [{ scale: pulseAnim }] }]}>
-        <Text style={styles.logoText}>
+      <Animated.View style={[styles.logoCircle, isMobile && styles.logoCircleMobile, { transform: [{ scale: pulseAnim }] }]}>
+        <Text style={[styles.logoText, isMobile && styles.logoTextMobile]}>
           <Text style={styles.logoS}>S</Text>
           <Text style={styles.logoB}>B</Text>
         </Text>
       </Animated.View>
       
-      <Text style={styles.title}>Split<Text style={styles.titleBold}>Bill</Text></Text>
-      <Text style={styles.subtitle}>Split smart. Pay fair.</Text>
+      <Text style={[styles.title, isMobile && styles.titleMobile]}>Split<Text style={styles.titleBold}>Bill</Text></Text>
+      <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>Split smart. Pay fair.</Text>
       
       <View style={styles.taglineRow}>
-        <Text style={styles.taglineIcon}>🧾</Text>
+        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>🧾</Text>
         <Text style={styles.taglineArrow}>→</Text>
-        <Text style={styles.taglineIcon}>👥</Text>
+        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>👥</Text>
         <Text style={styles.taglineArrow}>→</Text>
-        <Text style={styles.taglineIcon}>✅</Text>
+        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>✅</Text>
       </View>
     </View>
   );
@@ -595,38 +596,9 @@ function WebProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogou
   );
 }
 
-// Mobile Menu Panel Component (Left) - Only History
-function MobileMenuPanel({ visible, onClose, onHistory }) {
-  if (!visible) return null;
 
-  return (
-    <>
-      <Pressable style={styles.sidePanelOverlay} onPress={onClose} />
-      <View style={styles.sidePanel}>
-        <View style={styles.sidePanelHeader}>
-          <Text style={styles.sidePanelTitle}>Menu</Text>
-          <TouchableOpacity onPress={onClose} style={styles.sidePanelClose}>
-            <Text style={styles.sidePanelCloseText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.sidePanelMenu}>
-          <TouchableOpacity 
-            style={styles.sidePanelMenuItem}
-            onPress={onHistory}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.sidePanelMenuIcon}>📜</Text>
-            <Text style={styles.sidePanelMenuText}>History</Text>
-            <Text style={styles.sidePanelMenuArrow}>›</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </>
-  );
-}
-
-// Mobile Settings Panel Component (Right) - Help Center and Logout
-function MobileSettingsPanel({ visible, onClose, onHelpCenter, onLogout }) {
+// Mobile Settings Panel Component (Right) - View Profile, Help Center, and Logout
+function MobileSettingsPanel({ visible, onClose, onViewProfile, onHelpCenter, onLogout }) {
   if (!visible) return null;
 
   return (
@@ -640,6 +612,16 @@ function MobileSettingsPanel({ visible, onClose, onHelpCenter, onLogout }) {
           </TouchableOpacity>
         </View>
         <View style={styles.sidePanelMenu}>
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onViewProfile}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>👤</Text>
+            <Text style={styles.sidePanelMenuText}>View Profile</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity 
             style={styles.sidePanelMenuItem}
             onPress={onHelpCenter}
@@ -701,7 +683,7 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
         style={styles.bottomTab}
         onPress={() => navigation.navigate('Friends')}
       >
-        <Text style={styles.bottomTabIcon}>🫂</Text>
+        <Ionicons name="heart" size={24} color="#FF6B35" />
         <Text style={styles.bottomTabTextOrange}>Favorites</Text>
       </TouchableOpacity>
 
@@ -709,7 +691,7 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
         style={styles.bottomTab}
         onPress={() => navigation.navigate('Groups')}
       >
-        <Text style={styles.bottomTabIcon}>👥</Text>
+        <Ionicons name="people" size={24} color="#FF6B35" />
         <Text style={styles.bottomTabTextOrange}>Groups</Text>
       </TouchableOpacity>
 
@@ -718,12 +700,7 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
         onPress={onScanImage}
       >
         <View style={styles.bottomTabCenterButton}>
-          <View style={styles.qrCodeIcon}>
-            <View style={styles.qrCornerTL} />
-            <View style={styles.qrCornerTR} />
-            <View style={styles.qrCornerBL} />
-            <View style={styles.qrCenter} />
-          </View>
+          <Ionicons name="scan" size={28} color="#FFF" />
         </View>
         <Text style={styles.bottomTabCenterText}>Scan</Text>
       </TouchableOpacity>
@@ -732,25 +709,24 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
         style={styles.bottomTab}
         onPress={() => navigation.navigate('PendingExpenses')}
       >
-        <Text style={styles.bottomTabIcon}>⏳</Text>
-        <Text style={styles.bottomTabText}>Pending</Text>
+        <Ionicons name="time" size={24} color="#FF6B35" />
+        <Text style={styles.bottomTabTextOrange}>Pending</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
         style={styles.bottomTab}
-        onPress={() => navigation.navigate('Profile')}
+        onPress={() => navigation.navigate('History')}
       >
-        <Text style={styles.bottomTabIcon}>👤</Text>
-        <Text style={styles.bottomTabTextOrange}>Profile</Text>
+        <Ionicons name="receipt" size={24} color="#FF6B35" />
+        <Text style={styles.bottomTabTextOrange}>History</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 // Home Screen Component
-function HomeScreen({ navigation }) {
+function HomeScreen({ navigation, route }) {
   // Mobile-specific states
-  const [showMenuPanel, setShowMenuPanel] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   
@@ -760,6 +736,15 @@ function HomeScreen({ navigation }) {
   
   const { user, logout } = useAuth();
   const isMobile = Platform.OS === 'ios' || Platform.OS === 'android';
+
+  // Check if we should open the side panel (when coming back from a screen)
+  useEffect(() => {
+    if (route.params?.openSidePanel && !isMobile) {
+      setShowSidePanel(true);
+      // Clear the param so it doesn't re-trigger
+      navigation.setParams({ openSidePanel: undefined });
+    }
+  }, [route.params?.openSidePanel]);
 
   const handleCustomSplit = () => {
     navigation.navigate('SplitOptions');
@@ -778,6 +763,12 @@ function HomeScreen({ navigation }) {
     setShowSettingsPanel(false);
     setShowProfileMenu(false);
     navigation.navigate('HelpCenter');
+  };
+
+  // Mobile view profile handler
+  const handleMobileViewProfile = () => {
+    setShowSettingsPanel(false);
+    navigation.navigate('Profile');
   };
 
   // Mobile logout with confirmation modal
@@ -830,32 +821,36 @@ function HomeScreen({ navigation }) {
       >
         <StatusBar style="light" />
         
-        {/* Header Bar - Menu on Left, Profile/Settings on Right */}
+        {/* Header Bar - Menu on Left (Web only), Profile/Settings on Right */}
         <View style={styles.headerBar}>
-          {/* Hamburger Menu - Left */}
-          <TouchableOpacity
-            style={styles.menuIconButton}
-            onPress={() => isMobile ? setShowMenuPanel(true) : setShowSidePanel(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.menuIconCircle}>
-              <View style={styles.menuIcon}>
-                <View style={styles.menuBar} />
-                <View style={styles.menuBar} />
-                <View style={styles.menuBar} />
+          {/* Hamburger Menu - Left (Web only) */}
+          {!isMobile ? (
+            <TouchableOpacity
+              style={styles.menuIconButton}
+              onPress={() => setShowSidePanel(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.menuIconCircle}>
+                <View style={styles.menuIcon}>
+                  <View style={styles.menuBar} />
+                  <View style={styles.menuBar} />
+                  <View style={styles.menuBar} />
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerPlaceholder} />
+          )}
           
-          {/* Right Icon - Settings (Mobile) or Profile (Web) */}
+          {/* Right Icon - Profile with initials (Mobile) or Profile (Web) */}
           {isMobile ? (
             <TouchableOpacity
-              style={styles.settingsIconButton}
+              style={styles.profileIconButton}
               onPress={() => setShowSettingsPanel(true)}
               activeOpacity={0.8}
             >
-              <View style={styles.settingsIconCircle}>
-                <Text style={styles.settingsIconText}>⚙️</Text>
+              <View style={styles.profileIconCircle}>
+                <Text style={styles.profileIconText}>{getUserInitials()}</Text>
               </View>
             </TouchableOpacity>
           ) : (
@@ -871,23 +866,13 @@ function HomeScreen({ navigation }) {
           )}
         </View>
 
-        {/* Mobile: Menu Panel (Left) - Only History */}
-        {isMobile && (
-          <MobileMenuPanel
-            visible={showMenuPanel}
-            onClose={() => setShowMenuPanel(false)}
-            onHistory={() => {
-              setShowMenuPanel(false);
-              navigation.navigate('History');
-            }}
-          />
-        )}
 
-        {/* Mobile: Settings Panel (Right) */}
+        {/* Mobile: Settings Panel (Right) - Contains Profile, Help Center, Logout */}
         {isMobile && (
           <MobileSettingsPanel
             visible={showSettingsPanel}
             onClose={() => setShowSettingsPanel(false)}
+            onViewProfile={handleMobileViewProfile}
             onHelpCenter={handleHelpCenter}
             onLogout={handleLogoutPress}
           />
@@ -917,19 +902,19 @@ function HomeScreen({ navigation }) {
             onClose={() => setShowSidePanel(false)}
             onFavorites={() => {
               setShowSidePanel(false);
-              navigation.navigate('Friends');
+              navigation.navigate('Friends', { fromSidePanel: true });
             }}
             onGroups={() => {
               setShowSidePanel(false);
-              navigation.navigate('Groups');
+              navigation.navigate('Groups', { fromSidePanel: true });
             }}
             onPendingExpenses={() => {
               setShowSidePanel(false);
-              navigation.navigate('PendingExpenses');
+              navigation.navigate('PendingExpenses', { fromSidePanel: true });
             }}
             onHistory={() => {
               setShowSidePanel(false);
-              navigation.navigate('History');
+              navigation.navigate('History', { fromSidePanel: true });
             }}
           />
         )}
@@ -949,50 +934,51 @@ function HomeScreen({ navigation }) {
         <DecorativeCircles />
         <FloatingEmojis />
         
-        {/* Animated Rolling Bill on Left */}
-        <RollingBill />
+        {/* Animated Rolling Bill on Left - Web only */}
+        {!isMobile && <RollingBill />}
         
-        {/* Animated UPI Success on Right */}
-        <UPISuccess />
+        {/* Animated UPI Success on Right - Web only */}
+        {!isMobile && <UPISuccess />}
         
         {/* Main content */}
-        <View style={styles.content}>
-          <Logo />
+        <View style={[styles.content, isMobile && styles.contentMobile]}>
+          <Logo isMobile={isMobile} />
           
-          <View style={styles.optionsContainer}>
+          <View style={[styles.optionsContainer, isMobile && styles.optionsContainerMobile]}>
             <TouchableOpacity 
-              style={styles.optionCard} 
+              style={[styles.optionCard, isMobile && styles.optionCardMobile]} 
               onPress={handleCustomSplit}
               activeOpacity={0.9}
             >
-              <View style={styles.optionIcon}>
-                <Text style={styles.iconText}>🧮</Text>
+              <View style={[styles.optionIcon, isMobile && styles.optionIconMobile]}>
+                <Text style={[styles.iconText, isMobile && styles.iconTextMobile]}>🧮</Text>
               </View>
-              <Text style={styles.optionTitle}>Add Custom Split</Text>
-              <Text style={styles.optionDesc} numberOfLines={1}>Enter expense amount manually</Text>
-              <View style={styles.cardArrow}>
+              <Text style={[styles.optionTitle, isMobile && styles.optionTitleMobile]}>Add Custom Split</Text>
+              <Text style={[styles.optionDesc, isMobile && styles.optionDescMobile]} numberOfLines={1}>Enter expense amount manually</Text>
+              <View style={[styles.cardArrow, isMobile && styles.cardArrowMobile]}>
                 <Text style={styles.arrowText}>›</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.optionCard} 
+              style={[styles.optionCard, isMobile && styles.optionCardMobile]} 
               onPress={handleUploadImage}
               activeOpacity={0.9}
             >
-              <View style={styles.optionIcon}>
-                <Text style={styles.iconText}>📷</Text>
+              <View style={[styles.optionIcon, isMobile && styles.optionIconMobile]}>
+                <Text style={[styles.iconText, isMobile && styles.iconTextMobile]}>📷</Text>
               </View>
-              <Text style={styles.optionTitle}>Upload Image</Text>
-              <Text style={styles.optionDesc} numberOfLines={1}>Import a bill photo</Text>
-              <View style={styles.cardArrow}>
+              <Text style={[styles.optionTitle, isMobile && styles.optionTitleMobile]}>Upload Image</Text>
+              <Text style={[styles.optionDesc, isMobile && styles.optionDescMobile]} numberOfLines={1}>Import a bill photo</Text>
+              <View style={[styles.cardArrow, isMobile && styles.cardArrowMobile]}>
                 <Text style={styles.arrowText}>›</Text>
               </View>
             </TouchableOpacity>
           </View>
           
-          <View style={styles.bottomTagline}>
-            <Text style={styles.bottomText}>No more awkward calculations 🎉</Text>
+          {/* Bottom tagline */}
+          <View style={[styles.bottomTagline, isMobile && styles.bottomTaglineMobile]}>
+            <Text style={[styles.bottomText, isMobile && styles.bottomTextMobile]}>No more awkward calculations 🎉</Text>
           </View>
         </View>
       </LinearGradient>
@@ -1254,6 +1240,11 @@ const styles = StyleSheet.create({
     padding: 24,
     zIndex: 10,
   },
+  contentMobile: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    justifyContent: 'flex-start',
+  },
 
   // Header Bar with Profile Icon
   headerBar: {
@@ -1310,8 +1301,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    bottom: 0,
-    width: 300,
+    bottom: Platform.OS === 'web' ? 0 : 'auto',
+    width: Platform.OS === 'web' ? 300 : SCREEN_WIDTH * 0.65,
+    maxWidth: Platform.OS === 'web' ? 300 : 260,
+    maxHeight: Platform.OS === 'web' ? '100%' : SCREEN_HEIGHT * 0.45,
     backgroundColor: '#FFFFFF',
     zIndex: 201,
     shadowColor: '#000',
@@ -1319,14 +1312,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 20,
+    borderBottomRightRadius: Platform.OS === 'web' ? 0 : 20,
+    marginTop: Platform.OS === 'web' ? 0 : (Platform.OS === 'ios' ? 50 : 30),
   },
   sidePanelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: Platform.OS === 'web' ? 40 : 16,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
@@ -1337,9 +1332,6 @@ const styles = StyleSheet.create({
   },
   sidePanelClose: {
     padding: 8,
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
-    right: 15,
   },
   sidePanelCloseText: {
     fontSize: 28,
@@ -1375,6 +1367,12 @@ const styles = StyleSheet.create({
   settingsPanel: {
     right: 0,
     left: 'auto',
+    borderBottomRightRadius: 0,
+    borderBottomLeftRadius: Platform.OS === 'web' ? 0 : 20,
+  },
+  headerPlaceholder: {
+    width: 48,
+    height: 48,
   },
   logoutMenuItem: {
     borderBottomWidth: 0,
@@ -1487,6 +1485,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bottomTabIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  bottomTabIconOrange: {
     fontSize: 24,
     marginBottom: 4,
   },
@@ -1948,6 +1950,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
+  logoContainerMobile: {
+    marginTop: 10,
+    marginBottom: 16,
+  },
   logoGlow: {
     position: 'absolute',
     width: 160,
@@ -1955,6 +1961,12 @@ const styles = StyleSheet.create({
     borderRadius: 80,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     top: -20,
+  },
+  logoGlowMobile: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    top: -15,
   },
   logoCircle: {
     width: 120,
@@ -1971,10 +1983,19 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.5)',
   },
+  logoCircleMobile: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+  },
   logoText: {
     fontSize: 48,
     fontWeight: '800',
     letterSpacing: -3,
+  },
+  logoTextMobile: {
+    fontSize: 36,
   },
   logoS: {
     color: '#FF6B35',
@@ -1992,6 +2013,10 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
+  titleMobile: {
+    fontSize: 28,
+    marginTop: 12,
+  },
   titleBold: {
     fontWeight: '800',
   },
@@ -2002,6 +2027,11 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     textTransform: 'uppercase',
   },
+  subtitleMobile: {
+    fontSize: 11,
+    marginTop: 4,
+    letterSpacing: 2,
+  },
   taglineRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2010,6 +2040,9 @@ const styles = StyleSheet.create({
   },
   taglineIcon: {
     fontSize: 20,
+  },
+  taglineIconMobile: {
+    fontSize: 16,
   },
   taglineArrow: {
     fontSize: 16,
@@ -2025,6 +2058,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  optionsContainerMobile: {
+    gap: 12,
+    maxWidth: '100%',
+    paddingHorizontal: 16,
+  },
   optionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -2039,6 +2077,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
+  optionCardMobile: {
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 0,
+  },
   optionIcon: {
     width: 72,
     height: 72,
@@ -2050,8 +2093,18 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#FF6B35',
   },
+  optionIconMobile: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginBottom: 10,
+    borderWidth: 2,
+  },
   iconText: {
     fontSize: 32,
+  },
+  iconTextMobile: {
+    fontSize: 26,
   },
   optionTitle: {
     fontSize: 18,
@@ -2059,11 +2112,19 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
     marginBottom: 4,
   },
+  optionTitleMobile: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
   optionDesc: {
     fontSize: 14,
     color: '#666666',
     textAlign: 'center',
     marginBottom: 30,
+  },
+  optionDescMobile: {
+    fontSize: 12,
+    marginBottom: 20,
   },
   cardArrow: {
     position: 'absolute',
@@ -2075,6 +2136,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  cardArrowMobile: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    bottom: 8,
+    right: 8,
   },
   arrowText: {
     color: '#FFFFFF',
@@ -2090,10 +2158,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 20,
   },
+  bottomTaglineMobile: {
+    marginTop: 16,
+    marginBottom: 100,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   bottomText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  bottomTextMobile: {
+    fontSize: 13,
   },
   
   // Loading Screen

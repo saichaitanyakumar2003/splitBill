@@ -21,7 +21,7 @@ import { authGet, authPost, authDelete, reportNetworkError } from '../utils/apiH
 // Max favorites limit
 const MAX_FAVORITES = 20;
 
-export default function FriendsScreen() {
+export default function FriendsScreen({ route }) {
   const navigation = useNavigation();
   const { user, token, initializeAuth } = useAuth();
   const { 
@@ -74,9 +74,11 @@ export default function FriendsScreen() {
     if (hasChanges) {
       // Could show confirmation dialog here
     }
+    // If we came from side panel on web, open it when going back
+    const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Home' }],
+      routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
     });
   };
 
@@ -114,11 +116,6 @@ export default function FriendsScreen() {
   // Check if user is already in favorites (including pending additions)
   const isInFavorites = (mailId) => {
     return favorites.some(f => f.mailId === mailId);
-  };
-
-  // Check if user is pending removal
-  const isPendingRemoval = (mailId) => {
-    return pendingRemovals.includes(mailId);
   };
 
   const handleAddFavorite = (userToAdd) => {

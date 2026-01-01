@@ -10,8 +10,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
-export default function HistoryScreen() {
+export default function HistoryScreen({ route }) {
   const navigation = useNavigation();
+
+  const handleBack = () => {
+    // If we came from side panel on web, open it when going back
+    const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -24,7 +33,7 @@ export default function HistoryScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>History</Text>
@@ -34,11 +43,13 @@ export default function HistoryScreen() {
         {/* Content */}
         <View style={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.emptyIcon}>📜</Text>
-            <Text style={styles.emptyTitle}>No History Yet</Text>
-            <Text style={styles.emptyText}>
-              Your completed expenses and settlements will appear here
-            </Text>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📜</Text>
+              <Text style={styles.emptyTitle}>No History Yet</Text>
+              <Text style={styles.emptySubtext}>
+                Your completed expenses and settlements will appear here
+              </Text>
+            </View>
           </View>
         </View>
       </LinearGradient>
@@ -68,6 +79,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
   },
   backText: {
     fontSize: 28,
@@ -85,34 +99,38 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
+    padding: 20,
   },
   card: {
+    flex: 1,
     backgroundColor: '#FFF',
-    borderRadius: 20,
-    padding: 40,
-    alignItems: 'center',
+    borderRadius: 24,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyIcon: {
-    fontSize: 60,
+    fontSize: 80,
     marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#333',
-    marginBottom: 10,
+    color: '#1A1A1A',
+    marginBottom: 8,
   },
-  emptyText: {
-    fontSize: 14,
+  emptySubtext: {
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
+    paddingHorizontal: 20,
   },
 });
-

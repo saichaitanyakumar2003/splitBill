@@ -12,13 +12,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
-export default function GroupsScreen() {
+export default function GroupsScreen({ route }) {
   const navigation = useNavigation();
 
   const handleBack = () => {
+    // If we came from side panel on web, open it when going back
+    const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Home' }],
+      routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
     });
   };
 
