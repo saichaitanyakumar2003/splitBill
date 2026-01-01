@@ -28,7 +28,7 @@ const GOOGLE_CLIENT_ID = '543880175096-lftcjh1p2nv2k66ver4ch7pq5qdee40v.apps.goo
 
 export default function LoginScreen() {
   const navigation = useNavigation();
-  const { login, register, loginWithGoogle, skipLogin } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -268,14 +268,6 @@ export default function LoginScreen() {
       setApiError('Failed to open Google sign in. Please try again.');
       setIsGoogleLoading(false);
     }
-  };
-
-  const handleSkip = async () => {
-    await skipLogin();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Home' }],
-    });
   };
 
   // Interpolate rotation (2 full rotations = 720°)
@@ -575,12 +567,6 @@ export default function LoginScreen() {
               </Pressable>
             </Animated.View>
 
-            {/* Skip Button */}
-            <Animated.View style={{ opacity: fadeAnim }}>
-              <Pressable style={styles.skipButton} onPress={handleSkip}>
-                <Text style={styles.skipText}>Skip for now →</Text>
-              </Pressable>
-            </Animated.View>
 
           </ScrollView>
         </KeyboardAvoidingView>
@@ -823,18 +809,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#333',
-  },
-  skipButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-    }),
-  },
-  skipText: {
-    fontSize: 15,
-    color: '#FFF',
-    fontWeight: '500',
   },
   // Error Container
   errorContainer: {
