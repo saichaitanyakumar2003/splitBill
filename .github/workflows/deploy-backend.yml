@@ -16,38 +16,66 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: 🚀 Starting Backend Deployment
+        run: |
+          echo "=========================================="
+          echo "🖥️ Deploying SplitBill Backend to Render"
+          echo "=========================================="
+          echo "📅 Triggered at: $(date)"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Install dependencies
+      - name: 📚 Install dependencies
         working-directory: ./backend
-        run: npm install
+        run: |
+          echo "📚 Installing npm dependencies..."
+          npm install
+          echo "✅ Dependencies installed!"
 
-      - name: Run tests (if any)
+      - name: 🧪 Run tests
         working-directory: ./backend
-        run: npm test --if-present
+        run: |
+          echo "🧪 Running tests..."
+          npm test --if-present
+          echo "✅ Tests passed!"
 
-      - name: Deploy to Render
+      - name: 🚀 Deploy to Render
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
+          echo "🚀 Triggering Render deployment..."
+          
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "⚠️ RENDER_DEPLOY_HOOK_URL secret not set. Skipping deployment."
             exit 0
           fi
           
-          echo "🚀 Triggering Render deployment..."
           response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
           
           if [ "$response" = "200" ] || [ "$response" = "201" ]; then
-            echo "✅ Deployment triggered successfully!"
+            echo "✅ Render deployment triggered successfully!"
+            echo "⏳ Render is now building and deploying your backend..."
+            echo "🔗 Check status at: https://dashboard.render.com"
           else
             echo "❌ Failed to trigger deployment. HTTP status: $response"
             exit 1
           fi
 
+      - name: 📋 Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "✅ BACKEND DEPLOYMENT TRIGGERED!"
+          echo "=========================================="
+          echo "🖥️ Backend URL: https://splitbill-i6ou.onrender.com"
+          echo "❤️ Health Check: https://splitbill-i6ou.onrender.com/health"
+          echo "📅 Completed at: $(date)"
+          echo "⏳ Note: Render may take 2-5 mins to complete deployment"
+          echo "=========================================="

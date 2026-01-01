@@ -4,8 +4,11 @@
     "slug": "splitbill",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
       "backgroundColor": "#FF6B35"
     },
     "assetBundlePatterns": [
@@ -21,8 +24,13 @@
     },
     "android": {
       "package": "com.splitbill.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -42,7 +50,22 @@
         {
           "photosPermission": "Allow SplitBill to access your photos to import bills"
         }
-      ]
-    ]
+      ],
+      "expo-font"
+    ],
+    "updates": {
+      "url": "https://u.expo.dev/7c726d40-818b-4412-92f4-0df041e304b1"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "apiBaseUrl": "https://splitbill-i6ou.onrender.com/api",
+      "apiHost": "https://splitbill-i6ou.onrender.com",
+      "eas": {
+        "projectId": "7c726d40-818b-4412-92f4-0df041e304b1"
+      }
+    },
+    "owner": "saichaitanyakumar2003"
   }
 }

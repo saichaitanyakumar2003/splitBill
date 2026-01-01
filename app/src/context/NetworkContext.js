@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Platform } from 'react-native';
 import { setNetworkErrorCallback, isNetworkError } from '../utils/apiHelper';
+import ENV from '../config/env';
 
-const API_BASE = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://localhost:3001';
+const API_BASE = ENV.API_HOST;
 const HEALTH_CHECK_TIMEOUT = 5000;
 
 const NetworkContext = createContext();

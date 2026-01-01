@@ -1,0 +1,82 @@
+name: Deploy Web to Vercel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch: # Allows manual triggering
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚀 Starting Vercel Deployment
+        run: |
+          echo "=========================================="
+          echo "🌐 Deploying SplitBill Web App to Vercel"
+          echo "=========================================="
+          echo "📅 Triggered at: $(date)"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 📚 Install dependencies
+        working-directory: ./app
+        run: |
+          echo "📚 Installing npm dependencies..."
+          npm install
+          echo "✅ Dependencies installed successfully!"
+
+      - name: 🔧 Install Vercel CLI
+        run: |
+          echo "🔧 Installing Vercel CLI..."
+          npm install -g vercel@latest
+          echo "✅ Vercel CLI installed: $(vercel --version)"
+
+      - name: 🔗 Pull Vercel Environment
+        working-directory: ./app
+        run: |
+          echo "🔗 Pulling Vercel environment configuration..."
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          echo "✅ Environment pulled successfully!"
+
+      - name: 🏗️ Build Project
+        working-directory: ./app
+        run: |
+          echo "🏗️ Building project for production..."
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          echo "✅ Build completed successfully!"
+
+      - name: 🚀 Deploy to Vercel
+        working-directory: ./app
+        id: deploy
+        run: |
+          echo "🚀 Deploying to Vercel..."
+          DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deployment_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          echo "✅ Deployment successful!"
+          echo "🌐 URL: $DEPLOYMENT_URL"
+
+      - name: 📋 Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "✅ DEPLOYMENT SUCCESSFUL!"
+          echo "=========================================="
+          echo "🌐 Live URL: ${{ steps.deploy.outputs.deployment_url }}"
+          echo "📅 Completed at: $(date)"
+          echo "=========================================="

@@ -1,0 +1,70 @@
+name: Deploy App Update (OTA)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'app/**'
+      - '.github/workflows/deploy-app-update.yml'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  update:
+    name: Publish OTA Update
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🚀 Starting OTA Update
+        run: |
+          echo "=========================================="
+          echo "📱 Publishing OTA Update to Expo"
+          echo "=========================================="
+          echo "📅 Triggered at: $(date)"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 🔧 Setup Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: ✅ Verify Expo Authentication
+        run: |
+          echo "🔐 Checking Expo authentication..."
+          eas whoami
+          echo "✅ Authenticated successfully!"
+
+      - name: 📚 Install dependencies
+        working-directory: ./app
+        run: |
+          echo "📚 Installing npm dependencies..."
+          npm install
+          echo "✅ Dependencies installed!"
+
+      - name: 📤 Publish OTA Update
+        working-directory: ./app
+        run: |
+          echo "📤 Publishing OTA update..."
+          eas update --auto --non-interactive --message "Auto update from commit ${{ github.sha }}"
+          echo "✅ OTA Update published!"
+
+      - name: 📋 Update Summary
+        run: |
+          echo "=========================================="
+          echo "✅ OTA UPDATE SUCCESSFUL!"
+          echo "=========================================="
+          echo "📱 Users will receive the update on next app restart"
+          echo "📅 Completed at: $(date)"
+          echo "=========================================="

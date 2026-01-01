@@ -2,11 +2,10 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { apiFetch, reportNetworkError, setAuthToken } from '../utils/apiHelper';
+import ENV from '../config/env';
 
-// API Base URL - update this when deploying backend
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-backend-url.onrender.com/api';
+// API Base URL - from centralized config
+const API_BASE_URL = ENV.API_BASE_URL;
 
 // Storage keys
 const STORAGE_KEYS = {

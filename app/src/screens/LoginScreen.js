@@ -24,7 +24,7 @@ import * as WebBrowser from 'expo-web-browser';
 WebBrowser.maybeCompleteAuthSession();
 
 // Google OAuth Client ID - hardcoded for now, later use EXPO_PUBLIC_ env vars
-const GOOGLE_CLIENT_ID = 'xxx';
+const GOOGLE_CLIENT_ID = '543880175096-lftcjh1p2nv2k66ver4ch7pq5qdee40v.apps.googleusercontent.com';
 
 export default function LoginScreen() {
   const navigation = useNavigation();

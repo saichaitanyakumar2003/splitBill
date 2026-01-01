@@ -2,12 +2,10 @@
  * API Helper - Wraps fetch calls with auth token and network error detection
  */
 
-import { Platform } from 'react-native';
+import ENV from '../config/env';
 
-// API Base URL
-export const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-backend-url.onrender.com/api';
+// API Base URL - from centralized config
+export const API_BASE_URL = ENV.API_BASE_URL;
 
 let networkErrorCallback = null;
 let authToken = null;

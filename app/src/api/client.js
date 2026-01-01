@@ -1,6 +1,6 @@
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001/api' 
-  : 'https://your-production-url.com/api';
+import ENV from '../config/env';
+
+const API_BASE_URL = ENV.API_BASE_URL;
 
 class ApiClient {
   async request(endpoint, options = {}) {
