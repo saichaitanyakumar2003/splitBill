@@ -700,7 +700,7 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
         onPress={onScanImage}
       >
         <View style={styles.bottomTabCenterButton}>
-          <Ionicons name="scan" size={28} color="#FFF" />
+          <Ionicons name="qr-code" size={28} color="#FFF" />
         </View>
         <Text style={styles.bottomTabCenterText}>Scan</Text>
       </TouchableOpacity>
@@ -1249,7 +1249,7 @@ const styles = StyleSheet.create({
   // Header Bar with Profile Icon
   headerBar: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
+    top: Platform.OS === 'ios' ? 55 : 40,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -1299,12 +1299,11 @@ const styles = StyleSheet.create({
   },
   sidePanel: {
     position: 'absolute',
-    top: 0,
+    top: Platform.OS === 'web' ? 0 : (Platform.OS === 'ios' ? 55 : 40),
     left: 0,
-    bottom: Platform.OS === 'web' ? 0 : 'auto',
+    bottom: 0,
     width: Platform.OS === 'web' ? 300 : SCREEN_WIDTH * 0.65,
     maxWidth: Platform.OS === 'web' ? 300 : 260,
-    maxHeight: Platform.OS === 'web' ? '100%' : SCREEN_HEIGHT * 0.45,
     backgroundColor: '#FFFFFF',
     zIndex: 201,
     shadowColor: '#000',
@@ -1312,8 +1311,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 20,
-    borderBottomRightRadius: Platform.OS === 'web' ? 0 : 20,
-    marginTop: Platform.OS === 'web' ? 0 : (Platform.OS === 'ios' ? 50 : 30),
+    borderTopRightRadius: Platform.OS === 'web' ? 0 : 20,
   },
   sidePanelHeader: {
     flexDirection: 'row',
@@ -1367,8 +1365,8 @@ const styles = StyleSheet.create({
   settingsPanel: {
     right: 0,
     left: 'auto',
-    borderBottomRightRadius: 0,
-    borderBottomLeftRadius: Platform.OS === 'web' ? 0 : 20,
+    borderTopRightRadius: 0,
+    borderTopLeftRadius: Platform.OS === 'web' ? 0 : 20,
   },
   headerPlaceholder: {
     width: 48,
@@ -1478,6 +1476,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 10,
+    zIndex: 50,
   },
   bottomTab: {
     flex: 1,
