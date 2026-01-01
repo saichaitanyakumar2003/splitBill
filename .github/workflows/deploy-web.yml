@@ -42,32 +42,25 @@ jobs:
           npm install
           echo "✅ Dependencies installed successfully!"
 
+      - name: 🏗️ Build Expo Web
+        working-directory: ./app
+        run: |
+          echo "🏗️ Building Expo web app..."
+          npx expo export --platform web
+          echo "✅ Expo web build completed!"
+
       - name: 🔧 Install Vercel CLI
         run: |
           echo "🔧 Installing Vercel CLI..."
           npm install -g vercel@latest
           echo "✅ Vercel CLI installed: $(vercel --version)"
 
-      - name: 🔗 Pull Vercel Environment
-        working-directory: ./app
-        run: |
-          echo "🔗 Pulling Vercel environment configuration..."
-          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-          echo "✅ Environment pulled successfully!"
-
-      - name: 🏗️ Build Project
-        working-directory: ./app
-        run: |
-          echo "🏗️ Building project for production..."
-          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-          echo "✅ Build completed successfully!"
-
       - name: 🚀 Deploy to Vercel
         working-directory: ./app
         id: deploy
         run: |
           echo "🚀 Deploying to Vercel..."
-          DEPLOYMENT_URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          DEPLOYMENT_URL=$(vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "deployment_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
           echo "✅ Deployment successful!"
           echo "🌐 URL: $DEPLOYMENT_URL"
