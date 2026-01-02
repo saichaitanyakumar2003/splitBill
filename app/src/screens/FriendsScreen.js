@@ -99,37 +99,29 @@ export default function FriendsScreen({ route }) {
     }
   }, [user?.friends, token, loadFavoritesFromStore, initializeAuth, pendingAdditions.length]);
 
-  const handleBack = useCallback(() => {
-    // Force navigation to Home screen
-    if (Platform.OS !== 'web') {
-      // Use reset for guaranteed navigation on mobile
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
     } else {
-      const openSidePanel = route?.params?.fromSidePanel;
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
-      });
+      navigation.navigate('Home');
     }
-  }, [navigation, route?.params?.fromSidePanel]);
+  };
 
-  // Handle Android hardware back button and gesture
+  // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const onBackPress = () => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
-        return true; // Prevent default behavior
+      const backAction = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Home');
+        }
+        return true;
       };
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [navigation]);
+  }, []);
 
   // Search users from API
   useEffect(() => {
@@ -313,6 +305,7 @@ export default function FriendsScreen({ route }) {
         <ScrollView 
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl

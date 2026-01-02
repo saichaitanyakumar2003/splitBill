@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -139,36 +139,29 @@ export default function AddExpenseScreen() {
     return () => clearTimeout(debounce);
   }, [searchQuery, token, selectedMembers, paidBy?.mailId]);
 
-  const handleBack = useCallback(() => {
-    // Navigate to Home
-    if (Platform.OS !== 'web') {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
     } else {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('SelectGroup');
-      }
+      navigation.navigate('Home');
     }
-  }, [navigation]);
+  };
 
   // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const onBackPress = () => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
+      const backAction = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Home');
+        }
         return true;
       };
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [navigation]);
+  }, []);
 
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {

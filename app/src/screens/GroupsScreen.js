@@ -145,46 +145,35 @@ export default function GroupsScreen({ route }) {
     setRefreshing(false);
   }, [selectedGroup]);
 
-  const handleBack = useCallback(() => {
+  const handleBack = () => {
     if (selectedGroup) {
       setSelectedGroup(null);
       setGroupDetails(null);
+    } else if (navigation.canGoBack()) {
+      navigation.goBack();
     } else {
-      // Navigate to Home
-      if (Platform.OS !== 'web') {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
-      } else {
-        const openSidePanel = route?.params?.fromSidePanel;
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
-        });
-      }
+      navigation.navigate('Home');
     }
-  }, [selectedGroup, navigation, route?.params?.fromSidePanel]);
+  };
 
   // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const onBackPress = () => {
+      const backAction = () => {
         if (selectedGroup) {
           setSelectedGroup(null);
           setGroupDetails(null);
+        } else if (navigation.canGoBack()) {
+          navigation.goBack();
         } else {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Home' }],
-          });
+          navigation.navigate('Home');
         }
         return true;
       };
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [selectedGroup, navigation]);
+  }, [selectedGroup]);
 
   const handleSelectGroup = async (group) => {
     setSelectedGroup(group);

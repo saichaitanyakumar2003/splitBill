@@ -45,36 +45,29 @@ export default function HistoryScreen({ route }) {
     setRefreshing(false);
   }, []);
 
-  const handleBack = useCallback(() => {
-    // Navigate to Home
-    if (Platform.OS !== 'web') {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
     } else {
-      const openSidePanel = route?.params?.fromSidePanel;
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
-      });
+      navigation.navigate('Home');
     }
-  }, [navigation, route?.params?.fromSidePanel]);
+  };
 
   // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const onBackPress = () => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
+      const backAction = () => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Home');
+        }
         return true;
       };
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [navigation]);
+  }, []);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
