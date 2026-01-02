@@ -133,6 +133,44 @@ router.put('/profile', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Password change (protected)
+router.put('/password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+    }
+
+    const user = await User.findByMailIdWithPassword(req.user.mailId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // Check if user has a password set (OAuth users might not have one)
+    const hasExistingPassword = user.pswd && user.pswd.length > 0;
+    
+    // If user has existing password, verify current password
+    if (hasExistingPassword && currentPassword) {
+      const isValid = await user.verifyPassword(currentPassword);
+      if (!isValid) {
+        return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+      }
+    } else if (hasExistingPassword && !currentPassword) {
+      // User has password but didn't provide current password
+      return res.status(400).json({ success: false, message: 'Current password is required' });
+    }
+    // If user doesn't have existing password (OAuth user), allow setting new password
+
+    // Hash and save new password
+    user.pswd = await User.hashPassword(newPassword);
+    await user.save();
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (e) {
+    console.error('Password change error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Add friend (protected)
 router.post('/friends/add', authenticate, async (req, res) => {
   try {
