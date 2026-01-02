@@ -286,6 +286,40 @@ function classifyItem(itemName, billType) {
 }
 
 /**
+ * Consolidate duplicate items (same name) into single items with combined quantity
+ * @param {Array} items - Array of item objects {name, price, quantity}
+ * @returns {Array} - Consolidated array of items
+ */
+function consolidateDuplicateItems(items) {
+  const itemMap = new Map();
+
+  for (const item of items) {
+    // Normalize the item name (lowercase, trim, remove extra spaces)
+    const normalizedName = item.name.toLowerCase().trim().replace(/\s+/g, ' ');
+    
+    if (itemMap.has(normalizedName)) {
+      // Item already exists - add to quantity and total
+      const existing = itemMap.get(normalizedName);
+      const itemQty = item.quantity || 1;
+      existing.quantity += itemQty;
+      existing.totalPrice += (parseFloat(item.price) || 0) * itemQty;
+    } else {
+      // New item - add to map
+      const itemQty = item.quantity || 1;
+      itemMap.set(normalizedName, {
+        name: item.name, // Keep original case for display
+        price: parseFloat(item.price) || 0, // Unit price
+        quantity: itemQty,
+        totalPrice: (parseFloat(item.price) || 0) * itemQty
+      });
+    }
+  }
+
+  // Convert map back to array
+  return Array.from(itemMap.values());
+}
+
+/**
  * Classify all items from a parsed bill
  * @param {Array} items - Array of item objects {name, price, quantity}
  * @param {string} ocrText - Original OCR text for bill type detection
@@ -296,14 +330,17 @@ function classifyBillItems(items, ocrText) {
   const billType = detectBillType(ocrText);
   const categoryConfig = ITEM_CATEGORIES[billType] || ITEM_CATEGORIES.restaurant;
 
+  // First, consolidate duplicate items (same name = combined quantity)
+  const consolidatedItems = consolidateDuplicateItems(items);
+
   // Initialize category groups
   const categorizedItems = {};
   for (const category of categoryConfig.categories) {
     categorizedItems[category] = [];
   }
 
-  // Classify each item
-  const classifiedItems = items.map(item => {
+  // Classify each consolidated item
+  const classifiedItems = consolidatedItems.map(item => {
     const category = classifyItem(item.name, billType);
     const classifiedItem = {
       ...item,
@@ -324,7 +361,7 @@ function classifyBillItems(items, ocrText) {
   const categoryTotals = {};
   for (const [category, categoryItems] of Object.entries(categorizedItems)) {
     categoryTotals[category] = categoryItems.reduce((sum, item) => {
-      return sum + (parseFloat(item.price) || 0) * (item.quantity || 1);
+      return sum + (item.totalPrice || (parseFloat(item.price) || 0) * (item.quantity || 1));
     }, 0);
   }
 
@@ -336,7 +373,8 @@ function classifyBillItems(items, ocrText) {
     categorizedItems,
     categoryTotals,
     summary: {
-      totalItems: items.length,
+      totalItems: consolidatedItems.length, // Count after consolidation
+      originalItemCount: items.length, // Original count before consolidation
       categoriesUsed: Object.entries(categorizedItems)
         .filter(([_, items]) => items.length > 0)
         .map(([cat, items]) => ({ category: cat, count: items.length }))
@@ -387,6 +425,7 @@ module.exports = {
   detectBillType,
   classifyItem,
   classifyBillItems,
+  consolidateDuplicateItems,
   getBillTypeDisplay,
   getCategoriesForBillType,
   addCustomCategory,

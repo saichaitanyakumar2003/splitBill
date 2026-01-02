@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import ENV from './src/config/env';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
@@ -20,6 +22,7 @@ import GroupPreviewScreen from './src/screens/GroupPreviewScreen';
 import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+import BillScanScreen from './src/screens/BillScanScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -737,7 +740,11 @@ function HomeScreen({ navigation, route }) {
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   
-  const { user, logout } = useAuth();
+  // OCR processing states
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [processingError, setProcessingError] = useState(null);
+  
+  const { user, logout, token } = useAuth();
   const isMobile = Platform.OS === 'ios' || Platform.OS === 'android';
 
   // Check if we should open the side panel (when coming back from a screen)
@@ -753,8 +760,86 @@ function HomeScreen({ navigation, route }) {
     navigation.navigate('SplitOptions');
   };
 
-  const handleUploadImage = () => {
-    alert('Upload Image - Coming in Step 2!');
+  // Handle image upload and OCR processing directly from home
+  const handleUploadImage = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your photo library to upload bill images.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return; // User cancelled
+      }
+
+      const imageUri = result.assets[0].uri;
+      
+      // Show processing modal
+      setIsProcessingImage(true);
+      setProcessingError(null);
+
+      try {
+        // Process image with OCR API
+        const formData = new FormData();
+        
+        if (Platform.OS === 'web') {
+          const response = await fetch(imageUri);
+          const blob = await response.blob();
+          formData.append('image', blob, 'bill.jpg');
+        } else {
+          formData.append('image', {
+            uri: imageUri,
+            type: 'image/jpeg',
+            name: 'bill.jpg',
+          });
+        }
+
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+        };
+        if (Platform.OS !== 'web') {
+          headers['Content-Type'] = 'multipart/form-data';
+        }
+
+        const apiResponse = await fetch(`${ENV.API_BASE_URL}/ocr/scan`, {
+          method: 'POST',
+          body: formData,
+          headers,
+        });
+
+        const data = await apiResponse.json();
+
+        if (!apiResponse.ok || !data.success) {
+          throw new Error(data.error || data.message || 'Failed to scan bill');
+        }
+
+        // Navigate to BillScan screen with processed data
+        setIsProcessingImage(false);
+        navigation.navigate('BillScan', { billData: data.bill, imageUri });
+
+      } catch (err) {
+        console.error('OCR Error:', err);
+        setProcessingError(err.message || 'Failed to process bill');
+        setIsProcessingImage(false);
+      }
+
+    } catch (err) {
+      console.error('Image picker error:', err);
+      setIsProcessingImage(false);
+    }
   };
 
   const handleViewProfile = () => {
@@ -883,6 +968,43 @@ function HomeScreen({ navigation, route }) {
           onCancel={handleLogoutCancel}
           onConfirm={handleLogoutConfirm}
         />
+
+        {/* Image Processing Modal */}
+        <Modal
+          visible={isProcessingImage || !!processingError}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            if (processingError) {
+              setProcessingError(null);
+            }
+          }}
+        >
+          <View style={styles.processingModalOverlay}>
+            <View style={styles.processingModalContent}>
+              {isProcessingImage && !processingError && (
+                <>
+                  <ActivityIndicator size="large" color="#FF6B35" />
+                  <Text style={styles.processingModalTitle}>Please wait a moment</Text>
+                  <Text style={styles.processingModalText}>The image is processing....</Text>
+                </>
+              )}
+              {processingError && (
+                <>
+                  <Ionicons name="warning-outline" size={48} color="#E53935" />
+                  <Text style={styles.processingModalTitle}>Processing Failed</Text>
+                  <Text style={styles.processingModalText}>{processingError}</Text>
+                  <TouchableOpacity 
+                    style={styles.processingModalButton}
+                    onPress={() => setProcessingError(null)}
+                  >
+                    <Text style={styles.processingModalButtonText}>OK</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
 
         {/* Web: Side Panel with all tabs */}
         {!isMobile && (
@@ -1153,6 +1275,7 @@ function AppNavigator() {
         <Stack.Screen name="Groups" component={GroupsScreen} />
         <Stack.Screen name="PendingExpenses" component={PendingExpensesScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen name="BillScan" component={BillScanScreen} />
         <Stack.Screen name="SplitOptions" component={SplitOptionsScreen} />
         <Stack.Screen name="SelectGroup" component={SelectGroupScreen} />
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
@@ -1445,6 +1568,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF6B35',
   },
   logoutModalConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  // Processing Modal Styles
+  processingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  processingModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 32,
+    width: '80%',
+    maxWidth: 320,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  processingModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  processingModalText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  processingModalButton: {
+    marginTop: 20,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  processingModalButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',

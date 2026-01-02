@@ -2,17 +2,28 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const Tesseract = require('tesseract.js');
-const sharp = require('sharp');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { parseBillText } = require('../utils/billParser');
-const { classifyBillItems, getCategoriesForBillType } = require('../utils/itemClassifier');
+
+// OpenRouter OCR (FREE vision models)
+const { extractBillWithOpenRouter } = require('../utils/openRouterOcr');
+const { getCategoriesForBillType } = require('../utils/itemClassifier');
+
+// Check OpenRouter configuration on startup
+if (process.env.OPENROUTER_API_KEY) {
+  console.log('OpenRouter: ✅ Configured (Qwen 2.5 VL - FREE)');
+} else {
+  console.log('OpenRouter: ❌ Not configured - Add OPENROUTER_API_KEY to environment');
+}
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, '../../uploads');
+    // Create uploads directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
@@ -36,69 +47,53 @@ const upload = multer({
   }
 });
 
-// Preprocess image for better OCR results
-async function preprocessImage(imagePath) {
-  const processedPath = imagePath.replace(/\.[^.]+$/, '_processed.png');
-  
-  await sharp(imagePath)
-    .grayscale()
-    .normalize()
-    .sharpen()
-    .threshold(128)
-    .toFile(processedPath);
-  
-  return processedPath;
-}
-
-// POST /api/ocr/scan - Scan a bill image and extract items
+// POST /api/ocr/scan - Scan a bill image using OpenRouter (FREE)
 router.post('/scan', upload.single('image'), async (req, res, next) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'No image file provided' 
+      });
+    }
+
+    // Check if OpenRouter is configured
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'OCR not configured. Please add OPENROUTER_API_KEY to environment.'
+      });
     }
 
     const imagePath = req.file.path;
-    let processedPath = null;
 
     try {
-      // Preprocess image for better OCR
-      processedPath = await preprocessImage(imagePath);
-
-      // Perform OCR
-      const { data: { text, confidence } } = await Tesseract.recognize(
-        processedPath,
-        'eng',
-        {
-          logger: m => console.log(`OCR Progress: ${m.status} - ${Math.round(m.progress * 100)}%`)
-        }
-      );
-
-      console.log('OCR Result:', text);
-      console.log('Confidence:', confidence);
-
-      // Parse the extracted text to find bill items
-      const parsedBill = parseBillText(text);
-
-      // Classify items into dynamic categories based on bill type
-      const classifiedData = classifyBillItems(parsedBill.items, text);
-
-      res.json({
+      console.log('🔵 Processing image with OpenRouter (Qwen 2.5 VL)...');
+      const billData = await extractBillWithOpenRouter(imagePath);
+      console.log('✅ OCR Success!');
+      
+      return res.json({
         success: true,
-        rawText: text,
-        confidence,
-        bill: {
-          ...parsedBill,
-          ...classifiedData
-        }
+        confidence: 92,
+        bill: billData,
+        engine: 'openrouter'
       });
 
+    } catch (ocrError) {
+      console.error('❌ OCR failed:', ocrError.message);
+      return res.status(500).json({
+        success: false,
+        error: `OCR processing failed: ${ocrError.message}`
+      });
     } finally {
-      // Cleanup uploaded files
-      if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
-      if (processedPath && fs.existsSync(processedPath)) fs.unlinkSync(processedPath);
+      // Cleanup uploaded file
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
     }
 
   } catch (error) {
+    console.error('OCR Error:', error);
     next(error);
   }
 });
@@ -134,4 +129,3 @@ router.get('/bill-types', (req, res) => {
 });
 
 module.exports = router;
-

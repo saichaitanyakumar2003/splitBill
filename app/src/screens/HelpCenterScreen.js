@@ -38,11 +38,11 @@ export default function HelpCenterScreen() {
   }, []);
 
   const handleCall = () => {
-    Linking.openURL('tel:18007754824');
+    Linking.openURL('tel:+918688580861');
   };
 
   const handleEmail = () => {
-    Linking.openURL('mailto:support@splitbill.app');
+    Linking.openURL('mailto:chettupallisaichaitanya@gmail.com');
   };
 
   return (
@@ -105,11 +105,10 @@ export default function HelpCenterScreen() {
             </View>
             
             <Pressable onPress={handleCall} style={styles.clickableText}>
-              <Text style={styles.phoneNumber}>1800-SPLIT-BILL</Text>
-              <Text style={styles.phoneSubtext}>(1800-775-4824)</Text>
+              <Text style={styles.phoneNumber}>+91 8688580861</Text>
             </Pressable>
             
-            <Text style={styles.availability}>Available 24/7 • Toll Free</Text>
+            <Text style={styles.availability}>Available Mon-Sat • 9 AM - 6 PM IST</Text>
           </Animated.View>
 
           {/* Email Support Card */}
@@ -128,7 +127,7 @@ export default function HelpCenterScreen() {
             </View>
             
             <Pressable onPress={handleEmail} style={styles.clickableText}>
-              <Text style={styles.emailText}>support@splitbill.app</Text>
+              <Text style={styles.emailText}>chettupallisaichaitanya@gmail.com</Text>
             </Pressable>
             
             <Text style={styles.responseTime}>Response within 24 hours</Text>
@@ -309,7 +308,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emailText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: '#FF6B35',
     textAlign: 'center',
