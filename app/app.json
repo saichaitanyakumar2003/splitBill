@@ -31,7 +31,8 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "useNextNotificationsApi": true
     },
     "web": {
       "bundler": "metro",
@@ -51,7 +52,13 @@
           "photosPermission": "Allow SplitBill to access your photos to import bills"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6B35"
+        }
+      ]
     ],
     "updates": {
       "url": "https://u.expo.dev/7c726d40-818b-4412-92f4-0df041e304b1"

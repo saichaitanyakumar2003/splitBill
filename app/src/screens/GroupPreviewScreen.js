@@ -234,19 +234,19 @@ export default function GroupPreviewScreen() {
               >
                 {expenses.map((expense, index) => (
                   <View key={index} style={styles.expenseRow}>
-                    <View style={styles.expenseInfo}>
+                    <View style={styles.expenseTopRow}>
                       <Text style={styles.expenseTitle} numberOfLines={1}>{expense.title}</Text>
-                      <Text style={styles.expensePaidBy}>Paid by: {expense.paidByName}</Text>
+                      <Text style={styles.expenseAmount}>₹{expense.totalAmount.toFixed(2)}</Text>
                     </View>
-                    
-                    <Text style={styles.expenseAmount}>₹{expense.totalAmount.toFixed(2)}</Text>
-                    
-                    <TouchableOpacity 
-                      style={styles.viewMembersLink}
-                      onPress={() => openMemberModal(index)}
-                    >
-                      <Text style={styles.viewMembersText}>View member list</Text>
-                    </TouchableOpacity>
+                    <View style={styles.expenseBottomRow}>
+                      <Text style={styles.expensePaidBy} numberOfLines={1}>Paid by: {expense.paidByName}</Text>
+                      <TouchableOpacity 
+                        style={styles.viewMembersLink}
+                        onPress={() => openMemberModal(index)}
+                      >
+                        <Text style={styles.viewMembersText}>View member list</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -444,41 +444,45 @@ const styles = StyleSheet.create({
     maxHeight: 270, // ~3 rows (90px per row)
   },
   expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
   },
-  expenseInfo: {
-    flex: 1,
-    marginRight: 12,
+  expenseTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  expenseBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   expenseTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 12,
   },
   expensePaidBy: {
     fontSize: 13,
     color: '#666',
+    flex: 1,
   },
   expenseAmount: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FF6B35',
-    marginRight: 12,
-    minWidth: 80,
-    textAlign: 'right',
   },
   viewMembersLink: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
   },
   viewMembersText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#FF6B35',
   },
