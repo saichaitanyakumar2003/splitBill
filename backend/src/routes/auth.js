@@ -5,6 +5,13 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 
+// Google OAuth Client IDs for all platforms
+const GOOGLE_CLIENT_IDS = [
+  process.env.SPLITBILL_GOOGLE_CLIENT_ID,           // Web client ID
+  process.env.SPLITBILL_GOOGLE_ANDROID_CLIENT_ID,   // Android client ID
+  process.env.SPLITBILL_GOOGLE_IOS_CLIENT_ID,       // iOS client ID (future)
+].filter(Boolean); // Remove undefined values
+
 const googleClient = new OAuth2Client(process.env.SPLITBILL_GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key';
 const JWT_EXPIRES_IN = '7d';
@@ -56,7 +63,7 @@ router.post('/google', async (req, res) => {
     let email, name, googleId;
 
     if (idToken) {
-      const t = await googleClient.verifyIdToken({ idToken, audience: process.env.SPLITBILL_GOOGLE_CLIENT_ID });
+      const t = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_IDS });
       const p = t.getPayload();
       email = p.email; name = p.name; googleId = p.sub;
     } else if (userInfo?.email) {
@@ -83,6 +90,30 @@ router.get('/me', authenticate, async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, data: user.toJSON() });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Save Expo push token for notifications (protected)
+router.post('/push-token', authenticate, async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    if (!pushToken) {
+      return res.status(400).json({ success: false, message: 'Push token required' });
+    }
+
+    const user = await User.findById(req.user.mailId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.setExpoPushToken(pushToken);
+    await user.save();
+
+    console.log(`Push token saved for user ${req.user.mailId}: ${pushToken.substring(0, 30)}...`);
+    res.json({ success: true, message: 'Push token saved' });
+  } catch (e) {
+    console.error('Error saving push token:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 // Profile update (protected)

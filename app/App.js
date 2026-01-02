@@ -14,6 +14,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
 import SplitOptionsScreen from './src/screens/SplitOptionsScreen';
 import CreateGroupScreen from './src/screens/CreateGroupScreen';
+import SelectGroupScreen from './src/screens/SelectGroupScreen';
+import AddExpenseScreen from './src/screens/AddExpenseScreen';
 import GroupPreviewScreen from './src/screens/GroupPreviewScreen';
 import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
@@ -41,6 +43,7 @@ const getLinkedScreens = (isAuthenticated) => ({
       SplitOptions: 'split-options',
       SelectGroup: 'select-group',
       CreateGroup: 'create-group',
+      AddExpense: 'add-expense',
       // GroupPreview not linked - refreshing redirects to Home
     },
   },
@@ -790,14 +793,10 @@ function HomeScreen({ navigation, route }) {
     setShowLogoutModal(false);
   };
 
-  // Web logout (direct)
-  const handleWebLogout = async () => {
+  // Web logout with confirmation modal
+  const handleWebLogout = () => {
     setShowProfileMenu(false);
-    await logout();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    setShowLogoutModal(true);
   };
 
   // Get user initials for profile icon (max 2 characters) - Web only
@@ -878,14 +877,12 @@ function HomeScreen({ navigation, route }) {
           />
         )}
 
-        {/* Mobile: Logout Confirmation Modal */}
-        {isMobile && (
-          <LogoutModal
-            visible={showLogoutModal}
-            onCancel={handleLogoutCancel}
-            onConfirm={handleLogoutConfirm}
-          />
-        )}
+        {/* Logout Confirmation Modal (both Web and Mobile) */}
+        <LogoutModal
+          visible={showLogoutModal}
+          onCancel={handleLogoutCancel}
+          onConfirm={handleLogoutConfirm}
+        />
 
         {/* Web: Side Panel with all tabs */}
         {!isMobile && (
@@ -1157,7 +1154,9 @@ function AppNavigator() {
         <Stack.Screen name="PendingExpenses" component={PendingExpensesScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
         <Stack.Screen name="SplitOptions" component={SplitOptionsScreen} />
+        <Stack.Screen name="SelectGroup" component={SelectGroupScreen} />
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
+        <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
         <Stack.Screen name="GroupPreview" component={GroupPreviewScreen} />
         <Stack.Screen name="SplitSummary" component={SplitSummaryScreen} />
       </Stack.Navigator>
@@ -1403,6 +1402,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
+    ...(Platform.OS === 'web' && {
+      maxWidth: 380,
+      padding: 28,
+    }),
   },
   logoutModalTitle: {
     fontSize: 20,
@@ -1423,8 +1426,12 @@ const styles = StyleSheet.create({
   logoutModalButton: {
     flex: 1,
     paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignItems: 'center',
+    ...(Platform.OS === 'web' && {
+      minWidth: 120,
+    }),
   },
   logoutModalCancel: {
     backgroundColor: '#F5F5F5',

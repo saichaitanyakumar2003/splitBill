@@ -346,9 +346,29 @@ export default function SplitSummaryScreen() {
   const handleShare = async () => {
     const text = getSummaryText();
     try {
-      await Share.share({
-        message: text,
-      });
+      const result = await Share.share(
+        {
+          message: text,
+          title: `Split Summary - ${groupName}`, // Shows as title on Android share sheet
+        },
+        {
+          // Android specific options
+          dialogTitle: `Share Split Summary`, // Title of the share dialog on Android
+        }
+      );
+      
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          // Shared with specific activity (iOS)
+          console.log('Shared via:', result.activityType);
+        } else {
+          // Shared on Android
+          console.log('Shared successfully');
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // Dismissed (iOS only)
+        console.log('Share dismissed');
+      }
     } catch (error) {
       console.error('Error sharing:', error);
     }

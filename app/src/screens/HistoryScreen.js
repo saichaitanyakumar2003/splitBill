@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,29 +7,64 @@ import {
   Platform,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { authGet } from '../utils/apiHelper';
 
 export default function HistoryScreen({ route }) {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [completedGroups, setCompletedGroups] = useState([]);
+
+  const fetchHistory = async () => {
+    try {
+      const response = await authGet('/groups/history');
+      const data = await response.json();
+      if (data.success) {
+        setCompletedGroups(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   const onRefresh = useCallback(async () => {
-    if (Platform.OS === 'web') return;
     setRefreshing(true);
-    // TODO: Add history refresh logic when implemented
-    setTimeout(() => setRefreshing(false), 1000);
+    await fetchHistory();
+    setRefreshing(false);
   }, []);
 
   const handleBack = () => {
-    // If we came from side panel on web, open it when going back
     const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
     navigation.reset({
       index: 0,
       routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
     });
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  // Calculate total amount from expenses
+  const getTotalAmount = (expenses) => {
+    if (!expenses || !Array.isArray(expenses)) return 0;
+    return expenses.reduce((sum, exp) => sum + (exp.totalAmount || exp.amount || 0), 0);
   };
 
   return (
@@ -50,31 +85,114 @@ export default function HistoryScreen({ route }) {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Content */}
-        <ScrollView 
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            Platform.OS !== 'web' ? (
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#FFF"
-                colors={['#FF6B35']}
-              />
-            ) : undefined
-          }
-        >
-          <View style={styles.card}>
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📜</Text>
-              <Text style={styles.emptyTitle}>No History Yet</Text>
-              <Text style={styles.emptySubtext}>
-                Your completed expenses and settlements will appear here
-              </Text>
+        {/* Content - Fixed card with scrollable content inside */}
+        <View style={styles.content}>
+          {loading ? (
+            <View style={styles.card}>
+              <View style={styles.loadingState}>
+                <ActivityIndicator size="large" color="#FF6B35" />
+                <Text style={styles.loadingText}>Loading history...</Text>
+              </View>
             </View>
-          </View>
-        </ScrollView>
+          ) : completedGroups.length === 0 ? (
+            <View style={styles.card}>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>📜</Text>
+                <Text style={styles.emptyTitle}>No History Yet</Text>
+                <Text style={styles.emptySubtext}>
+                  Completed groups will appear here once all payments are settled
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              {/* Summary Header */}
+              <View style={styles.summaryHeader}>
+                <Text style={styles.summaryTitle}>Completed Groups</Text>
+                <Text style={styles.summaryCount}>{completedGroups.length}</Text>
+              </View>
+
+              {/* Scrollable Groups List */}
+              <ScrollView 
+                style={styles.groupsList}
+                contentContainerStyle={styles.groupsListContent}
+                showsVerticalScrollIndicator={true}
+                refreshControl={
+                  Platform.OS !== 'web' ? (
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#FF6B35"
+                      colors={['#FF6B35']}
+                    />
+                  ) : undefined
+                }
+              >
+                {completedGroups.map((group) => (
+                  <View key={group.id} style={styles.groupCard}>
+                    <View style={styles.groupHeader}>
+                      <View style={styles.groupIcon}>
+                        <Text style={styles.groupIconText}>
+                          {group.name.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <Text style={styles.groupName}>{group.name}</Text>
+                        <Text style={styles.groupDate}>
+                          Completed {formatDate(group.updatedAt)}
+                        </Text>
+                      </View>
+                      <View style={styles.completedBadge}>
+                        <Text style={styles.completedBadgeText}>✓</Text>
+                      </View>
+                    </View>
+
+                    {/* Group Stats */}
+                    <View style={styles.statsRow}>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>Total</Text>
+                        <Text style={styles.statValue}>
+                          ₹{getTotalAmount(group.expenses).toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>Expenses</Text>
+                        <Text style={styles.statValue}>
+                          {group.expenses?.length || 0}
+                        </Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Text style={styles.statLabel}>Settlements</Text>
+                        <Text style={styles.statValue}>
+                          {group.consolidatedExpenses?.length || 0}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Settlement Summary - Show all settlements */}
+                    {group.consolidatedExpenses && group.consolidatedExpenses.length > 0 && (
+                      <View style={styles.settlementsSection}>
+                        <Text style={styles.settlementsTitle}>Settlements</Text>
+                        {group.consolidatedExpenses.map((edge, index) => (
+                          <View key={index} style={styles.settlementRow}>
+                            <Text style={styles.settlementText}>
+                              <Text style={styles.settlementName}>{edge.fromName || edge.from?.split('@')[0]}</Text>
+                              {' → '}
+                              <Text style={styles.settlementName}>{edge.toName || edge.to?.split('@')[0]}</Text>
+                            </Text>
+                            <Text style={styles.settlementAmount}>
+                              ₹{edge.amount?.toFixed(2)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
       </LinearGradient>
     </View>
   );
@@ -122,10 +240,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  contentContainer: {
     padding: 20,
-    flexGrow: 1,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
   },
   card: {
     flex: 1,
@@ -137,6 +253,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
+    minHeight: 300,
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   emptyState: {
     flex: 1,
@@ -158,5 +285,148 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 16,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  summaryCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#28A745',
+  },
+  groupsList: {
+    flex: 1,
+  },
+  groupsListContent: {
+    paddingBottom: 10,
+  },
+  groupCard: {
+    backgroundColor: '#F8F8F8',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  groupIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#6C757D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  groupIconText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 2,
+  },
+  groupDate: {
+    fontSize: 13,
+    color: '#888',
+  },
+  completedBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#28A745',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completedBadgeText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  settlementsSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    paddingTop: 12,
+  },
+  settlementsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  settlementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  settlementText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  settlementName: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  settlementAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#28A745',
+  },
+  moreSettlementsRow: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  moreSettlements: {
+    fontSize: 13,
+    color: '#28A745',
+    fontWeight: '600',
   },
 });

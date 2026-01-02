@@ -23,8 +23,11 @@ import * as WebBrowser from 'expo-web-browser';
 // Required for web browser auth to complete
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth Client ID - hardcoded for now, later use EXPO_PUBLIC_ env vars
-const GOOGLE_CLIENT_ID = '543880175096-lftcjh1p2nv2k66ver4ch7pq5qdee40v.apps.googleusercontent.com';
+// Google OAuth Client IDs
+const GOOGLE_WEB_CLIENT_ID = '543880175096-lftcjh1p2nv2k66ver4ch7pq5qdee40v.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = '543880175096-entdnmr1peapamnj1ed2jlrrbu9om807.apps.googleusercontent.com';
+// TODO: Add iOS client ID when needed
+const GOOGLE_IOS_CLIENT_ID = GOOGLE_WEB_CLIENT_ID; // Using web client ID as fallback for now
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -42,9 +45,9 @@ export default function LoginScreen() {
 
   // Google OAuth Setup
   const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_CLIENT_ID,
-    androidClientId: GOOGLE_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
   });
 
   // Handle Google OAuth Response

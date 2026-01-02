@@ -10,7 +10,8 @@ const { compressData, decompressData } = require('../utils/compression');
  * - status: enum('active', 'completed')
  * - compressedDetails: brotli compressed buffer containing:
  *   - expenses: array of { name, payer (mail id), totalAmount, payees: [{ mailId, amount }] }
- *   - consolidatedExpenses: array of edges { from, to, amount } where 'from' pays 'to' amount
+ *   - consolidatedExpenses: array of edges { from, to, amount, resolved } where 'from' pays 'to' amount
+ *     - resolved: boolean flag indicating if the payment has been settled
  */
 
 const GroupSchema = new mongoose.Schema({
@@ -96,13 +97,36 @@ GroupSchema.methods.removeExpense = function(expenseId) {
 
 /**
  * Recalculate consolidated expenses using Splitwise algorithm
- * Creates minimal edges: { from, to, amount } where 'from' pays 'to' amount
+ * Creates minimal edges: { from, to, amount, resolved } where 'from' pays 'to' amount
+ * 
+ * IMPORTANT: Resolved edges represent ACTUAL payments that happened in real life.
+ * When recalculating, we SUBTRACT resolved amounts from the balances because
+ * those payments have already been made.
+ * 
+ * Example:
+ * - B owes A ₹100, B marks as resolved (B actually paid A ₹100)
+ * - New expense: B now owes A ₹150 total from all expenses
+ * - After subtracting resolved: B owes A only ₹50 (150 - 100 already paid)
  */
 GroupSchema.methods.recalculateConsolidated = function() {
   const details = this.getDetails();
   const balances = {}; // { mailId: balance } positive = owed money, negative = owes money
 
-  // Calculate net balance for each person
+  // Store resolved edges - these are actual payments that happened
+  const resolvedPayments = [];
+  if (details.consolidatedExpenses) {
+    details.consolidatedExpenses.forEach(edge => {
+      if (edge.resolved) {
+        resolvedPayments.push({
+          from: edge.from,
+          to: edge.to,
+          amount: edge.amount
+        });
+      }
+    });
+  }
+
+  // Calculate net balance for each person from expenses
   for (const expense of details.expenses) {
     const payer = expense.payer;
     const totalAmount = expense.totalAmount || expense.amount;
@@ -123,6 +147,15 @@ GroupSchema.methods.recalculateConsolidated = function() {
     }
   }
 
+  // SUBTRACT resolved payments from balances (these payments already happened)
+  // If B paid A ₹100 (resolved), then:
+  // - B's balance increases by ₹100 (B paid out, so B is owed more / owes less)
+  // - A's balance decreases by ₹100 (A received, so A is owed less / owes more)
+  for (const payment of resolvedPayments) {
+    balances[payment.from] = (balances[payment.from] || 0) + payment.amount;
+    balances[payment.to] = (balances[payment.to] || 0) - payment.amount;
+  }
+
   // Separate into creditors (owed money, positive) and debtors (owe money, negative)
   const creditors = []; // people who are owed money
   const debtors = [];   // people who owe money
@@ -141,7 +174,8 @@ GroupSchema.methods.recalculateConsolidated = function() {
   debtors.sort((a, b) => b.amount - a.amount);
 
   // Generate minimal transactions using greedy algorithm
-  // Edge format: { from: 'a', to: 'b', amount: c } means 'a' pays 'b' amount 'c'
+  // Edge format: { from: 'a', to: 'b', amount: c, resolved: false } means 'a' pays 'b' amount 'c'
+  // New edges are always unresolved - they represent pending payments
   const consolidated = [];
   let i = 0, j = 0;
 
@@ -154,7 +188,8 @@ GroupSchema.methods.recalculateConsolidated = function() {
       consolidated.push({
         from: debtor.mailId,    // 'a' pays
         to: creditor.mailId,    // 'b'
-        amount: Math.round(amount * 100) / 100  // 'c' (rounded to 2 decimals)
+        amount: Math.round(amount * 100) / 100,  // 'c' (rounded to 2 decimals)
+        resolved: false  // New edges are always unresolved
       });
     }
 
@@ -165,8 +200,61 @@ GroupSchema.methods.recalculateConsolidated = function() {
     if (creditor.amount < 0.01) j++;
   }
 
+  // Also keep the resolved payments in the consolidated list (for history/display)
+  // They show what was already paid
+  for (const payment of resolvedPayments) {
+    consolidated.push({
+      from: payment.from,
+      to: payment.to,
+      amount: payment.amount,
+      resolved: true
+    });
+  }
+
   details.consolidatedExpenses = consolidated;
   this.compressedDetails = compressData(details);
+};
+
+/**
+ * Mark a consolidated edge as resolved
+ * @param {string} from - The payer's email
+ * @param {string} to - The payee's email
+ * @returns {boolean} - True if edge was found and updated
+ */
+GroupSchema.methods.markEdgeResolved = function(from, to) {
+  const details = this.getDetails();
+  let found = false;
+  
+  if (details.consolidatedExpenses) {
+    details.consolidatedExpenses = details.consolidatedExpenses.map(edge => {
+      if (edge.from === from && edge.to === to) {
+        found = true;
+        return { ...edge, resolved: true };
+      }
+      return edge;
+    });
+  }
+  
+  if (found) {
+    this.compressedDetails = compressData(details);
+    this.updatedAt = new Date();
+  }
+  
+  return found;
+};
+
+/**
+ * Check if all consolidated edges are resolved (no pending payments)
+ * @returns {boolean}
+ */
+GroupSchema.methods.areAllEdgesResolved = function() {
+  const details = this.getDetails();
+  if (!details.consolidatedExpenses || details.consolidatedExpenses.length === 0) {
+    return true; // No edges means all settled
+  }
+  // Check if there are any UNRESOLVED edges (pending payments)
+  const unresolvedEdges = details.consolidatedExpenses.filter(edge => !edge.resolved);
+  return unresolvedEdges.length === 0;
 };
 
 /**

@@ -136,8 +136,18 @@ UserSchema.methods.getDetails = function() {
     name: this.name || '',
     phone: compressed.phone || '',
     groupIds: compressed.groupIds || [],
-    friends: compressed.friends || []
+    friends: compressed.friends || [],
+    expoPushToken: compressed.expoPushToken || null
   };
+};
+
+// Set Expo push token for notifications
+UserSchema.methods.setExpoPushToken = function(token) {
+  const details = this.getDetails();
+  const current = this.compressedDetails ? decompressData(this.compressedDetails) : {};
+  current.expoPushToken = token;
+  this.compressedDetails = compressData(current);
+  this.updatedAt = new Date();
 };
 
 // Set details with phone validation (10 digits only, or empty)

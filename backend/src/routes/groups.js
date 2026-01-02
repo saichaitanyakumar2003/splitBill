@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const Group = require('../models/Group');
 const User = require('../models/User');
 const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitwise');
+const { sendExpenseNotifications } = require('../utils/pushNotifications');
 
 // Note: authenticate middleware is applied at server level for all /api/groups routes
 // req.user.mailId is available in all routes
@@ -49,8 +50,11 @@ router.post('/checkout', async (req, res) => {
         return res.status(404).json({ success: false, message: 'Group not found' });
       }
       
-      // Get existing expenses and merge with new ones
-      const existingExpenses = group.getDetails().expenses || [];
+      // Get existing expenses and consolidated expenses (with resolved flags)
+      const existingDetails = group.getDetails();
+      const existingExpenses = existingDetails.expenses || [];
+      const existingConsolidated = existingDetails.consolidatedExpenses || [];
+      
       const formattedNewExpenses = expenses.map(exp => ({
         name: exp.name || exp.title,
         payer: exp.paidBy || exp.payer,
@@ -61,8 +65,12 @@ router.post('/checkout', async (req, res) => {
         }))
       }));
       
-      // Merge and consolidate
-      const { allExpenses, consolidatedExpenses } = mergeAndConsolidate(existingExpenses, formattedNewExpenses);
+      // Merge and consolidate, accounting for already resolved payments
+      const { allExpenses, consolidatedExpenses } = mergeAndConsolidate(
+        existingExpenses, 
+        formattedNewExpenses,
+        existingConsolidated
+      );
       
       // Update group using setDetails
       group.setDetails({
@@ -84,8 +92,11 @@ router.post('/checkout', async (req, res) => {
         // Group with same name exists - add expense to it
         group = existingGroup;
         
-        // Get existing expenses and merge with new ones
-        const existingExpenses = group.getDetails().expenses || [];
+        // Get existing expenses and consolidated expenses (with resolved flags)
+        const existingDetails = group.getDetails();
+        const existingExpenses = existingDetails.expenses || [];
+        const existingConsolidated = existingDetails.consolidatedExpenses || [];
+        
         const formattedNewExpenses = expenses.map(exp => ({
           name: exp.name || exp.title,
           payer: exp.paidBy || exp.payer,
@@ -96,8 +107,12 @@ router.post('/checkout', async (req, res) => {
           }))
         }));
         
-        // Merge and consolidate
-        const { allExpenses, consolidatedExpenses } = mergeAndConsolidate(existingExpenses, formattedNewExpenses);
+        // Merge and consolidate, accounting for already resolved payments
+        const { allExpenses, consolidatedExpenses } = mergeAndConsolidate(
+          existingExpenses, 
+          formattedNewExpenses,
+          existingConsolidated
+        );
         
         // Update group using setDetails
         group.setDetails({
@@ -183,13 +198,56 @@ router.post('/checkout', async (req, res) => {
     const groupDetails = group.getDetails();
     
     // Add names to consolidated expenses for frontend display
-    const consolidatedWithNames = (groupDetails.consolidatedExpenses || []).map(ce => ({
+    // Only return PENDING (unresolved) edges for the split summary
+    const pendingEdges = (groupDetails.consolidatedExpenses || []).filter(ce => !ce.resolved);
+    const consolidatedWithNames = pendingEdges.map(ce => ({
       from: ce.from,
       to: ce.to,
       amount: ce.amount,
       fromName: emailToName[ce.from] || ce.from.split('@')[0],
       toName: emailToName[ce.to] || ce.to.split('@')[0]
     }));
+    
+    // Send push notifications to payers (people who need to pay)
+    // Get the expense title from the first/latest expense
+    const latestExpense = expenses[expenses.length - 1];
+    const expenseTitle = latestExpense?.name || latestExpense?.title || 'Expense';
+    
+    // Collect unique payers from pending edges and get their push tokens
+    const payersToNotify = [];
+    const notifiedPayers = new Set();
+    
+    for (const edge of pendingEdges) {
+      // Don't notify the same person multiple times
+      if (notifiedPayers.has(edge.from)) continue;
+      // Don't notify the person who created the expense
+      if (edge.from === mailId) continue;
+      
+      notifiedPayers.add(edge.from);
+      
+      try {
+        const payerUser = await User.findById(edge.from);
+        if (payerUser) {
+          const payerDetails = payerUser.getDetails();
+          if (payerDetails.expoPushToken) {
+            payersToNotify.push({
+              mailId: edge.from,
+              pushToken: payerDetails.expoPushToken,
+              amount: edge.amount,
+              payeeName: emailToName[edge.to] || edge.to.split('@')[0],
+            });
+          }
+        }
+      } catch (tokenError) {
+        console.error(`Failed to get push token for ${edge.from}:`, tokenError);
+      }
+    }
+    
+    // Send notifications asynchronously (don't wait for it)
+    if (payersToNotify.length > 0) {
+      sendExpenseNotifications(payersToNotify, expenseTitle, group.name)
+        .catch(err => console.error('Error sending expense notifications:', err));
+    }
     
     res.json({
       success: true,
@@ -237,6 +295,134 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Get user's pending expenses (groups where user owes money with unresolved edges)
+router.get('/pending', async (req, res) => {
+  try {
+    const userMailId = req.user.mailId;
+    const user = await User.findById(userMailId);
+    if (!user) return res.json({ success: true, data: [] });
+    
+    const userDetails = user.getDetails();
+    const groupIds = userDetails.groupIds || [];
+    
+    // Get all groups user is part of
+    const groups = await Group.find({ _id: { $in: groupIds } });
+    
+    // Collect all member emails for name lookup
+    const allMemberEmails = new Set();
+    
+    // Filter to groups where user has pending (unresolved) payments
+    const pendingExpenses = [];
+    
+    for (const group of groups) {
+      const details = group.getDetails();
+      const consolidatedExpenses = details.consolidatedExpenses || [];
+      
+      // Find edges where current user is the 'from' (owes money)
+      const userPendingEdges = consolidatedExpenses.filter(
+        edge => edge.from === userMailId && !edge.resolved
+      );
+      
+      if (userPendingEdges.length > 0) {
+        // Collect member emails for name lookup
+        userPendingEdges.forEach(edge => {
+          allMemberEmails.add(edge.from);
+          allMemberEmails.add(edge.to);
+        });
+        
+        pendingExpenses.push({
+          groupId: group._id,
+          groupName: group.name,
+          groupStatus: group.status,
+          pendingEdges: userPendingEdges,
+          // Also include resolved edges for display (greyed out)
+          resolvedEdges: consolidatedExpenses.filter(
+            edge => edge.from === userMailId && edge.resolved
+          )
+        });
+      }
+    }
+    
+    // Fetch member names
+    const memberDocs = await User.find({ _id: { $in: Array.from(allMemberEmails) } }).select('_id name');
+    const emailToName = {};
+    memberDocs.forEach(doc => {
+      emailToName[doc._id] = doc.name || doc._id.split('@')[0];
+    });
+    
+    // Add names to edges
+    const pendingWithNames = pendingExpenses.map(item => ({
+      ...item,
+      pendingEdges: item.pendingEdges.map(edge => ({
+        ...edge,
+        fromName: emailToName[edge.from] || edge.from.split('@')[0],
+        toName: emailToName[edge.to] || edge.to.split('@')[0]
+      })),
+      resolvedEdges: item.resolvedEdges.map(edge => ({
+        ...edge,
+        fromName: emailToName[edge.from] || edge.from.split('@')[0],
+        toName: emailToName[edge.to] || edge.to.split('@')[0]
+      }))
+    }));
+    
+    res.json({ success: true, data: pendingWithNames });
+  } catch (e) {
+    console.error('Pending expenses error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Get user's history (completed groups)
+router.get('/history', async (req, res) => {
+  try {
+    const userMailId = req.user.mailId;
+    const user = await User.findById(userMailId);
+    if (!user) return res.json({ success: true, data: [] });
+    
+    const userDetails = user.getDetails();
+    const groupIds = userDetails.groupIds || [];
+    
+    // Get only completed groups
+    const groups = await Group.find({ 
+      _id: { $in: groupIds },
+      status: 'completed'
+    }).sort({ updatedAt: -1 });
+    
+    // Collect all member emails for name lookup
+    const allMemberEmails = new Set();
+    groups.forEach(group => {
+      const details = group.getDetails();
+      (details.consolidatedExpenses || []).forEach(edge => {
+        allMemberEmails.add(edge.from);
+        allMemberEmails.add(edge.to);
+      });
+    });
+    
+    // Fetch member names
+    const memberDocs = await User.find({ _id: { $in: Array.from(allMemberEmails) } }).select('_id name');
+    const emailToName = {};
+    memberDocs.forEach(doc => {
+      emailToName[doc._id] = doc.name || doc._id.split('@')[0];
+    });
+    
+    // Add names to consolidated expenses
+    const groupsWithNames = groups.map(group => {
+      const json = group.toJSON();
+      json.consolidatedExpenses = (json.consolidatedExpenses || []).map(edge => ({
+        ...edge,
+        fromName: emailToName[edge.from] || edge.from?.split('@')[0] || 'Unknown',
+        toName: emailToName[edge.to] || edge.to?.split('@')[0] || 'Unknown',
+      }));
+      return json;
+    });
+    
+    res.json({ success: true, data: groupsWithNames });
+  } catch (e) {
+    console.error('History error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Get group by ID
 router.get('/:id', async (req, res) => {
   try {
@@ -266,6 +452,58 @@ router.get('/:id/settle', async (req, res) => {
     if (!group) return res.status(404).json({ error: 'Not found' });
     res.json({ settlements: group.getSettlements() });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Mark a consolidated edge as resolved (settled)
+router.post('/:id/resolve', async (req, res) => {
+  try {
+    const { from, to } = req.body;
+    const userMailId = req.user.mailId;
+    
+    if (!from || !to) {
+      return res.status(400).json({ success: false, message: 'from and to required' });
+    }
+    
+    // Only the person who owes (from) can mark it as resolved
+    if (from !== userMailId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Only the payer can mark this expense as resolved' 
+      });
+    }
+    
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    
+    // Mark the edge as resolved
+    const found = group.markEdgeResolved(from, to);
+    if (!found) {
+      return res.status(404).json({ success: false, message: 'Edge not found' });
+    }
+    
+    await group.save();
+    
+    // Check if all edges are resolved -> mark group as completed
+    if (group.areAllEdgesResolved()) {
+      group.status = 'completed';
+      await group.save();
+    }
+    
+    res.json({ 
+      success: true, 
+      data: {
+        groupId: group._id,
+        groupName: group.name,
+        groupStatus: group.status,
+        allResolved: group.areAllEdgesResolved()
+      }
+    });
+  } catch (e) {
+    console.error('Resolve error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 // Complete group

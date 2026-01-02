@@ -280,6 +280,7 @@ export default function FriendsScreen({ route }) {
         {/* Content */}
         <ScrollView 
           style={styles.content}
+          contentContainerStyle={styles.contentContainer}
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl
@@ -498,8 +499,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
     paddingTop: 0,
+    flexGrow: 1,
   },
   card: {
     flex: 1,
@@ -511,6 +515,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
+    minHeight: 300,
   },
   searchContainer: {
     marginBottom: 20,
