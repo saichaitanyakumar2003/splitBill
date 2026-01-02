@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -61,14 +62,10 @@ export default function PendingExpensesScreen({ route }) {
     setRefreshing(false);
   }, []);
 
-  const handleBack = () => {
-    // On mobile, just go back. On web, handle side panel
+  const handleBack = useCallback(() => {
+    // On mobile, just navigate to Home. On web, handle side panel
     if (Platform.OS !== 'web') {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('Home');
-      }
+      navigation.navigate('Home');
     } else {
       const openSidePanel = route?.params?.fromSidePanel;
       navigation.reset({
@@ -76,7 +73,18 @@ export default function PendingExpensesScreen({ route }) {
         routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
       });
     }
-  };
+  }, [navigation, route?.params?.fromSidePanel]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true; // Prevent default behavior
+      });
+      return () => backHandler.remove();
+    }
+  }, [handleBack]);
 
   const handleResolve = (groupId, from, to, toName, amount) => {
     // Show confirmation modal for both web and mobile

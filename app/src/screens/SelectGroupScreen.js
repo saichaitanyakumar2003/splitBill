@@ -10,6 +10,7 @@ import {
   Platform,
   RefreshControl,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -50,13 +51,29 @@ export default function SelectGroupScreen() {
     setRefreshing(false);
   }, []);
 
-  const handleBack = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
+  const handleBack = useCallback(() => {
+    // On mobile, navigate to Home. On web, try to go back
+    if (Platform.OS !== 'web') {
+      navigation.navigate('Home');
     } else {
-      navigation.navigate('SplitOptions');
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('SplitOptions');
+      }
     }
-  };
+  }, [navigation]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true; // Prevent default behavior
+      });
+      return () => backHandler.remove();
+    }
+  }, [handleBack]);
 
   const handleSelectGroup = (group) => {
     // Navigate to AddExpense screen with the selected group

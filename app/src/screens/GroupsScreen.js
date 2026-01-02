@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -144,18 +145,14 @@ export default function GroupsScreen({ route }) {
     setRefreshing(false);
   }, [selectedGroup]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (selectedGroup) {
       setSelectedGroup(null);
       setGroupDetails(null);
     } else {
-      // On mobile, just go back. On web, handle side panel
+      // On mobile, just navigate to Home. On web, handle side panel
       if (Platform.OS !== 'web') {
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.navigate('Home');
-        }
+        navigation.navigate('Home');
       } else {
         const openSidePanel = route?.params?.fromSidePanel;
         navigation.reset({
@@ -164,7 +161,18 @@ export default function GroupsScreen({ route }) {
         });
       }
     }
-  };
+  }, [selectedGroup, navigation, route?.params?.fromSidePanel]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true; // Prevent default behavior
+      });
+      return () => backHandler.remove();
+    }
+  }, [handleBack]);
 
   const handleSelectGroup = async (group) => {
     setSelectedGroup(group);

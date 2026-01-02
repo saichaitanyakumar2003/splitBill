@@ -8,6 +8,7 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -44,14 +45,10 @@ export default function HistoryScreen({ route }) {
     setRefreshing(false);
   }, []);
 
-  const handleBack = () => {
-    // On mobile, just go back. On web, handle side panel
+  const handleBack = useCallback(() => {
+    // On mobile, just navigate to Home. On web, handle side panel
     if (Platform.OS !== 'web') {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('Home');
-      }
+      navigation.navigate('Home');
     } else {
       const openSidePanel = route?.params?.fromSidePanel;
       navigation.reset({
@@ -59,7 +56,18 @@ export default function HistoryScreen({ route }) {
         routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
       });
     }
-  };
+  }, [navigation, route?.params?.fromSidePanel]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true; // Prevent default behavior
+      });
+      return () => backHandler.remove();
+    }
+  }, [handleBack]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -184,14 +192,12 @@ export default function HistoryScreen({ route }) {
                         <Text style={styles.settlementsTitle}>Settlements</Text>
                         {group.consolidatedExpenses.map((edge, index) => (
                           <View key={index} style={styles.settlementRow}>
-                            <Text style={styles.settlementText}>
+                            <View style={styles.settlementNamesContainer}>
                               <Text style={styles.settlementName}>{edge.fromName || edge.from?.split('@')[0]}</Text>
-                              {' → '}
+                              <Text style={styles.settlementArrow}> → </Text>
                               <Text style={styles.settlementName}>{edge.toName || edge.to?.split('@')[0]}</Text>
-                            </Text>
-                            <Text style={styles.settlementAmount}>
-                              ₹{edge.amount?.toFixed(2)}
-                            </Text>
+                            </View>
+                            <Text style={styles.settlementAmount}>₹{edge.amount?.toFixed(2)}</Text>
                           </View>
                         ))}
                       </View>
@@ -410,16 +416,22 @@ const styles = StyleSheet.create({
   settlementRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 6,
+    flexWrap: 'wrap',
   },
-  settlementText: {
+  settlementNamesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flex: 1,
+    marginRight: 12,
+  },
+  settlementArrow: {
     fontSize: 13,
     color: '#666',
-    flex: 1,
-    marginRight: 8,
   },
   settlementName: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#333',
   },

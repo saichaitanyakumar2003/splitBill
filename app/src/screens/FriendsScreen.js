@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -91,17 +92,14 @@ export default function FriendsScreen({ route }) {
     }
   }, [user?.friends, token, loadFavoritesFromStore, initializeAuth]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (hasChanges) {
       // Could show confirmation dialog here
     }
     // On mobile, just go back. On web, handle side panel
     if (Platform.OS !== 'web') {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('Home');
-      }
+      // Always navigate to Home on mobile for consistent behavior
+      navigation.navigate('Home');
     } else {
       const openSidePanel = route?.params?.fromSidePanel;
       navigation.reset({
@@ -109,7 +107,18 @@ export default function FriendsScreen({ route }) {
         routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
       });
     }
-  };
+  }, [hasChanges, navigation, route?.params?.fromSidePanel]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true; // Prevent default behavior
+      });
+      return () => backHandler.remove();
+    }
+  }, [handleBack]);
 
   // Search users from API
   useEffect(() => {

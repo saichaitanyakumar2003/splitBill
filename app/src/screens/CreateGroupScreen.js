@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -136,17 +137,29 @@ export default function CreateGroupScreen() {
     return () => clearTimeout(debounce);
   }, [searchQuery, token, selectedMembers, paidBy?.mailId]);
 
-  const handleBack = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
+  const handleBack = useCallback(() => {
+    // On mobile, navigate to Home. On web, try to go back
+    if (Platform.OS !== 'web') {
+      navigation.navigate('Home');
     } else {
-      // Fallback to Home if can't go back
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
     }
-  };
+  }, [navigation]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleBack();
+        return true; // Prevent default behavior
+      });
+      return () => backHandler.remove();
+    }
+  }, [handleBack]);
 
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {
