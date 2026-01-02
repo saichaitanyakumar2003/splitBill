@@ -62,7 +62,7 @@ export default function ProfileScreen() {
   // State from user context or defaults
   const [userName, setUserName] = useState(user?.name || 'User');
   const [email, setEmail] = useState(user?.mailId || '');
-  const [mobile, setMobile] = useState(user?.phone_number || '');
+  const [mobile, setMobile] = useState(user?.phone || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -80,7 +80,7 @@ export default function ProfileScreen() {
       setUserName(user.name || 'User');
       setEmail(user.mailId || '');
       // Clean phone number - only digits
-      const cleanPhone = (user.phone_number || '').replace(/[^0-9]/g, '');
+      const cleanPhone = (user.phone || '').replace(/[^0-9]/g, '');
       setMobile(cleanPhone);
     }
   }, [user]);
@@ -127,7 +127,7 @@ export default function ProfileScreen() {
     try {
       const result = await updateProfile({
         name: userName,
-        phone_number: mobile,
+        phone: mobile,
       });
       
       if (result.success) {
