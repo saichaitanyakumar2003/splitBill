@@ -140,7 +140,11 @@ export default function CreateGroupScreen() {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate('SplitOptions');
+      // Fallback to Home if can't go back
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
     }
   };
 

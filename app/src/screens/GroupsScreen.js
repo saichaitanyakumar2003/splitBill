@@ -149,11 +149,20 @@ export default function GroupsScreen({ route }) {
       setSelectedGroup(null);
       setGroupDetails(null);
     } else {
-      const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
-      });
+      // On mobile, just go back. On web, handle side panel
+      if (Platform.OS !== 'web') {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Home');
+        }
+      } else {
+        const openSidePanel = route?.params?.fromSidePanel;
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
+        });
+      }
     }
   };
 
@@ -345,25 +354,25 @@ export default function GroupsScreen({ route }) {
                   >
                     {expenses.map((expense, index) => (
                       <View key={index} style={styles.expenseRow}>
-                        <View style={styles.expenseInfo}>
+                        <View style={styles.expenseTopRow}>
                           <Text style={styles.expenseTitle} numberOfLines={1}>
                             {expense.name || expense.title || 'Expense'}
                           </Text>
-                          <Text style={styles.expensePaidBy}>
-                            Paid by: {getMemberName(expense.payer)}
+                          <Text style={styles.expenseAmount}>
+                            ₹{parseFloat(expense.totalAmount || expense.amount || 0).toFixed(2)}
                           </Text>
                         </View>
-                        
-                        <Text style={styles.expenseAmount}>
-                          ₹{parseFloat(expense.totalAmount || expense.amount || 0).toFixed(2)}
-                        </Text>
-                        
-                        <TouchableOpacity 
-                          style={styles.viewMembersLink}
-                          onPress={() => openMemberModal(index)}
-                        >
-                          <Text style={styles.viewMembersText}>View member list</Text>
-                        </TouchableOpacity>
+                        <View style={styles.expenseBottomRow}>
+                          <Text style={styles.expensePaidBy} numberOfLines={1}>
+                            Paid by: {getMemberName(expense.payer)}
+                          </Text>
+                          <TouchableOpacity 
+                            style={styles.viewMembersLink}
+                            onPress={() => openMemberModal(index)}
+                          >
+                            <Text style={styles.viewMembersText}>View member list</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     ))}
                   </ScrollView>
@@ -667,34 +676,38 @@ const styles = StyleSheet.create({
     maxHeight: 270, // ~3 rows (90px per row)
   },
   expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
   },
-  expenseInfo: {
-    flex: 1,
-    marginRight: 12,
+  expenseTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  expenseBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   expenseTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 12,
   },
   expensePaidBy: {
     fontSize: 13,
     color: '#666',
+    flex: 1,
   },
   expenseAmount: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FF6B35',
-    marginRight: 12,
-    minWidth: 80,
-    textAlign: 'right',
   },
   viewMembersLink: {
     paddingVertical: 6,

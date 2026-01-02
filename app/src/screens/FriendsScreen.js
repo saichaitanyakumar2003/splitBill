@@ -95,12 +95,20 @@ export default function FriendsScreen({ route }) {
     if (hasChanges) {
       // Could show confirmation dialog here
     }
-    // If we came from side panel on web, open it when going back
-    const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
-    });
+    // On mobile, just go back. On web, handle side panel
+    if (Platform.OS !== 'web') {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
+    } else {
+      const openSidePanel = route?.params?.fromSidePanel;
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
+      });
+    }
   };
 
   // Search users from API

@@ -29,6 +29,13 @@ const GOOGLE_ANDROID_CLIENT_ID = '543880175096-entdnmr1peapamnj1ed2jlrrbu9om807.
 // TODO: Add iOS client ID when needed
 const GOOGLE_IOS_CLIENT_ID = GOOGLE_WEB_CLIENT_ID; // Using web client ID as fallback for now
 
+// Get the appropriate client ID based on platform
+const getClientId = () => {
+  if (Platform.OS === 'android') return GOOGLE_ANDROID_CLIENT_ID;
+  if (Platform.OS === 'ios') return GOOGLE_IOS_CLIENT_ID;
+  return GOOGLE_WEB_CLIENT_ID;
+};
+
 export default function LoginScreen() {
   const navigation = useNavigation();
   const { login, register, loginWithGoogle } = useAuth();
@@ -43,11 +50,13 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Google OAuth Setup
+  // Google OAuth Setup - Use expoClientId for web-based flow which is more reliable
   const [request, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: GOOGLE_WEB_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    selectAccount: true, // Allow user to select account
   });
 
   // Handle Google OAuth Response
@@ -56,7 +65,12 @@ export default function LoginScreen() {
       handleGoogleAuthSuccess(response.authentication);
     } else if (response?.type === 'error') {
       setIsGoogleLoading(false);
-      setApiError('Google sign in was cancelled or failed. Please try again.');
+      console.error('Google OAuth error:', response.error);
+      const errorMessage = response.error?.message || 'Google sign in failed. Please try again.';
+      setApiError(errorMessage);
+    } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
+      setIsGoogleLoading(false);
+      // User cancelled, no need to show error
     }
   }, [response]);
 

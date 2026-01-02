@@ -45,11 +45,20 @@ export default function HistoryScreen({ route }) {
   }, []);
 
   const handleBack = () => {
-    const openSidePanel = Platform.OS === 'web' && route?.params?.fromSidePanel;
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
-    });
+    // On mobile, just go back. On web, handle side panel
+    if (Platform.OS !== 'web') {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
+    } else {
+      const openSidePanel = route?.params?.fromSidePanel;
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
+      });
+    }
   };
 
   const formatDate = (dateString) => {
@@ -374,15 +383,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#888',
     marginBottom: 4,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#333',
+    textAlign: 'center',
   },
   settlementsSection: {
     borderTopWidth: 1,
@@ -403,9 +414,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   settlementText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     flex: 1,
+    marginRight: 8,
   },
   settlementName: {
     fontWeight: '600',
@@ -415,6 +427,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#28A745',
+    flexShrink: 0,
   },
   moreSettlementsRow: {
     backgroundColor: '#E8F5E9',
