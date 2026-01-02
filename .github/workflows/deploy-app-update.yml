@@ -60,19 +60,12 @@ jobs:
           eas update --channel preview --non-interactive --message "Auto update from commit ${{ github.sha }}"
           echo "✅ OTA Update published to preview channel!"
 
-      - name: 📤 Publish OTA Update to Production Channel
-        working-directory: ./app
-        run: |
-          echo "📤 Publishing OTA update to production channel..."
-          eas update --channel production --non-interactive --message "Auto update from commit ${{ github.sha }}"
-          echo "✅ OTA Update published to production channel!"
-
       - name: 📋 Update Summary
         run: |
           echo "=========================================="
           echo "✅ OTA UPDATE SUCCESSFUL!"
           echo "=========================================="
-          echo "📱 Updates published to: preview & production channels"
+          echo "📱 Update published to: preview channel"
           echo "📱 Users will receive the update on next app restart"
           echo "📅 Completed at: $(date)"
           echo "=========================================="

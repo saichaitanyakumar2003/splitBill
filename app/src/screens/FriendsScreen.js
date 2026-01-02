@@ -51,8 +51,11 @@ export default function FriendsScreen({ route }) {
   // Check if there are unsaved changes
   const hasChanges = pendingAdditions.length > 0;
   
-  // Load favorites from store (cached or API)
+  // Load favorites from store (cached or API) - only on initial mount
   useEffect(() => {
+    // Don't re-initialize if already done or if there are pending changes
+    if (isInitialized) return;
+    
     const initFavorites = async () => {
       if (user?.friends) {
         const favs = await loadFavoritesFromStore(token, user.friends);
@@ -67,7 +70,7 @@ export default function FriendsScreen({ route }) {
     };
     
     initFavorites();
-  }, [user?.friends, token, loadFavoritesFromStore]);
+  }, [user?.friends, token, loadFavoritesFromStore, isInitialized]);
 
   // Alias for local state
   const favorites = localFavorites;
@@ -76,6 +79,10 @@ export default function FriendsScreen({ route }) {
   // Pull to refresh handler
   const onRefresh = useCallback(async () => {
     if (Platform.OS === 'web') return;
+    // Don't refresh if there are pending changes
+    if (pendingAdditions.length > 0) {
+      return;
+    }
     setRefreshing(true);
     try {
       // Re-initialize auth to get fresh user data
@@ -90,16 +97,16 @@ export default function FriendsScreen({ route }) {
     } finally {
       setRefreshing(false);
     }
-  }, [user?.friends, token, loadFavoritesFromStore, initializeAuth]);
+  }, [user?.friends, token, loadFavoritesFromStore, initializeAuth, pendingAdditions.length]);
 
   const handleBack = useCallback(() => {
-    if (hasChanges) {
-      // Could show confirmation dialog here
-    }
-    // On mobile, just go back. On web, handle side panel
+    // Force navigation to Home screen
     if (Platform.OS !== 'web') {
-      // Always navigate to Home on mobile for consistent behavior
-      navigation.navigate('Home');
+      // Use reset for guaranteed navigation on mobile
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
     } else {
       const openSidePanel = route?.params?.fromSidePanel;
       navigation.reset({
@@ -107,18 +114,22 @@ export default function FriendsScreen({ route }) {
         routes: [{ name: 'Home', params: openSidePanel ? { openSidePanel } : undefined }],
       });
     }
-  }, [hasChanges, navigation, route?.params?.fromSidePanel]);
+  }, [navigation, route?.params?.fromSidePanel]);
 
-  // Handle Android hardware back button
+  // Handle Android hardware back button and gesture
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        handleBack();
+      const onBackPress = () => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
         return true; // Prevent default behavior
-      });
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => backHandler.remove();
     }
-  }, [handleBack]);
+  }, [navigation]);
 
   // Search users from API
   useEffect(() => {
@@ -287,7 +298,11 @@ export default function FriendsScreen({ route }) {
         
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
+          <Pressable 
+            onPress={handleBack} 
+            style={styles.backButton}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
             <Text style={styles.backText}>‹</Text>
           </Pressable>
           <Text style={styles.headerTitle}>Favorites</Text>
@@ -408,36 +423,27 @@ export default function FriendsScreen({ route }) {
                 </View>
               )}
               {favorites.length > 0 ? (
-                <View style={[
-                  styles.favoritesList,
-                  favorites.length > 5 && styles.favoritesListScrollable
-                ]}>
-                  <ScrollView 
-                    showsVerticalScrollIndicator={favorites.length > 5}
-                    nestedScrollEnabled={true}
-                    scrollEnabled={favorites.length > 5}
-                  >
-                    {favorites.map(fav => (
-                      <View 
-                        key={fav.mailId} 
-                        style={[
-                          styles.userRow,
-                          pendingAdditions.includes(fav.mailId) && styles.pendingAddRow
-                        ]}
-                      >
-                        <View style={styles.userInfo}>
-                          <Text style={styles.userName}>{fav.name}</Text>
-                          <Text style={styles.userEmail}>{fav.mailId}</Text>
-                        </View>
-                        <TouchableOpacity 
-                          style={styles.removeButton}
-                          onPress={() => handleRemoveFavorite(fav.mailId)}
-                        >
-                          <Text style={styles.removeIcon}>🗑️</Text>
-                        </TouchableOpacity>
+                <View style={styles.favoritesList}>
+                  {favorites.map(fav => (
+                    <View 
+                      key={fav.mailId} 
+                      style={[
+                        styles.userRow,
+                        pendingAdditions.includes(fav.mailId) && styles.pendingAddRow
+                      ]}
+                    >
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userName}>{fav.name}</Text>
+                        <Text style={styles.userEmail}>{fav.mailId}</Text>
                       </View>
-                    ))}
-                  </ScrollView>
+                      <TouchableOpacity 
+                        style={styles.removeButton}
+                        onPress={() => handleRemoveFavorite(fav.mailId)}
+                      >
+                        <Text style={styles.removeIcon}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
               ) : (
                 <View style={styles.emptyStateCard}>
@@ -639,14 +645,15 @@ const styles = StyleSheet.create({
   },
   favoritesSection: {
     flex: 1,
+    minHeight: 100,
+    marginTop: 10,
   },
   favoritesList: {
     backgroundColor: '#F8F8F8',
     borderRadius: 12,
     paddingHorizontal: 12,
-  },
-  favoritesListScrollable: {
-    maxHeight: 300, // ~5 rows
+    paddingVertical: 4,
+    minHeight: 60,
   },
   userRow: {
     flexDirection: 'row',
@@ -657,9 +664,9 @@ const styles = StyleSheet.create({
   },
   pendingAddRow: {
     backgroundColor: '#FFF5F0',
-    marginHorizontal: -12,
-    paddingHorizontal: 12,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFE0D0',
   },
   userInfo: {
     flex: 1,

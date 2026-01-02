@@ -46,9 +46,12 @@ export default function HistoryScreen({ route }) {
   }, []);
 
   const handleBack = useCallback(() => {
-    // On mobile, just navigate to Home. On web, handle side panel
+    // Navigate to Home
     if (Platform.OS !== 'web') {
-      navigation.navigate('Home');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
     } else {
       const openSidePanel = route?.params?.fromSidePanel;
       navigation.reset({
@@ -61,13 +64,17 @@ export default function HistoryScreen({ route }) {
   // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        handleBack();
-        return true; // Prevent default behavior
-      });
+      const onBackPress = () => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => backHandler.remove();
     }
-  }, [handleBack]);
+  }, [navigation]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);

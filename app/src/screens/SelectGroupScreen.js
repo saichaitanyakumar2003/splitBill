@@ -52,9 +52,12 @@ export default function SelectGroupScreen() {
   }, []);
 
   const handleBack = useCallback(() => {
-    // On mobile, navigate to Home. On web, try to go back
+    // Navigate to Home
     if (Platform.OS !== 'web') {
-      navigation.navigate('Home');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
     } else {
       if (navigation.canGoBack()) {
         navigation.goBack();
@@ -67,13 +70,17 @@ export default function SelectGroupScreen() {
   // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        handleBack();
-        return true; // Prevent default behavior
-      });
+      const onBackPress = () => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => backHandler.remove();
     }
-  }, [handleBack]);
+  }, [navigation]);
 
   const handleSelectGroup = (group) => {
     // Navigate to AddExpense screen with the selected group
