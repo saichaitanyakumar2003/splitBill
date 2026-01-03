@@ -951,16 +951,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
-  // Checkout Button - Orange with White Text
+  // Checkout Button - Orange with White Text - Increased touch area
   checkoutButton: {
     backgroundColor: '#FF6B35',
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    minHeight: 60,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
-    marginTop: 8,
+    marginTop: 12,
   },
   checkoutButtonDisabled: {
     opacity: 0.7,

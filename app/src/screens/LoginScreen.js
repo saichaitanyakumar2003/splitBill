@@ -40,6 +40,14 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
+  
+  // Track touched fields for validation display
+  const [touchedFields, setTouchedFields] = useState({
+    name: false,
+    email: false,
+    password: false,
+    confirmPassword: false,
+  });
 
   // Google OAuth Setup
   // Note: Android native builds require a separate Android OAuth Client ID with SHA-1 fingerprint
@@ -223,9 +231,36 @@ export default function LoginScreen() {
     if (apiError) setApiError(null);
   };
 
+  // Mark field as touched on blur
+  const handleFieldBlur = (field) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+  };
+
+  // Validation helper functions
+  const isNameValid = () => name && name.trim().length > 0;
+  const isEmailValid = () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return email && emailRegex.test(email);
+  };
+  const isPasswordValid = () => password && password.length >= 6;
+  const isConfirmPasswordValid = () => confirmPassword && password === confirmPassword;
+
+  // Check if form is complete for signup
+  const isSignupFormValid = () => {
+    return isNameValid() && isEmailValid() && isPasswordValid() && isConfirmPasswordValid();
+  };
+
   const handleEmailLogin = async () => {
     // Clear any previous error
     setApiError(null);
+    
+    // Mark all fields as touched to show validation errors
+    setTouchedFields({
+      name: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
     
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -428,6 +463,7 @@ export default function LoginScreen() {
                     setName('');
                     setConfirmPassword('');
                     setShowPassword(false);
+                    setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
                   }}
                 >
                   <Text style={[styles.tabText, isLogin && styles.activeTabText]}>Login</Text>
@@ -442,11 +478,21 @@ export default function LoginScreen() {
                     setName('');
                     setConfirmPassword('');
                     setShowPassword(false);
+                    setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
                   }}
                 >
                   <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>Sign Up</Text>
                 </Pressable>
               </View>
+
+              {/* Required Fields Note (Sign Up only) */}
+              {!isLogin && (
+                <View style={styles.requiredNote}>
+                  <Text style={styles.requiredNoteText}>
+                    <Text style={styles.requiredAsterisk}>*</Text> indicates required fields
+                  </Text>
+                </View>
+              )}
 
               {/* Error Message */}
               {apiError && (
@@ -467,56 +513,88 @@ export default function LoginScreen() {
 
               {/* Name Input (Sign Up only) */}
               {!isLogin && (
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputIcon}>👤</Text>
-                  <TextInput
-                    ref={nameInputRef}
-                    style={styles.input}
-                    placeholder="Full Name"
-                    placeholderTextColor="#999"
-                    value={name}
-                    onChangeText={setName}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    returnKeyType="next"
-                    onSubmitEditing={() => emailInputRef.current?.focus()}
-                  />
+                <View>
+                  <View style={[
+                    styles.inputContainer,
+                    touchedFields.name && !isNameValid() && styles.inputContainerError
+                  ]}>
+                    <Text style={styles.inputIcon}>👤</Text>
+                    <TextInput
+                      ref={nameInputRef}
+                      style={styles.input}
+                      placeholder="Full Name *"
+                      placeholderTextColor="#999"
+                      value={name}
+                      onChangeText={(text) => {
+                        setName(text);
+                        if (apiError) setApiError(null);
+                      }}
+                      onBlur={() => handleFieldBlur('name')}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      onSubmitEditing={() => emailInputRef.current?.focus()}
+                    />
+                    {name && name.trim().length > 0 && (
+                      <Text style={styles.matchIcon}>✓</Text>
+                    )}
+                  </View>
+                  {touchedFields.name && !isNameValid() && (
+                    <Text style={styles.validationError}>Full name is required</Text>
+                  )}
                 </View>
               )}
 
               {/* Email Input */}
-              <View style={[styles.inputContainer, apiError && styles.inputContainerError]}>
-                <Text style={styles.inputIcon}>📧</Text>
-                <TextInput
-                  ref={emailInputRef}
-                  style={styles.input}
-                  placeholder="Email address"
-                  placeholderTextColor="#999"
-                  value={email}
-                  onChangeText={handleEmailChange}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="next"
-                  onSubmitEditing={() => passwordInputRef.current?.focus()}
-                />
+              <View>
+                <View style={[
+                  styles.inputContainer, 
+                  touchedFields.email && !isEmailValid() && styles.inputContainerError,
+                  touchedFields.email && isEmailValid() && styles.inputContainerSuccess
+                ]}>
+                  <Text style={styles.inputIcon}>📧</Text>
+                  <TextInput
+                    ref={emailInputRef}
+                    style={styles.input}
+                    placeholder={isLogin ? "Email address" : "Email address *"}
+                    placeholderTextColor="#999"
+                    value={email}
+                    onChangeText={handleEmailChange}
+                    onBlur={() => handleFieldBlur('email')}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  />
+                  {email && isEmailValid() && (
+                    <Text style={styles.matchIcon}>✓</Text>
+                  )}
+                </View>
+                {touchedFields.email && !email && !isLogin && (
+                  <Text style={styles.validationError}>Email is required</Text>
+                )}
+                {touchedFields.email && email && !isEmailValid() && (
+                  <Text style={styles.validationError}>Please enter a valid email address</Text>
+                )}
               </View>
 
               {/* Password Input */}
               <View>
                 <View style={[
                   styles.inputContainer, 
-                  apiError && styles.inputContainerError,
-                  !isLogin && password && password.length < 6 && styles.inputContainerError
+                  touchedFields.password && !isLogin && !isPasswordValid() && styles.inputContainerError,
+                  touchedFields.password && !isLogin && isPasswordValid() && styles.inputContainerSuccess
                 ]}>
                   <Text style={styles.inputIcon}>🔒</Text>
                   <TextInput
                     ref={passwordInputRef}
                     style={styles.input}
-                    placeholder={isLogin ? "Password" : "Password (min 6 characters)"}
+                    placeholder={isLogin ? "Password" : "Password (min 6 characters) *"}
                     placeholderTextColor="#999"
                     value={password}
                     onChangeText={handlePasswordChange}
+                    onBlur={() => handleFieldBlur('password')}
                     secureTextEntry={!showPassword}
                     returnKeyType={isLogin ? "done" : "next"}
                     onSubmitEditing={isLogin ? handleEmailLogin : () => confirmPasswordInputRef.current?.focus()}
@@ -524,8 +602,14 @@ export default function LoginScreen() {
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                     <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
                   </Pressable>
+                  {!isLogin && password && password.length >= 6 && (
+                    <Text style={styles.matchIcon}>✓</Text>
+                  )}
                 </View>
-                {!isLogin && password && password.length < 6 && (
+                {!isLogin && touchedFields.password && !password && (
+                  <Text style={styles.validationError}>Password is required</Text>
+                )}
+                {!isLogin && password && password.length > 0 && password.length < 6 && (
                   <Text style={styles.validationError}>Password must be at least 6 characters</Text>
                 )}
               </View>
@@ -535,6 +619,7 @@ export default function LoginScreen() {
                 <View>
                   <View style={[
                     styles.inputContainer,
+                    touchedFields.confirmPassword && !confirmPassword && styles.inputContainerError,
                     confirmPassword && password !== confirmPassword && styles.inputContainerError,
                     confirmPassword && password === confirmPassword && password.length >= 6 && styles.inputContainerSuccess
                   ]}>
@@ -542,10 +627,14 @@ export default function LoginScreen() {
                     <TextInput
                       ref={confirmPasswordInputRef}
                       style={styles.input}
-                      placeholder="Confirm Password"
+                      placeholder="Confirm Password *"
                       placeholderTextColor="#999"
                       value={confirmPassword}
-                      onChangeText={setConfirmPassword}
+                      onChangeText={(text) => {
+                        setConfirmPassword(text);
+                        if (apiError) setApiError(null);
+                      }}
+                      onBlur={() => handleFieldBlur('confirmPassword')}
                       secureTextEntry={!showPassword}
                       returnKeyType="done"
                       onSubmitEditing={handleEmailLogin}
@@ -554,6 +643,9 @@ export default function LoginScreen() {
                       <Text style={styles.matchIcon}>✓</Text>
                     )}
                   </View>
+                  {touchedFields.confirmPassword && !confirmPassword && (
+                    <Text style={styles.validationError}>Please confirm your password</Text>
+                  )}
                   {confirmPassword && password !== confirmPassword && (
                     <Text style={styles.validationError}>Passwords do not match</Text>
                   )}
@@ -942,5 +1034,19 @@ const styles = StyleSheet.create({
     color: '#38A169',
     fontWeight: '700',
     marginRight: 8,
+  },
+  requiredNote: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  requiredNoteText: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  requiredAsterisk: {
+    color: '#E53E3E',
+    fontWeight: '700',
+    fontStyle: 'normal',
   },
 });
