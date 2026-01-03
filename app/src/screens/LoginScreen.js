@@ -42,10 +42,13 @@ export default function LoginScreen() {
   const [apiError, setApiError] = useState(null);
 
   // Google OAuth Setup - Use Web Client ID for browser-based flow on all platforms
-  // This approach works everywhere without needing SHA-1 fingerprints or separate client IDs
+  // We pass the same Web Client ID to androidClientId/iosClientId to satisfy the library
+  // but the actual auth happens via web browser, so no SHA-1 fingerprints needed
   const [request, response, promptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_WEB_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_WEB_CLIENT_ID, // Required for native builds, uses web flow
+    iosClientId: GOOGLE_WEB_CLIENT_ID,     // Required for native builds, uses web flow
     selectAccount: true, // Allow user to select account
     scopes: ['profile', 'email'],
   });

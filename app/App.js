@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,7 +24,8 @@ import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import BillScanScreen from './src/screens/BillScanScreen';
-import BillCameraScreen from './src/screens/BillCameraScreen';
+// Lazy load camera screen to prevent startup crashes
+const BillCameraScreen = React.lazy(() => import('./src/screens/BillCameraScreen'));
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -1099,10 +1100,16 @@ function HomeScreen({ navigation, route }) {
             animationType="slide"
             onRequestClose={handleCameraClose}
           >
-            <BillCameraScreen
-              onCapture={handleCameraCapture}
-              onClose={handleCameraClose}
-            />
+            <Suspense fallback={
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+                <ActivityIndicator size="large" color="#FF6B35" />
+              </View>
+            }>
+              <BillCameraScreen
+                onCapture={handleCameraCapture}
+                onClose={handleCameraClose}
+              />
+            </Suspense>
           </Modal>
         )}
 
