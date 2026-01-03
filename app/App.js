@@ -758,8 +758,18 @@ function HomeScreen({ navigation, route }) {
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [processingError, setProcessingError] = useState(null);
   
-  const { user, logout, token } = useAuth();
+  const { user, logout, token, isAuthenticated } = useAuth();
   const isMobile = Platform.OS === 'ios' || Platform.OS === 'android';
+
+  // Redirect to Login if not authenticated (handles logout)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }
+  }, [isAuthenticated, navigation]);
 
   // Check if we should open the side panel (when coming back from a screen)
   useEffect(() => {
@@ -967,11 +977,9 @@ function HomeScreen({ navigation, route }) {
 
   const handleLogoutConfirm = async () => {
     setShowLogoutModal(false);
+    // Just call logout - the useEffect above will handle navigation
+    // when isAuthenticated becomes false
     await logout();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
   };
 
   const handleLogoutCancel = () => {
