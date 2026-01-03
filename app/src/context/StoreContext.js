@@ -101,7 +101,7 @@ export const StoreProvider = ({ children }) => {
     } finally {
       setIsLoadingFavorites(false);
     }
-  }, [favorites, favoritesLoaded]);
+  }, [favoritesLoaded]); // Removed 'favorites' to prevent infinite loop
 
   /**
    * Update favorites after adding/removing
@@ -115,21 +115,27 @@ export const StoreProvider = ({ children }) => {
    * Add a favorite to the cache
    */
   const addFavoriteToCache = useCallback(async (userToAdd) => {
-    const updated = [...favorites, userToAdd];
-    setFavorites(updated);
+    let updated;
+    setFavorites(prev => {
+      updated = [...prev, userToAdd];
+      return updated;
+    });
     await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(updated));
     return updated;
-  }, [favorites]);
+  }, []); // Use functional update to avoid dependency on favorites
 
   /**
    * Remove a favorite from the cache
    */
   const removeFavoriteFromCache = useCallback(async (mailId) => {
-    const updated = favorites.filter(f => f.mailId !== mailId);
-    setFavorites(updated);
+    let updated;
+    setFavorites(prev => {
+      updated = prev.filter(f => f.mailId !== mailId);
+      return updated;
+    });
     await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(updated));
     return updated;
-  }, [favorites]);
+  }, []); // Use functional update to avoid dependency on favorites
 
   /**
    * Load groups from cache or API
@@ -177,7 +183,7 @@ export const StoreProvider = ({ children }) => {
     } finally {
       setIsLoadingGroups(false);
     }
-  }, [groups, groupsLoaded]);
+  }, [groupsLoaded]); // Removed 'groups' to prevent infinite loop
 
   /**
    * Clear all cached data (on logout)

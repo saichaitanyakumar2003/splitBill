@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
   TextInput,
   ScrollView,
   Platform,
   ActivityIndicator,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -98,15 +98,28 @@ export default function FriendsScreen({ route }) {
     }
   }, [user?.friends, token, loadFavoritesFromStore, initializeAuth, pendingAdditions.length]);
 
-  // Handle back navigation (used by UI back button and hardware back)
-  const handleBack = useCallback(() => {
+  const handleBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
       navigation.navigate('Home');
     }
-  }, [navigation]);
+  };
 
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const backAction = () => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => subscription.remove();
+  }, [navigation]);
 
   // Search users from API
   useEffect(() => {
@@ -124,11 +137,14 @@ export default function FriendsScreen({ route }) {
         const data = await response.json();
         
         if (data.success) {
-          setSearchResults(data.data);
-        } else {
-          setError(data.message);
+          // Filter out current user and already added favorites
+          const filtered = data.data.filter(
+            u => u.mailId !== user?.mailId && !favorites.some(f => f.mailId === u.mailId)
+          );
+          setSearchResults(filtered);
         }
       } catch (e) {
+        console.error('Search error:', e);
         setError('Search failed');
       } finally {
         setIsSearching(false);
@@ -137,9 +153,8 @@ export default function FriendsScreen({ route }) {
 
     const debounce = setTimeout(searchUsers, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, token]);
+  }, [searchQuery, token, favorites, user?.mailId]);
 
-  // Check if user is already in favorites (including pending additions)
   const isInFavorites = (mailId) => {
     return favorites.some(f => f.mailId === mailId);
   };
@@ -147,25 +162,25 @@ export default function FriendsScreen({ route }) {
   const handleAddFavorite = (userToAdd) => {
     if (favorites.length >= MAX_FAVORITES) {
       setError(`Maximum ${MAX_FAVORITES} favorites allowed`);
-      setTimeout(() => setError(null), 3000);
       return;
     }
 
-    // Add to local state
+    // Add to local favorites
     setFavorites([...favorites, userToAdd]);
+    // Track as pending addition
     setPendingAdditions([...pendingAdditions, userToAdd.mailId]);
-    
     // Remove from search results
     setSearchResults(searchResults.filter(u => u.mailId !== userToAdd.mailId));
+    setError(null);
   };
 
-  // Helper to add user back to search results if matches current query
   const addBackToSearchResults = (removedUser) => {
     if (searchQuery.trim().length >= 2) {
-      const query = searchQuery.toLowerCase().trim();
-      const matchesName = removedUser.name?.toLowerCase().includes(query);
-      const matchesEmail = removedUser.mailId?.toLowerCase().includes(query);
-      if (matchesName || matchesEmail) {
+      const matchesSearch = 
+        removedUser.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        removedUser.mailId?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (matchesSearch) {
         // Add back to search results if not already there
         setSearchResults(prev => {
           if (!prev.some(u => u.mailId === removedUser.mailId)) {
@@ -275,13 +290,9 @@ export default function FriendsScreen({ route }) {
         
         {/* Header */}
         <View style={styles.header}>
-          <Pressable 
-            onPress={handleBack} 
-            style={styles.backButton}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-          >
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
-          </Pressable>
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Favorites</Text>
           <View style={styles.headerRight} />
         </View>
@@ -583,158 +594,131 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  searchResultsList: {
-    maxHeight: 200,
-  },
-  noResultsContainer: {
-    paddingVertical: 20,
-    alignItems: 'center',
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  noResultsText: {
-    fontSize: 15,
-    color: '#999',
-    fontStyle: 'italic',
+    borderBottomColor: '#EEE',
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#333',
     marginBottom: 12,
   },
   sectionTitleNoMargin: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  favoritesSection: {
-    flex: 1,
-    minHeight: 100,
-    marginTop: 10,
-  },
-  favoritesList: {
-    backgroundColor: '#F8F8F8',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    minHeight: 60,
+    color: '#333',
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
+    borderBottomColor: '#F0F0F0',
   },
   pendingAddRow: {
-    backgroundColor: '#FFF5F0',
+    backgroundColor: '#FFF8F0',
+    marginHorizontal: -10,
+    paddingHorizontal: 10,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFE0D0',
   },
   userInfo: {
     flex: 1,
+    marginRight: 10,
   },
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 2,
+    color: '#333',
   },
   userEmail: {
     fontSize: 13,
     color: '#888',
+    marginTop: 2,
   },
   addButton: {
+    backgroundColor: '#FF6B35',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FF6B35',
   },
   addButtonDisabled: {
     backgroundColor: '#CCC',
   },
   addButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
     color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButtonTextDisabled: {
-    color: '#999',
+    color: '#888',
   },
   removeButton: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
   },
   removeIcon: {
-    fontSize: 16,
+    fontSize: 18,
+  },
+  favoritesSection: {
+    flex: 1,
+  },
+  favoritesList: {
+    flex: 1,
   },
   emptyStateCard: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 50,
-    paddingHorizontal: 20,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 16,
-    marginTop: 10,
+    paddingVertical: 40,
   },
   emptyTextBold: {
     fontSize: 18,
     fontWeight: '700',
     color: '#333',
     marginBottom: 8,
-    textAlign: 'center',
   },
   emptySubtextBold: {
     fontSize: 14,
-    fontWeight: '500',
     color: '#888',
     textAlign: 'center',
   },
+  noResultsContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: '#888',
+  },
   actionButtons: {
     flexDirection: 'row',
+    marginTop: 20,
     gap: 12,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    marginTop: 15,
   },
   cancelButton: {
     flex: 1,
+    backgroundColor: '#F5F5F5',
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: '#FF6B35',
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FF6B35',
+    fontWeight: '600',
+    color: '#666',
   },
   saveButton: {
     flex: 1,
+    backgroundColor: '#FF6B35',
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#FF6B35',
     alignItems: 'center',
   },
   saveButtonDisabled: {
-    opacity: 0.7,
+    backgroundColor: '#FFB299',
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#FFF',
   },
 });
