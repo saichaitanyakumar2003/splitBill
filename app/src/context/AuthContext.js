@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { apiFetch, reportNetworkError, setAuthToken } from '../utils/apiHelper';
 import ENV from '../config/env';
-import { initializePushNotifications, addNotificationListeners } from '../utils/notifications';
+// Push notifications disabled for now
+// import { initializePushNotifications, addNotificationListeners } from '../utils/notifications';
 
 // API Base URL - from centralized config
 const API_BASE_URL = ENV.API_BASE_URL;
@@ -41,57 +42,8 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // Store for notification navigation callback
-  const [notificationNavCallback, setNotificationNavCallback] = useState(null);
-
-  // Function to set navigation callback (called from App.js)
-  const setNotificationNavigationCallback = (callback) => {
-    setNotificationNavCallback(() => callback);
-  };
-
-  // Initialize push notifications when user is authenticated (Android/iOS only)
-  useEffect(() => {
-    if (!isAuthenticated || !user || Platform.OS === 'web') return;
-
-    let notificationCleanup = null;
-
-    const setupNotifications = async () => {
-      try {
-        await initializePushNotifications();
-        
-        // Add listeners for notifications
-        notificationCleanup = addNotificationListeners(
-          (notification) => {
-            // Handle notification received while app is open
-            console.log('🔔 Notification received in foreground:', notification);
-          },
-          (response) => {
-            // Handle notification tap - navigate to relevant screen
-            console.log('🔔 Notification tapped:', response);
-            const data = response?.notification?.request?.content?.data;
-            
-            if (data && notificationNavCallback) {
-              // Navigate based on notification type
-              if (data.type === 'expense') {
-                // Navigate to Pending Expenses screen
-                notificationNavCallback('PendingExpenses');
-              }
-            }
-          }
-        );
-      } catch (error) {
-        console.error('Error setting up notifications:', error);
-      }
-    };
-
-    setupNotifications();
-
-    return () => {
-      if (notificationCleanup) {
-        notificationCleanup();
-      }
-    };
-  }, [isAuthenticated, user, notificationNavCallback]);
+  // Push notifications disabled for now
+  const setNotificationNavigationCallback = () => {};
 
   // Poll for session expiration every 5 seconds
   useEffect(() => {

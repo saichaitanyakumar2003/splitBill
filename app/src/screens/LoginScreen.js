@@ -41,15 +41,15 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Google OAuth Setup - Use Web Client ID for browser-based flow on all platforms
-  // We pass the same Web Client ID to androidClientId/iosClientId to satisfy the library
-  // but the actual auth happens via web browser, so no SHA-1 fingerprints needed
+  // Google OAuth Setup
+  // Note: Android native builds require a separate Android OAuth Client ID with SHA-1 fingerprint
+  // For now, Google SSO is only available on Web. Android users should use email login.
+  const isGoogleSSOAvailable = Platform.OS === 'web';
+  
   const [request, response, promptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_WEB_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_WEB_CLIENT_ID, // Required for native builds, uses web flow
-    iosClientId: GOOGLE_WEB_CLIENT_ID,     // Required for native builds, uses web flow
-    selectAccount: true, // Allow user to select account
+    selectAccount: true,
     scopes: ['profile', 'email'],
   });
 
@@ -291,59 +291,45 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setApiError(null);
     
-    console.log('🔐 ===== STARTING GOOGLE SIGN-IN =====');
-    
-    // Check if OAuth request is ready
-    if (!request) {
-      console.error('❌ Google OAuth request not ready - request object is null');
-      setApiError('Google SSO is not available. Please use email login instead.');
+    // Check if Google SSO is available on this platform
+    if (!isGoogleSSOAvailable) {
+      setApiError('Google SSO is only available on web. Please use email login on mobile.');
       return;
     }
     
-    console.log('🔐 Request object available:', !!request);
-    console.log('🔐 Platform:', Platform.OS);
+    // Check if OAuth request is ready
+    if (!request) {
+      setApiError('Google SSO is not available. Please use email login instead.');
+      return;
+    }
     
     setIsGoogleLoading(true);
     
     // Set a timeout - if no response in 15 seconds, show error
     const timeoutId = setTimeout(() => {
-      if (isGoogleLoading) {
-        setIsGoogleLoading(false);
-        setApiError('Google SSO request timed out. Please try again or use email login.');
-        console.error('❌ Google OAuth timed out after 15 seconds');
-      }
+      setIsGoogleLoading(false);
+      setApiError('Google SSO request timed out. Please try again or use email login.');
     }, 15000);
     
     try {
-      console.log('🔐 Calling promptAsync()...');
       const result = await promptAsync();
       clearTimeout(timeoutId);
-      
-      console.log('🔐 promptAsync() returned:', result?.type);
       
       // Handle different result types immediately
       if (result?.type === 'error') {
         setIsGoogleLoading(false);
-        const errorMsg = result.error?.message || result.error?.code || 'Unknown error';
-        console.error('❌ Google OAuth error:', errorMsg);
-        setApiError(`Google SSO failed: ${errorMsg}. Please use email login.`);
+        setApiError('Google SSO failed. Please use email login.');
       } else if (result?.type === 'dismiss' || result?.type === 'cancel') {
         setIsGoogleLoading(false);
-        // User cancelled - no error message needed
       } else if (result?.type !== 'success') {
-        // Unknown result type
         setIsGoogleLoading(false);
         setApiError('Google SSO is not authorized. Please use email login instead.');
       }
-      // Success case is handled by the useEffect watching 'response'
-      
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error('❌ promptAsync() threw an error:', error.message);
       setIsGoogleLoading(false);
       setApiError('Google SSO is not authorized. Please use email login instead.');
     }
-    console.log('🔐 =====================================');
   };
 
   // Interpolate rotation (2 full rotations = 720°)
