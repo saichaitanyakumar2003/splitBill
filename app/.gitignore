@@ -16,7 +16,8 @@ web-build/
 # Vercel
 .vercel
 
-# Firebase config files (contain API keys)
-# Share these files securely with your team
-google-services.json
+# Firebase config files
+# Note: google-services.json API keys are restricted to your app's package name
+# and SHA-1 certificate, so they're safe to commit (Google's recommendation)
+# google-services.json
 GoogleService-Info.plist
