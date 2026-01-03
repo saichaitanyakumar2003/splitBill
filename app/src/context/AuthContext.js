@@ -41,6 +41,14 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
+  // Store for notification navigation callback
+  const [notificationNavCallback, setNotificationNavCallback] = useState(null);
+
+  // Function to set navigation callback (called from App.js)
+  const setNotificationNavigationCallback = (callback) => {
+    setNotificationNavCallback(() => callback);
+  };
+
   // Initialize push notifications when user is authenticated (Android/iOS only)
   useEffect(() => {
     if (!isAuthenticated || !user || Platform.OS === 'web') return;
@@ -55,11 +63,20 @@ export const AuthProvider = ({ children }) => {
         notificationCleanup = addNotificationListeners(
           (notification) => {
             // Handle notification received while app is open
-            console.log('Notification received in foreground:', notification);
+            console.log('🔔 Notification received in foreground:', notification);
           },
           (response) => {
-            // Handle notification tap - could navigate to relevant screen
-            console.log('Notification tapped:', response);
+            // Handle notification tap - navigate to relevant screen
+            console.log('🔔 Notification tapped:', response);
+            const data = response?.notification?.request?.content?.data;
+            
+            if (data && notificationNavCallback) {
+              // Navigate based on notification type
+              if (data.type === 'expense') {
+                // Navigate to Pending Expenses screen
+                notificationNavCallback('PendingExpenses');
+              }
+            }
           }
         );
       } catch (error) {
@@ -74,7 +91,7 @@ export const AuthProvider = ({ children }) => {
         notificationCleanup();
       }
     };
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, notificationNavCallback]);
 
   // Poll for session expiration every 5 seconds
   useEffect(() => {
@@ -489,6 +506,7 @@ export const AuthProvider = ({ children }) => {
     changePassword,
     skipLogin,
     initializeAuth,
+    setNotificationNavigationCallback,
   };
 
   return (

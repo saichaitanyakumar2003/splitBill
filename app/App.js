@@ -760,8 +760,18 @@ function HomeScreen({ navigation, route }) {
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [processingError, setProcessingError] = useState(null);
   
-  const { user, logout, token } = useAuth();
+  const { user, logout, token, setNotificationNavigationCallback } = useAuth();
   const isMobile = Platform.OS === 'ios' || Platform.OS === 'android';
+
+  // Set up notification navigation callback
+  useEffect(() => {
+    if (setNotificationNavigationCallback) {
+      setNotificationNavigationCallback((screenName) => {
+        console.log('🔔 Navigating to:', screenName);
+        navigation.navigate(screenName);
+      });
+    }
+  }, [navigation, setNotificationNavigationCallback]);
 
   // Check if we should open the side panel (when coming back from a screen)
   useEffect(() => {
