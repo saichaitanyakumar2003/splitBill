@@ -6,11 +6,39 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 🌐 **Live Demo:** [https://splitbill-sand.vercel.app/](https://splitbill-sand.vercel.app/)
 
-> **Note:** For OAuth SSO usage, please reach out to the owner.
+> **Note:** Google OAuth SSO is available only for web users. Mobile users can sign up/login using email. For OAuth access, please reach out to the owner.
+
+---
+
+## 🆓 Why SplitBill?
+
+**SplitBill offers FREE AI-powered OCR bill scanning** — a premium feature that competitors like Splitwise charge for in their Pro subscription ($4.99/month).
+
+| Feature | SplitBill | Splitwise |
+|---------|-----------|-----------|
+| OCR Bill Scanning | ✅ **FREE** | ❌ Pro only ($4.99/mo) |
+| Item-level Splitting | ✅ FREE | ❌ Pro only |
+| Unlimited Scans | ✅ FREE | ❌ Limited |
+| Smart Tax/Tip Distribution | ✅ FREE | ⚠️ Basic |
+
+> **No subscriptions. No hidden fees. Just scan, split, and settle — completely free!**
+
+---
+
+## 🤖 Powered by Advanced AI
+
+SplitBill uses **Qwen 2.5 VL (Vision-Language)** — a state-of-the-art multimodal AI model developed by Alibaba Cloud. This cutting-edge model excels at understanding and extracting structured data from bill images, providing:
+
+- 🎯 **High accuracy** in recognizing item names, prices, and quantities
+- 🧠 **Smart categorization** of food items (Veg, Non-Veg, General)
+- 📊 **Automatic tax & charge detection** (CGST, SGST, Service Charge)
+- 🏪 **Restaurant/merchant name extraction**
+
+---
 
 ## ✨ Features
 
-- **📸 OCR Receipt Scanning** - Take a photo of any receipt and automatically extract items and prices
+- **📸 OCR Receipt Scanning** - Take a photo of any receipt and automatically extract items and prices using Qwen 2.5 VL AI
 - **🧮 Smart Splitting** - Assign specific items to specific people with proportional or equal tax/tip distribution
 - **📊 Clear Breakdowns** - See exactly what each person owes with detailed item breakdowns
 - **📤 Easy Sharing** - Share split summaries with your friends
@@ -83,8 +111,8 @@ splitBill/
 | **Frontend** | React Native + Expo |
 | **Styling** | expo-linear-gradient |
 | **Backend** | Node.js + Express |
-| **OCR** | qwen AI model |
-| **Database** | Mongo DB |
+| **AI/OCR** | Qwen 2.5 VL (Vision-Language Model) |
+| **Database** | MongoDB |
 
 
 Built with ❤️ for hassle-free bill splitting

@@ -50,19 +50,25 @@ export default function LoginScreen() {
   });
 
   // Google OAuth Setup
-  // Note: Android native builds require a separate Android OAuth Client ID with SHA-1 fingerprint
-  // For now, Google SSO is only available on Web. Android users should use email login.
+  // Note: Google SSO is only available on Web. Android/iOS users should use email login.
+  // We provide the web client ID for all platforms to satisfy the hook requirements,
+  // but Google SSO button is only enabled on web.
   const isGoogleSSOAvailable = Platform.OS === 'web';
   
+  // Use web client ID for all platforms - the hook requires androidClientId/iosClientId
+  // but we disable the button on non-web platforms anyway
   const [request, response, promptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_WEB_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_WEB_CLIENT_ID, // Required to prevent crash, but won't work for actual auth
+    iosClientId: GOOGLE_WEB_CLIENT_ID,     // Required to prevent crash, but won't work for actual auth
     selectAccount: true,
     scopes: ['profile', 'email'],
   });
 
-  // Debug: Log OAuth request state
+  // Debug: Log OAuth request state (only on web)
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
     console.log('🔐 ===== GOOGLE OAUTH DEBUG =====');
     console.log('🔐 Request Ready:', !!request);
     console.log('🔐 Platform:', Platform.OS);
