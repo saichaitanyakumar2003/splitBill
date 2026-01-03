@@ -10,7 +10,6 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
-  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -108,22 +107,6 @@ export default function FriendsScreen({ route }) {
     }
   }, [navigation]);
 
-  // Handle Android hardware back button - only on Android
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-
-    const backAction = () => {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('Home');
-      }
-      return true;
-    };
-    
-    const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => subscription.remove();
-  }, [navigation]);
 
   // Search users from API
   useEffect(() => {
