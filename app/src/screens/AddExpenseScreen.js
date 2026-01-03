@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { authGet } from '../utils/apiHelper';
@@ -155,9 +155,11 @@ export default function AddExpenseScreen() {
     }
   };
 
-  // Handle Android hardware back button
-  useEffect(() => {
-    if (Platform.OS === 'android') {
+  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+
       const backAction = () => {
         if (navigation.canGoBack()) {
           navigation.goBack();
@@ -166,10 +168,11 @@ export default function AddExpenseScreen() {
         }
         return true;
       };
+      
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
-    }
-  }, [navigation]);
+    }, [navigation])
+  );
 
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {

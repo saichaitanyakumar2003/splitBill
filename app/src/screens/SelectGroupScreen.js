@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { authGet } from '../utils/apiHelper';
 
 export default function SelectGroupScreen() {
@@ -78,9 +78,11 @@ export default function SelectGroupScreen() {
     }
   };
 
-  // Handle Android hardware back button
-  useEffect(() => {
-    if (Platform.OS === 'android') {
+  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+
       const backAction = () => {
         if (navigation.canGoBack()) {
           navigation.goBack();
@@ -89,10 +91,11 @@ export default function SelectGroupScreen() {
         }
         return true;
       };
+      
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
-    }
-  }, [navigation]);
+    }, [navigation])
+  );
 
   const handleSelectGroup = (group) => {
     // Navigate to AddExpense screen with the selected group and billData if from scan

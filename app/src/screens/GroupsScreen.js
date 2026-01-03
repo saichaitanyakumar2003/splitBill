@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { authGet, authPost } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
 
@@ -156,9 +156,11 @@ export default function GroupsScreen({ route }) {
     }
   };
 
-  // Handle Android hardware back button
-  useEffect(() => {
-    if (Platform.OS === 'android') {
+  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+
       const backAction = () => {
         if (selectedGroup) {
           setSelectedGroup(null);
@@ -170,10 +172,11 @@ export default function GroupsScreen({ route }) {
         }
         return true;
       };
+      
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
-    }
-  }, [selectedGroup, navigation]);
+    }, [selectedGroup, navigation])
+  );
 
   const handleSelectGroup = async (group) => {
     setSelectedGroup(group);
