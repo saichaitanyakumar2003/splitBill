@@ -158,16 +158,24 @@ router.post('/checkout', async (req, res) => {
       }
     }
     
-    // Collect all unique members from expenses
+    // Collect all unique members from expenses (normalize to lowercase)
     const allMembers = new Set();
+    const normalizeEmail = (email) => email ? email.toLowerCase().trim() : null;
+    
     if (members) {
-      members.forEach(m => allMembers.add(m));
+      members.forEach(m => {
+        const normalized = normalizeEmail(m);
+        if (normalized) allMembers.add(normalized);
+      });
     }
     expenses.forEach(exp => {
-      if (exp.paidBy) allMembers.add(exp.paidBy);
-      if (exp.payer) allMembers.add(exp.payer);
+      if (exp.paidBy) allMembers.add(normalizeEmail(exp.paidBy));
+      if (exp.payer) allMembers.add(normalizeEmail(exp.payer));
       if (exp.splits) {
-        Object.keys(exp.splits).forEach(m => allMembers.add(m));
+        Object.keys(exp.splits).forEach(m => {
+          const normalized = normalizeEmail(m);
+          if (normalized) allMembers.add(normalized);
+        });
       }
     });
     
@@ -187,12 +195,37 @@ router.post('/checkout', async (req, res) => {
     }
     
     // Fetch member names for consolidated expenses response
-    const memberEmails = [...allMembers];
-    const memberDocs = await User.find({ _id: { $in: memberEmails } }).select('_id name');
+    const memberEmails = [...allMembers].map(e => (e || '').toLowerCase().trim()).filter(Boolean);
+    console.log('🔍 Looking up names for emails:', memberEmails);
+    
+    // Query users - try both exact match and case-insensitive regex
+    const memberDocs = await User.find({ 
+      _id: { $in: memberEmails } 
+    }).select('_id name');
+    
+    console.log('👤 Found users:', memberDocs.length, memberDocs.map(d => ({ id: d._id, name: d.name })));
+    
     const emailToName = {};
     memberDocs.forEach(doc => {
-      emailToName[doc._id] = doc.name;
+      // Use name if available and not empty, otherwise use email prefix
+      const name = (doc.name && doc.name.trim()) || doc._id.split('@')[0];
+      // Store with lowercase key for consistent lookup
+      emailToName[doc._id.toLowerCase()] = name;
+      emailToName[doc._id] = name; // Also store original case
+      console.log(`✅ Mapped ${doc._id} -> "${name}"`);
     });
+    
+    // Also add fallbacks for any members not found in database
+    memberEmails.forEach(email => {
+      const lowerEmail = email.toLowerCase();
+      if (!emailToName[lowerEmail]) {
+        emailToName[lowerEmail] = email.split('@')[0];
+        emailToName[email] = email.split('@')[0];
+        console.log(`⚠️ Fallback for ${email} -> ${emailToName[email]} (user not found in DB)`);
+      }
+    });
+    
+    console.log('📋 Final emailToName map:', emailToName);
     
     // Get the group details for response
     const groupDetails = group.getDetails();
@@ -200,13 +233,25 @@ router.post('/checkout', async (req, res) => {
     // Add names to consolidated expenses for frontend display
     // Only return PENDING (unresolved) edges for the split summary
     const pendingEdges = (groupDetails.consolidatedExpenses || []).filter(ce => !ce.resolved);
-    const consolidatedWithNames = pendingEdges.map(ce => ({
-      from: ce.from,
-      to: ce.to,
-      amount: ce.amount,
-      fromName: emailToName[ce.from] || ce.from.split('@')[0],
-      toName: emailToName[ce.to] || ce.to.split('@')[0]
-    }));
+    console.log('📊 Processing pendingEdges:', pendingEdges.length);
+    
+    const consolidatedWithNames = pendingEdges.map(ce => {
+      const fromEmail = (ce.from || '').toLowerCase().trim();
+      const toEmail = (ce.to || '').toLowerCase().trim();
+      
+      const fromName = emailToName[fromEmail] || emailToName[ce.from] || fromEmail.split('@')[0] || 'Unknown';
+      const toName = emailToName[toEmail] || emailToName[ce.to] || toEmail.split('@')[0] || 'Unknown';
+      
+      console.log(`💰 Edge: ${fromEmail} (${fromName}) -> ${toEmail} (${toName}): ${ce.amount}`);
+      
+      return {
+        from: fromEmail,
+        to: toEmail,
+        amount: ce.amount,
+        fromName,
+        toName
+      };
+    });
     
     // Send push notifications to payers (people who need to pay)
     // Get the expense title from the first/latest expense
