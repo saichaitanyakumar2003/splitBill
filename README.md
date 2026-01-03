@@ -4,9 +4,15 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 ![SplitBill](https://img.shields.io/badge/SplitBill-v1.0.0-FF6B35?style=for-the-badge)
 
-🌐 **Live Demo:** [https://splitbill-sand.vercel.app/](https://splitbill-sand.vercel.app/)
+🌐 **Web Link:** [https://splitbill-sand.vercel.app/](https://splitbill-sand.vercel.app/)
+
+📱 **Download Android App:** 
+
+[https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-bc4d2d77-cf24-4190-a9cf-4697a69e99b9.apk](https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-bc4d2d77-cf24-4190-a9cf-4697a69e99b9.apk)
 
 > **Note:** Google OAuth SSO is available only for web users. Mobile users can sign up/login using email. For OAuth access, please reach out to the owner.
+
+> ⏳ **Server Cold Start:** The backend is hosted on Render's free tier, which spins down after 15 minutes of inactivity. Your first request may take **~50 seconds** while the server wakes up. Subsequent requests will be fast. Please be patient on first load!
 
 ---
 
@@ -113,6 +119,7 @@ splitBill/
 | **Backend** | Node.js + Express |
 | **AI/OCR** | Qwen 2.5 VL (Vision-Language Model) |
 | **Database** | MongoDB |
+| **Hosting** | Vercel (Frontend) + Render (Backend) |
 
 
 Built with ❤️ for hassle-free bill splitting
