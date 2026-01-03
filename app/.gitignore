@@ -13,5 +13,10 @@ web-build/
 # macOS
 .DS_Store
 
-
+# Vercel
 .vercel
+
+# Firebase config files (contain API keys)
+# Share these files securely with your team
+google-services.json
+GoogleService-Info.plist
