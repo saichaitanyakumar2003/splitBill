@@ -92,7 +92,7 @@ export default function SelectGroupScreen() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [navigation]);
 
   const handleSelectGroup = (group) => {
     // Navigate to AddExpense screen with the selected group and billData if from scan

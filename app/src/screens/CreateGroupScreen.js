@@ -179,7 +179,7 @@ export default function CreateGroupScreen() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [navigation]);
 
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {

@@ -121,7 +121,7 @@ export default function FriendsScreen({ route }) {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [navigation]);
 
   // Search users from API
   useEffect(() => {

@@ -204,7 +204,7 @@ export default function BillScanScreen() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [handleBack]);
 
   // Get subtotal - prefer OCR's subtotal over calculated
   const getSubtotal = () => {

@@ -169,7 +169,7 @@ export default function AddExpenseScreen() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [navigation]);
 
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {

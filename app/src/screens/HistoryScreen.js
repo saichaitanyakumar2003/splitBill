@@ -67,7 +67,7 @@ export default function HistoryScreen({ route }) {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [navigation]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);

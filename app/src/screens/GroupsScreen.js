@@ -173,7 +173,7 @@ export default function GroupsScreen({ route }) {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [selectedGroup]);
+  }, [selectedGroup, navigation]);
 
   const handleSelectGroup = async (group) => {
     setSelectedGroup(group);

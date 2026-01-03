@@ -84,7 +84,7 @@ export default function PendingExpensesScreen({ route }) {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [navigation]);
 
   const handleResolve = (groupId, from, to, toName, amount) => {
     // Show confirmation modal for both web and mobile
