@@ -62,7 +62,7 @@
       ]
     ],
     "updates": {
-      "url": "https://u.expo.dev/7c726d40-818b-4412-92f4-0df041e304b1"
+      "url": "https://u.expo.dev/db7eb830-0c3b-46d3-92ba-49a9b072eb81"
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -71,9 +71,9 @@
       "apiBaseUrl": "https://splitbill-i6ou.onrender.com/api",
       "apiHost": "https://splitbill-i6ou.onrender.com",
       "eas": {
-        "projectId": "7c726d40-818b-4412-92f4-0df041e304b1"
+        "projectId": "db7eb830-0c3b-46d3-92ba-49a9b072eb81"
       }
     },
-    "owner": "saichaitanyakumar2003"
+    "owner": "saichaitanyakumar"
   }
 }
