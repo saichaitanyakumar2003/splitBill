@@ -14,15 +14,34 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { authGet } from '../utils/apiHelper';
 
 export default function SelectGroupScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  
+  // Get billData if coming from scan/upload flow
+  const billData = route.params?.billData || null;
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Redirect to Home on web page refresh (no navigation history)
+  useEffect(() => {
+    if (Platform.OS === 'web' && !isRedirecting) {
+      const state = navigation.getState();
+      const hasHistory = state?.routes?.length > 1;
+      
+      if (!hasHistory) {
+        setIsRedirecting(true);
+        window.location.href = '/';
+        return;
+      }
+    }
+  }, [navigation, isRedirecting]);
 
   // Fetch user's groups (only active ones)
   const fetchGroups = async () => {
@@ -76,12 +95,13 @@ export default function SelectGroupScreen() {
   }, []);
 
   const handleSelectGroup = (group) => {
-    // Navigate to AddExpense screen with the selected group
+    // Navigate to AddExpense screen with the selected group and billData if from scan
     navigation.navigate('AddExpense', {
       selectedGroup: {
         id: group._id || group.id,
         name: group.name,
-      }
+      },
+      billData: billData, // Pass billData if coming from scan/upload flow
     });
   };
 
@@ -89,6 +109,15 @@ export default function SelectGroupScreen() {
   const filteredGroups = groups.filter(group =>
     group.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Show loading while redirecting
+  if (isRedirecting) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF6B35' }}>
+        <Text style={{ color: '#FFF', fontSize: 16 }}>Redirecting...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

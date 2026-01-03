@@ -25,12 +25,13 @@ export default function AddExpenseScreen() {
   const { user, token } = useAuth();
   const { favorites, loadFavorites } = useStore();
   
-  // Get selected group from navigation params
-  const { selectedGroup } = route.params || {};
+  // Get selected group and billData from navigation params
+  const { selectedGroup, billData } = route.params || {};
+  const isFromBillScan = !!billData;
   
   // Form state - group name is fixed
-  const [expenseTitle, setExpenseTitle] = useState('');
-  const [amount, setAmount] = useState('');
+  const [expenseTitle, setExpenseTitle] = useState(isFromBillScan ? billData?.merchantName || '' : '');
+  const [amount, setAmount] = useState(isFromBillScan ? billData?.total?.toString() || '' : '');
   
   // Payer state
   const [paidBy, setPaidBy] = useState(null);
@@ -57,12 +58,19 @@ export default function AddExpenseScreen() {
     selectedMembers: false,
   });
 
-  // Redirect if no group selected
+  // Redirect to Home if no group selected (e.g., on page refresh)
   useEffect(() => {
     if (!selectedGroup) {
-      navigation.navigate('SelectGroup');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.href = '/';
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      }
     }
-  }, [selectedGroup]);
+  }, [selectedGroup, navigation]);
   
   // Set current user as default payer
   useEffect(() => {
@@ -210,16 +218,30 @@ export default function AddExpenseScreen() {
       return;
     }
 
-    // Navigate to preview screen with data (same flow as CreateGroup)
-    navigation.navigate('GroupPreview', {
-      groupId: selectedGroup.id, // Pass group ID for existing group
-      groupName: selectedGroup.name,
-      expenseTitle: expenseTitle.trim(),
-      amount: parseFloat(amount),
-      paidBy: paidBy,
-      selectedMembers: selectedMembers,
-      sourceScreen: 'AddExpense',
-    });
+    // Navigate to appropriate preview screen
+    if (isFromBillScan) {
+      // Use specialized bill split preview for scanned bills
+      navigation.navigate('BillSplitPreview', {
+        groupId: selectedGroup.id, // Pass group ID for existing group
+        groupName: selectedGroup.name,
+        expenseTitle: expenseTitle.trim(),
+        amount: parseFloat(amount),
+        paidBy: paidBy,
+        selectedMembers: selectedMembers,
+        billData: billData,
+      });
+    } else {
+      // Use regular preview for manual entry
+      navigation.navigate('GroupPreview', {
+        groupId: selectedGroup.id, // Pass group ID for existing group
+        groupName: selectedGroup.name,
+        expenseTitle: expenseTitle.trim(),
+        amount: parseFloat(amount),
+        paidBy: paidBy,
+        selectedMembers: selectedMembers,
+        sourceScreen: 'AddExpense',
+      });
+    }
   };
   
   const handleExpenseTitleChange = (text) => {
@@ -456,17 +478,28 @@ export default function AddExpenseScreen() {
 
               {/* Amount */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Amount Paid</Text>
-                <View style={[styles.amountInputContainer, validationErrors.amount && styles.inputError]}>
+                <Text style={styles.label}>
+                  Amount Paid
+                  {isFromBillScan && <Text style={styles.labelHint}> (from scanned bill)</Text>}
+                </Text>
+                <View style={[
+                  styles.amountInputContainer, 
+                  validationErrors.amount && styles.inputError,
+                  isFromBillScan && styles.amountInputLocked
+                ]}>
                   <Text style={styles.currencySymbol}>₹</Text>
                   <TextInput
-                    style={styles.amountInput}
+                    style={[styles.amountInput, isFromBillScan && styles.amountInputDisabled]}
                     placeholder="0.00"
                     placeholderTextColor="#999"
                     value={amount}
                     onChangeText={handleAmountChange}
                     keyboardType="decimal-pad"
+                    editable={!isFromBillScan}
                   />
+                  {isFromBillScan && (
+                    <Text style={styles.lockedIcon}>🔒</Text>
+                  )}
                 </View>
               </View>
 
@@ -787,6 +820,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
+  },
+  amountInputLocked: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  amountInputDisabled: {
+    color: '#2E7D32',
+  },
+  lockedIcon: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  labelHint: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#4CAF50',
+    fontStyle: 'italic',
   },
   payerDropdownTrigger: {
     flexDirection: 'row',

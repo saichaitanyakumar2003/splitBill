@@ -14,20 +14,25 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { authGet, reportNetworkError } from '../utils/apiHelper';
 
 export default function CreateGroupScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const { user, token } = useAuth();
   const { favorites, loadFavorites } = useStore();
   
+  // Check if coming from bill scan flow
+  const billData = route.params?.billData || null;
+  const isFromBillScan = !!billData;
+  
   // Form state
   const [groupName, setGroupName] = useState('');
-  const [expenseTitle, setExpenseTitle] = useState('');
-  const [amount, setAmount] = useState('');
+  const [expenseTitle, setExpenseTitle] = useState(billData?.restaurantName || '');
+  const [amount, setAmount] = useState(isFromBillScan ? billData.total?.toString() || '' : '');
   
   // Payer state - who paid the amount
   const [paidBy, setPaidBy] = useState(null); // { mailId, name }
@@ -58,6 +63,21 @@ export default function CreateGroupScreen() {
     selectedMembers: false,
   });
   const [isCheckingGroupName, setIsCheckingGroupName] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Redirect to Home on web page refresh (no navigation history)
+  useEffect(() => {
+    if (Platform.OS === 'web' && !isRedirecting) {
+      const state = navigation.getState();
+      const hasHistory = state?.routes?.length > 1;
+      
+      if (!hasHistory) {
+        setIsRedirecting(true);
+        window.location.href = '/';
+        return;
+      }
+    }
+  }, [navigation, isRedirecting]);
   
   // Set current user as default payer
   useEffect(() => {
@@ -239,15 +259,28 @@ export default function CreateGroupScreen() {
       return;
     }
 
-    // Navigate to preview screen with data
-    navigation.navigate('GroupPreview', {
-      groupName: groupName.trim(),
-      expenseTitle: expenseTitle.trim(),
-      amount: parseFloat(amount),
-      paidBy: paidBy, // Who paid the amount
-      selectedMembers: selectedMembers,
-      sourceScreen: 'CreateGroup',
-    });
+    // Navigate to appropriate preview screen
+    if (isFromBillScan) {
+      // Use specialized bill split preview for scanned bills
+      navigation.navigate('BillSplitPreview', {
+        groupName: groupName.trim(),
+        expenseTitle: expenseTitle.trim(),
+        amount: parseFloat(amount),
+        paidBy: paidBy,
+        selectedMembers: selectedMembers,
+        billData: billData,
+      });
+    } else {
+      // Use regular preview for manual entry
+      navigation.navigate('GroupPreview', {
+        groupName: groupName.trim(),
+        expenseTitle: expenseTitle.trim(),
+        amount: parseFloat(amount),
+        paidBy: paidBy,
+        selectedMembers: selectedMembers,
+        sourceScreen: 'CreateGroup',
+      });
+    }
   };
   
   // Clear validation error when field is updated
@@ -329,6 +362,15 @@ export default function CreateGroupScreen() {
       setIsPayerDropdownOpen(false); // Close payer dropdown
     }
   };
+
+  // Show loading while redirecting
+  if (isRedirecting) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF6B35' }}>
+        <Text style={{ color: '#FFF', fontSize: 16 }}>Redirecting...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -515,17 +557,28 @@ export default function CreateGroupScreen() {
 
               {/* Amount */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Amount Paid</Text>
-                <View style={[styles.amountInputContainer, validationErrors.amount && styles.inputError]}>
+                <Text style={styles.label}>
+                  Amount Paid
+                  {isFromBillScan && <Text style={styles.labelHint}> (from scanned bill)</Text>}
+                </Text>
+                <View style={[
+                  styles.amountInputContainer, 
+                  validationErrors.amount && styles.inputError,
+                  isFromBillScan && styles.amountInputLocked
+                ]}>
                   <Text style={styles.currencySymbol}>₹</Text>
                   <TextInput
-                    style={styles.amountInput}
+                    style={[styles.amountInput, isFromBillScan && styles.amountInputDisabled]}
                     placeholder="0.00"
                     placeholderTextColor="#999"
                     value={amount}
                     onChangeText={handleAmountChange}
                     keyboardType="decimal-pad"
+                    editable={!isFromBillScan}
                   />
+                  {isFromBillScan && (
+                    <Text style={styles.lockedIcon}>🔒</Text>
+                  )}
                 </View>
               </View>
 
@@ -827,6 +880,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
+  },
+  amountInputLocked: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  amountInputDisabled: {
+    color: '#2E7D32',
+  },
+  lockedIcon: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  labelHint: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#4CAF50',
+    fontStyle: 'italic',
   },
   // Payer dropdown styles
   payerDropdownTrigger: {

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+
+// Helper function to detect non-veg items by name
+const isNonVegByName = (name) => {
+  const nameLower = name.toLowerCase();
+  const nonVegKeywords = [
+    'chicken', 'mutton', 'fish', 'egg', 'prawn', 'meat', 'kebab', 'tandoori',
+    'biryani', 'keema', 'gosht', 'lamb', 'beef', 'pork', 'crab', 'lobster',
+    'shrimp', 'squid', 'apollo', 'lollypop', 'lollipop', 'tikka', 'kabab',
+    'seekh', 'malai', 'butter chicken', 'korma', 'roast', 'fry', '65'
+  ];
+  // Check if any non-veg keyword is in the name
+  // But exclude items that are explicitly veg (like "veg biryani")
+  const isExplicitlyVeg = nameLower.includes('veg ') || nameLower.startsWith('veg');
+  if (isExplicitlyVeg) return false;
+  
+  return nonVegKeywords.some(keyword => nameLower.includes(keyword));
+};
 
 // Transform bill data from API to display format
 const transformBillData = (bill) => {
@@ -50,6 +67,9 @@ const transformBillData = (bill) => {
       
       if (isWater) {
         generalItems.push(processedItem);
+      } else if (isNonVegByName(item.name)) {
+        // Fallback: detect non-veg by item name (handles miscategorized items)
+        nonVegItems.push(processedItem);
       } else if (category.includes('Veg') && !category.includes('Non')) {
         vegItems.push(processedItem);
       } else if (category.includes('Non-Veg') || category.includes('🍖')) {
@@ -77,16 +97,20 @@ const transformBillData = (bill) => {
         continue;
       }
       
-      // For food bills, categorize items
-      const cat = item.category?.toLowerCase() || '';
-      if (cat.includes('veg') && !cat.includes('non')) {
-        vegItems.push(processedItem);
-      } else if (cat.includes('non') || cat.includes('🍖')) {
+      // For food bills, categorize items - check name first, then category
+      if (isNonVegByName(item.name)) {
         nonVegItems.push(processedItem);
-      } else if (cat.includes('beverage') || cat.includes('🥤')) {
-        beverageItems.push(processedItem);
       } else {
-        generalItems.push(processedItem);
+        const cat = item.category?.toLowerCase() || '';
+        if (cat.includes('veg') && !cat.includes('non')) {
+          vegItems.push(processedItem);
+        } else if (cat.includes('non') || cat.includes('🍖')) {
+          nonVegItems.push(processedItem);
+        } else if (cat.includes('beverage') || cat.includes('🥤')) {
+          beverageItems.push(processedItem);
+        } else {
+          generalItems.push(processedItem);
+        }
       }
     }
   }
@@ -123,8 +147,31 @@ export default function BillScanScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   
-  // Get pre-processed bill data from route params
-  const rawBillData = route.params?.billData;
+  // Get bill data from route params (mobile) or sessionStorage (web)
+  const getRawBillData = () => {
+    // First try route params
+    if (route.params?.billData) {
+      return route.params.billData;
+    }
+    
+    // On web, try sessionStorage (used to avoid long URLs)
+    if (Platform.OS === 'web') {
+      try {
+        const storedData = sessionStorage.getItem('pendingBillData');
+        if (storedData) {
+          // Clear it after reading to prevent stale data
+          sessionStorage.removeItem('pendingBillData');
+          return JSON.parse(storedData);
+        }
+      } catch (e) {
+        console.warn('Failed to read bill data from sessionStorage:', e);
+      }
+    }
+    
+    return null;
+  };
+  
+  const [rawBillData] = useState(getRawBillData);
   const billData = transformBillData(rawBillData);
 
   // Handle back navigation
@@ -135,6 +182,17 @@ export default function BillScanScreen() {
       navigation.navigate('Home');
     }
   };
+
+  // Redirect to home if no bill data (happens on page refresh)
+  useEffect(() => {
+    if (!rawBillData || !billData) {
+      // On web refresh, params are lost - redirect to home
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    }
+  }, [rawBillData, billData, navigation]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -148,9 +206,14 @@ export default function BillScanScreen() {
     }
   }, []);
 
-  // Calculate totals
-  const calculateSubtotal = () => {
+  // Get subtotal - prefer OCR's subtotal over calculated
+  const getSubtotal = () => {
     if (!billData) return 0;
+    // Use OCR's subtotal if available (more accurate for bills with per-item taxes)
+    if (billData.subtotal) {
+      return billData.subtotal;
+    }
+    // Fallback: calculate from items
     const vegTotal = billData.items.veg.reduce((sum, item) => sum + item.price, 0);
     const nonVegTotal = billData.items.nonVeg.reduce((sum, item) => sum + item.price, 0);
     const generalTotal = billData.items.general.reduce((sum, item) => sum + item.price, 0);
@@ -160,7 +223,7 @@ export default function BillScanScreen() {
   // Render item row
   const renderItem = (item, index, isLast) => (
     <View key={index} style={[styles.itemRow, isLast && styles.itemRowLast]}>
-      <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.itemName}>{item.name}</Text>
       <View style={styles.itemRight}>
         <Text style={styles.itemQty}>×{item.quantity}</Text>
         <Text style={styles.itemPrice}>₹{item.price.toFixed(2)}</Text>
@@ -279,18 +342,32 @@ export default function BillScanScreen() {
                 {/* Subtotal */}
                 <View style={styles.subtotalSection}>
                   <Text style={styles.subtotalLabel}>Subtotal</Text>
-                  <Text style={styles.subtotalValue}>₹{calculateSubtotal().toFixed(2)}</Text>
+                  <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
                 </View>
 
-                {/* Taxes Row - Show if subtotal != total */}
-                {calculateSubtotal() !== billData.total && (
-                  <View style={styles.subtotalSection}>
-                    <Text style={styles.subtotalLabel}>Taxes</Text>
-                    <Text style={styles.subtotalValue}>
-                      ₹{(billData.total - calculateSubtotal()).toFixed(2)}
+                {/* Individual Tax Rows - Always show if taxes exist */}
+                {billData.taxes && billData.taxes.length > 0 && (
+                  <View style={styles.taxesSection}>
+                    <Text style={styles.taxesTitle}>TAXES & CHARGES</Text>
+                    {billData.taxes.map((tax, index) => (
+                      <View key={index} style={styles.taxRow}>
+                        <Text style={styles.taxName}>{tax.name}</Text>
+                        <Text style={styles.taxAmount}>₹{(tax.amount || 0).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Total Tax Row - Show if subtotal != total */}
+                {getSubtotal() !== billData.total && (
+                  <View style={styles.taxesTotalSection}>
+                    <Text style={styles.taxesTotalLabel}>Total Taxes & Charges</Text>
+                    <Text style={styles.taxesTotalValue}>
+                      ₹{(billData.total - getSubtotal()).toFixed(2)}
                     </Text>
                   </View>
                 )}
+
                 {/* Total */}
                 <View style={styles.totalSection}>
                   <Text style={styles.totalLabel}>Total</Text>
@@ -301,7 +378,15 @@ export default function BillScanScreen() {
                 <View style={styles.continueButtonWrapper}>
                   <TouchableOpacity 
                     style={styles.continueButton}
-                    onPress={() => Alert.alert('Coming Soon', 'Split functionality will be added next!')}
+                    onPress={() => {
+                      // Navigate to SplitOptions with bill data
+                      navigation.navigate('SplitOptions', {
+                        billData: {
+                          ...billData,
+                          rawItems: rawBillData?.items || [],
+                        }
+                      });
+                    }}
                   >
                     <Text style={styles.continueButtonText}>Continue</Text>
                     <Ionicons name="chevron-forward" size={22} color="#FFF" />
@@ -479,7 +564,7 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
@@ -492,10 +577,14 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     marginRight: 12,
+    flexWrap: 'wrap',
+    lineHeight: 22,
   },
   itemRight: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexShrink: 0,
+    paddingTop: 2,
   },
   itemQty: {
     fontSize: 13,

@@ -19,6 +19,7 @@ import CreateGroupScreen from './src/screens/CreateGroupScreen';
 import SelectGroupScreen from './src/screens/SelectGroupScreen';
 import AddExpenseScreen from './src/screens/AddExpenseScreen';
 import GroupPreviewScreen from './src/screens/GroupPreviewScreen';
+import BillSplitPreviewScreen from './src/screens/BillSplitPreviewScreen';
 import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
@@ -47,8 +48,21 @@ const getLinkedScreens = (isAuthenticated) => ({
       SelectGroup: 'select-group',
       CreateGroup: 'create-group',
       AddExpense: 'add-expense',
-      // GroupPreview not linked - refreshing redirects to Home
+      // BillScan and GroupPreview not linked - refreshing redirects to Home
+      // These screens require state that can't be serialized to URL
     },
+  },
+  // Custom state parser to handle invalid/missing routes
+  getStateFromPath: (path, options) => {
+    // If path contains BillScan or has very long query params, redirect to home
+    if (path.includes('BillScan') || path.length > 500) {
+      return {
+        routes: [{ name: isAuthenticated ? 'Home' : 'Login' }],
+      };
+    }
+    // Use default parsing for other paths
+    const { getStateFromPath } = require('@react-navigation/native');
+    return getStateFromPath(path, options);
   },
 });
 
@@ -826,9 +840,21 @@ function HomeScreen({ navigation, route }) {
           throw new Error(data.error || data.message || 'Failed to scan bill');
         }
 
-        // Navigate to BillScan screen with processed data
-        setIsProcessingImage(false);
-        navigation.navigate('BillScan', { billData: data.bill, imageUri });
+        // Store bill data in sessionStorage (web) to avoid URL length issues
+        if (Platform.OS === 'web') {
+          try {
+            sessionStorage.setItem('pendingBillData', JSON.stringify(data.bill));
+          } catch (e) {
+            console.warn('Failed to store bill data:', e);
+          }
+          // Navigate without params on web to avoid long URLs
+          setIsProcessingImage(false);
+          navigation.navigate('BillScan');
+        } else {
+          // On mobile, pass data through params (no URL issue)
+          setIsProcessingImage(false);
+          navigation.navigate('BillScan', { billData: data.bill });
+        }
 
       } catch (err) {
         console.error('OCR Error:', err);
@@ -838,6 +864,80 @@ function HomeScreen({ navigation, route }) {
 
     } catch (err) {
       console.error('Image picker error:', err);
+      setIsProcessingImage(false);
+    }
+  };
+
+  // Handle camera scan for bills (Android only)
+  const handleScanImage = async () => {
+    try {
+      // Request camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please allow access to your camera to scan bill images.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return; // User cancelled
+      }
+
+      const imageUri = result.assets[0].uri;
+      
+      // Show processing modal
+      setIsProcessingImage(true);
+      setProcessingError(null);
+
+      try {
+        // Process image with OCR API
+        const formData = new FormData();
+        
+        formData.append('image', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: 'bill.jpg',
+        });
+
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        };
+
+        const apiResponse = await fetch(`${ENV.API_BASE_URL}/ocr/scan`, {
+          method: 'POST',
+          body: formData,
+          headers,
+        });
+
+        const data = await apiResponse.json();
+
+        if (!apiResponse.ok || !data.success) {
+          throw new Error(data.error || data.message || 'Failed to scan bill');
+        }
+
+        // On mobile, pass data through params
+        setIsProcessingImage(false);
+        navigation.navigate('BillScan', { billData: data.bill });
+
+      } catch (err) {
+        console.error('OCR Error:', err);
+        setProcessingError(err.message || 'Failed to process bill');
+        setIsProcessingImage(false);
+      }
+
+    } catch (err) {
+      console.error('Camera error:', err);
       setIsProcessingImage(false);
     }
   };
@@ -1097,7 +1197,7 @@ function HomeScreen({ navigation, route }) {
         {isMobile && (
           <MobileBottomTabBar 
             navigation={navigation}
-            onScanImage={handleUploadImage}
+            onScanImage={handleScanImage}
           />
         )}
       </LinearGradient>
@@ -1281,6 +1381,7 @@ function AppNavigator() {
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
         <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
         <Stack.Screen name="GroupPreview" component={GroupPreviewScreen} />
+        <Stack.Screen name="BillSplitPreview" component={BillSplitPreviewScreen} />
         <Stack.Screen name="SplitSummary" component={SplitSummaryScreen} />
       </Stack.Navigator>
     </NavigationContainer>

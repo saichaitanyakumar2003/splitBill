@@ -69,13 +69,37 @@ Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
   "currency": "INR"
 }
 
+CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
+1. ITEM PRICES: Look for "Price" or "Rate" column, NOT "Amount" or "Amt" column
+   - "Price/Rate" = base price before tax (USE THIS for unitPrice and totalPrice)
+   - "Amount/Amt" = price after per-item tax (IGNORE THIS COLUMN)
+   - Example: If row shows "Price: 100" and "Amt: 112", use unitPrice=100, totalPrice=100
+
+2. SUBTOTAL: This is the SUM OF BASE PRICES (Price column) of all items
+   - Subtotal = sum of all item's "Price" values (NOT "Amt" values)
+   - Example: Items with prices 400, 100, 100, 150, 50, 100 → subtotal = 900
+   - If bill shows "Subtotal: 900", use 900 (the base price sum)
+
+3. TAXES: Extract each tax line separately (IGST, CGST, SGST, GST, Service Tax)
+   - Each tax should have name and amount
+   - These are the taxes shown AFTER subtotal line
+
+4. TOTAL: The final amount after adding all taxes to subtotal
+   - Example: Subtotal 900 + Taxes 68 = Total 968
+
 CATEGORY RULES based on billType:
 
 For "restaurant" bills:
-- "veg": Paneer, Dal, Rice, Naan, Roti, Vegetables, Salads
-- "nonveg": Chicken, Mutton, Fish, Egg, Prawn, Meat, Biryani with meat
-- "beverage": Juice, Soft drinks, Tea, Coffee, Lassi
-- "other": Water, Water Bottle, Mineral Water, anything else
+- "veg": Paneer, Dal, Rice, Naan, Roti, Vegetables, Salads, Pulao, Sambar, Rasam, Idli, Dosa (plain/masala), Uttapam, Veg Biryani, Gobi, Aloo, Chole, Rajma
+- "nonveg": ANY item containing these words MUST be nonveg:
+  * CHICKEN: Chicken Biryani, Chicken Fry, Chicken 65, Chicken Lollypop, Chicken Tikka, Butter Chicken, Tandoori Chicken, Chicken Curry, Chicken Manchurian, Chilli Chicken
+  * MUTTON: Mutton Biryani, Mutton Curry, Mutton Fry, Mutton Keema, Rogan Josh, Mutton Korma
+  * FISH: Fish Fry, Fish Curry, Apollo Fish, Fish Biryani, Pomfret, Surmai, Fish Tikka
+  * PRAWNS/SHRIMP: Prawn Fry, Prawn Curry, Prawn Biryani, Chilli Prawns, Tandoori Prawns
+  * EGG: Egg Curry, Egg Biryani, Omelette, Egg Fried Rice, Egg Bhurji
+  * OTHER MEAT: Kebab, Seekh Kebab, Keema, Gosht, Lamb, Beef, Pork, Crab, Lobster, Squid
+- "beverage": Juice, Soft drinks, Tea, Coffee, Lassi, Buttermilk, Milkshake, Mocktail, Soda, Lime Water
+- "other": Water, Water Bottle, Mineral Water, Papad, Pickle, anything that doesn't fit above
 
 For ALL other bill types (grocery, pharmacy, electronics, fuel, other):
 - Use "other" for ALL items (we display them as single "Items" category)
@@ -144,6 +168,11 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
       }
 
       const billData = JSON.parse(jsonStr);
+      console.log('📋 OCR Raw Response:', JSON.stringify({
+        subtotal: billData.subtotal,
+        total: billData.total,
+        itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice }))
+      }, null, 2));
       return transformResponse(billData);
 
     } catch (err) {

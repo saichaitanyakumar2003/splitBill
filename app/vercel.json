@@ -3,6 +3,9 @@
   "outputDirectory": "dist",
   "framework": null,
   "installCommand": "npm install",
+  "redirects": [
+    { "source": "/BillScan", "destination": "/", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

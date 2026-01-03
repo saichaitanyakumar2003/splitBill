@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,38 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 export default function SplitOptionsScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  
+  // Get bill data from route params (if coming from BillScan)
+  const billData = route.params?.billData || null;
+
+  // Redirect to Home on web page refresh (no navigation history)
+  useEffect(() => {
+    if (Platform.OS === 'web' && !isRedirecting) {
+      // Check if this is a direct page access (refresh) by checking navigation state
+      const state = navigation.getState();
+      const hasHistory = state?.routes?.length > 1;
+      
+      if (!hasHistory) {
+        setIsRedirecting(true);
+        window.location.href = '/';
+      }
+    }
+  }, [navigation, isRedirecting]);
+
+  // Show loading while redirecting
+  if (isRedirecting) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF6B35' }}>
+        <Text style={{ color: '#FFF', fontSize: 16 }}>Redirecting...</Text>
+      </View>
+    );
+  }
 
   const handleBack = () => {
     // Check the navigation state to determine where to go
@@ -41,11 +69,11 @@ export default function SplitOptionsScreen() {
   };
 
   const handleExistingGroup = () => {
-    navigation.navigate('SelectGroup');
+    navigation.navigate('SelectGroup', { billData });
   };
 
   const handleCreateGroup = () => {
-    navigation.navigate('CreateGroup');
+    navigation.navigate('CreateGroup', { billData });
   };
 
   return (

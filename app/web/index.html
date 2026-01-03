@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#FF6B35">
   <title>SplitBill - Split smart. Pay fair.</title>
+  <script>
+    // Redirect to home if on BillScan page (refresh loses state) or URL is too long
+    (function() {
+      var path = window.location.pathname;
+      var search = window.location.search;
+      var fullUrl = window.location.href;
+      
+      // Redirect if on BillScan page (data is lost on refresh)
+      // or if URL is suspiciously long (contains base64 data)
+      if (path.includes('BillScan') || search.includes('billData') || fullUrl.length > 2000) {
+        window.location.replace('/');
+      }
+    })();
+  </script>
   <style>
     /* Reset default margins and ensure full screen coverage */
     * {
