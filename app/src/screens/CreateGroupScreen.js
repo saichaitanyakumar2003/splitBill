@@ -9,7 +9,6 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -374,17 +373,11 @@ export default function CreateGroupScreen() {
           <View style={styles.headerRight} />
         </View>
 
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <ScrollView 
           style={styles.content}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          contentContainerStyle={styles.cardScrollContent}
+          showsVerticalScrollIndicator={true}
         >
-          <ScrollView 
-            style={styles.cardScrollView}
-            contentContainerStyle={styles.cardScrollContent}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-          >
             <View style={styles.card}>
               {/* Group Name */}
               <View style={styles.inputGroup}>
@@ -745,8 +738,7 @@ export default function CreateGroupScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+        </ScrollView>
       </LinearGradient>
     </View>
   );

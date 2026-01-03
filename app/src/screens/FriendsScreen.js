@@ -286,6 +286,28 @@ export default function FriendsScreen({ route }) {
           <View style={styles.headerRight} />
         </View>
 
+        {/* Search Bar - OUTSIDE ScrollView */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name or email"
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
+            {searchQuery.length > 0 && !isSearching && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Text style={styles.clearIcon}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
         {/* Content */}
         <ScrollView 
           style={styles.content}
@@ -302,28 +324,6 @@ export default function FriendsScreen({ route }) {
           }
         >
           <View style={styles.card}>
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchBar}>
-                <Text style={styles.searchIcon}>🔍</Text>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search by name or email"
-                  placeholderTextColor="#999"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
-                {searchQuery.length > 0 && !isSearching && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <Text style={styles.clearIcon}>✕</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
             {/* Error Message */}
             {error && (
               <View style={styles.errorContainer}>
@@ -342,45 +342,39 @@ export default function FriendsScreen({ route }) {
             {searchResults.length > 0 && (
               <View style={styles.searchResults}>
                 <Text style={styles.sectionTitle}>Search Results</Text>
-                <ScrollView 
-                  style={styles.searchResultsList}
-                  showsVerticalScrollIndicator={true}
-                  nestedScrollEnabled={true}
-                >
-                  {searchResults.map(searchUser => {
-                    const alreadyAdded = isInFavorites(searchUser.mailId);
-                    return (
-                      <View key={searchUser.mailId} style={styles.userRow}>
-                        <View style={styles.userInfo}>
-                          <Text style={styles.userName}>{searchUser.name}</Text>
-                          <Text style={styles.userEmail}>{searchUser.mailId}</Text>
-                        </View>
-                        {alreadyAdded ? (
-                          <TouchableOpacity 
-                            style={styles.removeButton}
-                            onPress={() => handleRemoveFavorite(searchUser.mailId)}
-                          >
-                            <Text style={styles.removeIcon}>🗑️</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity 
-                            style={[
-                              styles.addButton,
-                              isMaxLimitReached && styles.addButtonDisabled
-                            ]}
-                            onPress={() => handleAddFavorite(searchUser)}
-                            disabled={isMaxLimitReached}
-                          >
-                            <Text style={[
-                              styles.addButtonText,
-                              isMaxLimitReached && styles.addButtonTextDisabled
-                            ]}>Add</Text>
-                          </TouchableOpacity>
-                        )}
+                {searchResults.map(searchUser => {
+                  const alreadyAdded = isInFavorites(searchUser.mailId);
+                  return (
+                    <View key={searchUser.mailId} style={styles.userRow}>
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userName}>{searchUser.name}</Text>
+                        <Text style={styles.userEmail}>{searchUser.mailId}</Text>
                       </View>
-                    );
-                  })}
-                </ScrollView>
+                      {alreadyAdded ? (
+                        <TouchableOpacity 
+                          style={styles.removeButton}
+                          onPress={() => handleRemoveFavorite(searchUser.mailId)}
+                        >
+                          <Text style={styles.removeIcon}>🗑️</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity 
+                          style={[
+                            styles.addButton,
+                            isMaxLimitReached && styles.addButtonDisabled
+                          ]}
+                          onPress={() => handleAddFavorite(searchUser)}
+                          disabled={isMaxLimitReached}
+                        >
+                          <Text style={[
+                            styles.addButtonText,
+                            isMaxLimitReached && styles.addButtonTextDisabled
+                          ]}>Add</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             )}
 
@@ -518,7 +512,8 @@ const styles = StyleSheet.create({
     minHeight: 300,
   },
   searchContainer: {
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
   },
   searchBar: {
     flexDirection: 'row',
