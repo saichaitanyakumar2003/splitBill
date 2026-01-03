@@ -10,11 +10,10 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
-  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { authGet } from '../utils/apiHelper';
@@ -155,24 +154,7 @@ export default function AddExpenseScreen() {
     }
   };
 
-  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS !== 'android') return;
-
-      const backAction = () => {
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.navigate('Home');
-        }
-        return true;
-      };
-      
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-      return () => backHandler.remove();
-    }, [navigation])
-  );
+  // Note: BackHandler removed - React Navigation's native stack handles back navigation automatically
 
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {

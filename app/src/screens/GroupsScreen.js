@@ -11,11 +11,10 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
-  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { authGet, authPost } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
 
@@ -156,27 +155,8 @@ export default function GroupsScreen({ route }) {
     }
   };
 
-  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS !== 'android') return;
-
-      const backAction = () => {
-        if (selectedGroup) {
-          setSelectedGroup(null);
-          setGroupDetails(null);
-        } else if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.navigate('Home');
-        }
-        return true;
-      };
-      
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-      return () => backHandler.remove();
-    }, [selectedGroup, navigation])
-  );
+  // Note: BackHandler removed - React Navigation's native stack handles back navigation automatically
+  // Use the UI back button (handleBack) for custom behavior like deselecting a group
 
   const handleSelectGroup = async (group) => {
     setSelectedGroup(group);

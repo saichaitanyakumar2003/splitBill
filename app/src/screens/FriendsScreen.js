@@ -10,11 +10,10 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
-  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -99,6 +98,7 @@ export default function FriendsScreen({ route }) {
     }
   }, [user?.friends, token, loadFavoritesFromStore, initializeAuth, pendingAdditions.length]);
 
+  // Handle back navigation (used by UI back button)
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) {
       navigation.goBack();
@@ -106,21 +106,6 @@ export default function FriendsScreen({ route }) {
       navigation.navigate('Home');
     }
   }, [navigation]);
-
-  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS !== 'android') return;
-
-      const backAction = () => {
-        handleBack();
-        return true;
-      };
-      
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-      return () => backHandler.remove();
-    }, [handleBack])
-  );
 
   // Search users from API
   useEffect(() => {

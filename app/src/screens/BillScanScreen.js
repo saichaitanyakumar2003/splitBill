@@ -7,11 +7,10 @@ import {
   ScrollView,
   Platform,
   Alert,
-  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Helper function to detect non-veg items by name
@@ -194,20 +193,7 @@ export default function BillScanScreen() {
     }
   }, [rawBillData, billData, navigation]);
 
-  // Handle Android hardware back button - use useFocusEffect to ensure it only runs when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS !== 'android') return;
-
-      const backAction = () => {
-        handleBack();
-        return true;
-      };
-      
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-      return () => backHandler.remove();
-    }, [handleBack])
-  );
+  // Note: BackHandler removed - React Navigation's native stack handles back navigation automatically
 
   // Get subtotal - prefer OCR's subtotal over calculated
   const getSubtotal = () => {
