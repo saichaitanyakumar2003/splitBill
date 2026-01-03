@@ -290,7 +290,6 @@ export default function FriendsScreen({ route }) {
         <ScrollView 
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
-          keyboardShouldPersistTaps="handled"
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl

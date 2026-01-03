@@ -375,7 +375,7 @@ export default function CreateGroupScreen() {
         </View>
 
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.content}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
@@ -383,7 +383,6 @@ export default function CreateGroupScreen() {
             style={styles.cardScrollView}
             contentContainerStyle={styles.cardScrollContent}
             showsVerticalScrollIndicator={true}
-            keyboardShouldPersistTaps="handled"
             nestedScrollEnabled={true}
           >
             <View style={styles.card}>
@@ -463,7 +462,6 @@ export default function CreateGroupScreen() {
                       style={styles.payerDropdownScroll}
                       showsVerticalScrollIndicator={true}
                       nestedScrollEnabled={true}
-                      keyboardShouldPersistTaps="handled"
                     >
                       {/* Search Results */}
                       {payerSearchResults.length > 0 && (
@@ -651,7 +649,6 @@ export default function CreateGroupScreen() {
                       style={styles.dropdownScroll}
                       showsVerticalScrollIndicator={true}
                       nestedScrollEnabled={true}
-                      keyboardShouldPersistTaps="handled"
                     >
                       {/* Search Results */}
                       {searchResults.length > 0 && (
