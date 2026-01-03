@@ -5,14 +5,10 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 
-// Google OAuth Client IDs for all platforms
-const GOOGLE_CLIENT_IDS = [
-  process.env.SPLITBILL_GOOGLE_CLIENT_ID,           // Web client ID
-  process.env.SPLITBILL_GOOGLE_ANDROID_CLIENT_ID,   // Android client ID
-  process.env.SPLITBILL_GOOGLE_IOS_CLIENT_ID,       // iOS client ID (future)
-].filter(Boolean); // Remove undefined values
-
-const googleClient = new OAuth2Client(process.env.SPLITBILL_GOOGLE_CLIENT_ID);
+// Google OAuth - Use Web Client ID for all platforms (browser-based flow)
+// This simplifies configuration as all platforms use the same client ID
+const GOOGLE_WEB_CLIENT_ID = process.env.SPLITBILL_GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key';
 const JWT_EXPIRES_IN = '7d';
 const SESSION_DAYS = 7;
@@ -63,7 +59,7 @@ router.post('/google', async (req, res) => {
     let email, name, googleId;
 
     if (idToken) {
-      const t = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_IDS });
+      const t = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_WEB_CLIENT_ID });
       const p = t.getPayload();
       email = p.email; name = p.name; googleId = p.sub;
     } else if (userInfo?.email) {

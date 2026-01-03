@@ -53,19 +53,18 @@ jobs:
           npm install
           echo "✅ Dependencies installed!"
 
-      - name: 📤 Publish OTA Update to Preview Channel
+      - name: 📤 Publish OTA Update to All Channels
         working-directory: ./app
         run: |
-          echo "📤 Publishing OTA update to preview channel..."
-          eas update --channel preview --non-interactive --message "Auto update from commit ${{ github.sha }}"
-          echo "✅ OTA Update published to preview channel!"
+          chmod +x ./scripts/push-ota-all.sh
+          ./scripts/push-ota-all.sh "Auto update from commit ${{ github.sha }}"
 
       - name: 📋 Update Summary
         run: |
           echo "=========================================="
           echo "✅ OTA UPDATE SUCCESSFUL!"
           echo "=========================================="
-          echo "📱 Update published to: preview channel"
+          echo "📱 Update published to: development, preview, production"
           echo "📱 Users will receive the update on next app restart"
           echo "📅 Completed at: $(date)"
           echo "=========================================="

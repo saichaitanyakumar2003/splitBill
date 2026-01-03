@@ -23,18 +23,9 @@ import * as WebBrowser from 'expo-web-browser';
 // Required for web browser auth to complete
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth Client IDs
+// Google OAuth - Use Web Client ID for all platforms (browser-based flow)
+// This works on Android, iOS, and Web without needing separate client IDs or SHA-1 fingerprints
 const GOOGLE_WEB_CLIENT_ID = '543880175096-lftcjh1p2nv2k66ver4ch7pq5qdee40v.apps.googleusercontent.com';
-const GOOGLE_ANDROID_CLIENT_ID = '543880175096-entdnmr1peapamnj1ed2jlrrbu9om807.apps.googleusercontent.com';
-// TODO: Add iOS client ID when needed
-const GOOGLE_IOS_CLIENT_ID = GOOGLE_WEB_CLIENT_ID; // Using web client ID as fallback for now
-
-// Get the appropriate client ID based on platform
-const getClientId = () => {
-  if (Platform.OS === 'android') return GOOGLE_ANDROID_CLIENT_ID;
-  if (Platform.OS === 'ios') return GOOGLE_IOS_CLIENT_ID;
-  return GOOGLE_WEB_CLIENT_ID;
-};
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -50,28 +41,55 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Google OAuth Setup - Use expoClientId for web-based flow which is more reliable
+  // Google OAuth Setup - Use Web Client ID for browser-based flow on all platforms
+  // This approach works everywhere without needing SHA-1 fingerprints or separate client IDs
   const [request, response, promptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_WEB_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     selectAccount: true, // Allow user to select account
+    scopes: ['profile', 'email'],
   });
+
+  // Debug: Log OAuth request state
+  useEffect(() => {
+    console.log('🔐 ===== GOOGLE OAUTH DEBUG =====');
+    console.log('🔐 Request Ready:', !!request);
+    console.log('🔐 Platform:', Platform.OS);
+    console.log('🔐 Web Client ID:', GOOGLE_WEB_CLIENT_ID);
+    if (request) {
+      console.log('🔐 Full Request URL:', request.url);
+      console.log('🔐 Redirect URI:', request.redirectUri);
+      console.log('🔐 Code Challenge:', request.codeChallenge);
+      console.log('🔐 Scopes:', request.scopes);
+    }
+    console.log('🔐 ================================');
+  }, [request]);
 
   // Handle Google OAuth Response
   useEffect(() => {
+    console.log('🔐 ===== GOOGLE OAUTH RESPONSE =====');
+    console.log('🔐 Response Type:', response?.type);
+    console.log('🔐 Full Response:', JSON.stringify(response, null, 2));
+    
     if (response?.type === 'success') {
+      console.log('✅ Google OAuth Success!');
+      console.log('✅ Authentication object:', JSON.stringify(response.authentication, null, 2));
+      console.log('✅ Access Token:', response.authentication?.accessToken ? 'Present' : 'Missing');
+      console.log('✅ ID Token:', response.authentication?.idToken ? 'Present' : 'Missing');
       handleGoogleAuthSuccess(response.authentication);
     } else if (response?.type === 'error') {
       setIsGoogleLoading(false);
-      console.error('Google OAuth error:', response.error);
-      const errorMessage = response.error?.message || 'Google sign in failed. Please try again.';
+      console.error('❌ Google OAuth Error!');
+      console.error('❌ Error code:', response.error?.code);
+      console.error('❌ Error message:', response.error?.message);
+      console.error('❌ Full error:', JSON.stringify(response.error, null, 2));
+      const errorMessage = response.error?.message || response.error?.code || 'Google sign in failed. Please try again.';
       setApiError(errorMessage);
     } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
       setIsGoogleLoading(false);
-      // User cancelled, no need to show error
+      console.log('⚠️ Google OAuth cancelled/dismissed by user');
     }
+    console.log('🔐 ==================================');
   }, [response]);
 
   // Process Google Auth Success
@@ -276,15 +294,40 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     setApiError(null);
+    
+    console.log('🔐 ===== STARTING GOOGLE SIGN-IN =====');
+    
+    // Check if OAuth request is ready
+    if (!request) {
+      console.error('❌ Google OAuth request not ready - request object is null');
+      console.error('❌ This usually means:');
+      console.error('   1. Client IDs are not configured correctly');
+      console.error('   2. expo-auth-session is not installed properly');
+      setApiError('Google Sign-In is not available. Please try again or use email login.');
+      return;
+    }
+    
+    console.log('🔐 Request object available:', !!request);
+    console.log('🔐 Platform:', Platform.OS);
+    console.log('🔐 Redirect URI that will be used:', request.redirectUri);
+    console.log('🔐 Request URL:', request.url);
+    
     setIsGoogleLoading(true);
     
     try {
-      await promptAsync();
+      console.log('🔐 Calling promptAsync()...');
+      const result = await promptAsync();
+      console.log('🔐 promptAsync() returned:', result?.type);
+      console.log('🔐 Full result:', JSON.stringify(result, null, 2));
     } catch (error) {
-      console.error('Google prompt error:', error);
-      setApiError('Failed to open Google sign in. Please try again.');
+      console.error('❌ promptAsync() threw an error:');
+      console.error('❌ Error name:', error.name);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      setApiError(`Failed to open Google sign in: ${error.message}`);
       setIsGoogleLoading(false);
     }
+    console.log('🔐 =====================================');
   };
 
   // Interpolate rotation (2 full rotations = 720°)

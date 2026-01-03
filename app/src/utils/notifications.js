@@ -24,57 +24,77 @@ Notifications.setNotificationHandler({
  * @returns {Promise<string|null>} Expo push token or null
  */
 export async function registerForPushNotificationsAsync() {
+  console.log('🔔 Starting push notification registration...');
+  console.log('🔔 Platform:', Platform.OS);
+  console.log('🔔 Is physical device:', Device.isDevice);
+  console.log('🔔 Device brand:', Device.brand);
+  console.log('🔔 Device model:', Device.modelName);
+  
   // Push notifications only work on physical devices
   if (!Device.isDevice) {
-    console.log('Push notifications require a physical device');
+    console.log('❌ Push notifications require a physical device (not emulator/simulator)');
     return null;
   }
 
   // Only for Android and iOS
   if (Platform.OS === 'web') {
-    console.log('Push notifications not supported on web');
+    console.log('❌ Push notifications not supported on web');
     return null;
   }
 
   try {
     // Check existing permissions
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    console.log('🔔 Existing permission status:', existingStatus);
     let finalStatus = existingStatus;
 
     // Request permissions if not granted
     if (existingStatus !== 'granted') {
+      console.log('🔔 Requesting notification permissions...');
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
+      console.log('🔔 New permission status:', finalStatus);
     }
 
     if (finalStatus !== 'granted') {
-      console.log('Push notification permission not granted');
+      console.log('❌ Push notification permission not granted');
       return null;
     }
 
     // Get the Expo push token
     const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+    console.log('🔔 EAS Project ID:', projectId);
     
+    if (!projectId) {
+      console.error('❌ No EAS Project ID found! Push notifications will not work.');
+      console.log('🔔 Constants.expoConfig:', JSON.stringify(Constants.expoConfig, null, 2));
+      return null;
+    }
+    
+    console.log('🔔 Getting Expo push token...');
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: projectId,
     });
 
     const token = tokenData.data;
-    console.log('Expo push token:', token);
+    console.log('✅ Expo push token obtained:', token);
 
     // Set up Android notification channel
     if (Platform.OS === 'android') {
+      console.log('🔔 Setting up Android notification channel...');
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Default',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF6B35',
       });
+      console.log('✅ Android notification channel created');
     }
 
     return token;
   } catch (error) {
-    console.error('Error getting push token:', error);
+    console.error('❌ Error getting push token:', error);
+    console.error('❌ Error details:', error.message);
     return null;
   }
 }

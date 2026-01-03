@@ -24,6 +24,7 @@ import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import BillScanScreen from './src/screens/BillScanScreen';
+import BillCameraScreen from './src/screens/BillCameraScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -868,78 +869,63 @@ function HomeScreen({ navigation, route }) {
     }
   };
 
-  // Handle camera scan for bills (Android only)
-  const handleScanImage = async () => {
-    try {
-      // Request camera permission
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Camera Permission Required',
-          'Please allow access to your camera to scan bill images.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
+  // State for custom camera screen
+  const [showCameraScreen, setShowCameraScreen] = useState(false);
 
-      // Launch camera
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.9,
+  // Handle camera scan for bills (Android only) - Opens custom camera screen
+  const handleScanImage = () => {
+    setShowCameraScreen(true);
+  };
+
+  // Handle image captured from custom camera
+  const handleCameraCapture = async (imageUri) => {
+    setShowCameraScreen(false);
+    
+    // Show processing modal
+    setIsProcessingImage(true);
+    setProcessingError(null);
+
+    try {
+      // Process image with OCR API
+      const formData = new FormData();
+      
+      formData.append('image', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'bill.jpg',
       });
 
-      if (result.canceled || !result.assets || !result.assets[0]) {
-        return; // User cancelled
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      };
+
+      const apiResponse = await fetch(`${ENV.API_BASE_URL}/ocr/scan`, {
+        method: 'POST',
+        body: formData,
+        headers,
+      });
+
+      const data = await apiResponse.json();
+
+      if (!apiResponse.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Failed to scan bill');
       }
 
-      const imageUri = result.assets[0].uri;
-      
-      // Show processing modal
-      setIsProcessingImage(true);
-      setProcessingError(null);
-
-      try {
-        // Process image with OCR API
-        const formData = new FormData();
-        
-        formData.append('image', {
-          uri: imageUri,
-          type: 'image/jpeg',
-          name: 'bill.jpg',
-        });
-
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        };
-
-        const apiResponse = await fetch(`${ENV.API_BASE_URL}/ocr/scan`, {
-          method: 'POST',
-          body: formData,
-          headers,
-        });
-
-        const data = await apiResponse.json();
-
-        if (!apiResponse.ok || !data.success) {
-          throw new Error(data.error || data.message || 'Failed to scan bill');
-        }
-
-        // On mobile, pass data through params
-        setIsProcessingImage(false);
-        navigation.navigate('BillScan', { billData: data.bill });
-
-      } catch (err) {
-        console.error('OCR Error:', err);
-        setProcessingError(err.message || 'Failed to process bill');
-        setIsProcessingImage(false);
-      }
+      // On mobile, pass data through params
+      setIsProcessingImage(false);
+      navigation.navigate('BillScan', { billData: data.bill });
 
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error('OCR Error:', err);
+      setProcessingError(err.message || 'Failed to process bill');
       setIsProcessingImage(false);
     }
+  };
+
+  // Handle camera close
+  const handleCameraClose = () => {
+    setShowCameraScreen(false);
   };
 
   const handleViewProfile = () => {
@@ -1105,6 +1091,20 @@ function HomeScreen({ navigation, route }) {
             </View>
           </View>
         </Modal>
+
+        {/* Custom Camera Screen Modal (Android only) */}
+        {isMobile && showCameraScreen && (
+          <Modal
+            visible={showCameraScreen}
+            animationType="slide"
+            onRequestClose={handleCameraClose}
+          >
+            <BillCameraScreen
+              onCapture={handleCameraCapture}
+              onClose={handleCameraClose}
+            />
+          </Modal>
+        )}
 
         {/* Web: Side Panel with all tabs */}
         {!isMobile && (
