@@ -70,29 +70,22 @@ export default function LoginScreen() {
 
   // Handle Google OAuth Response
   useEffect(() => {
-    console.log('🔐 ===== GOOGLE OAUTH RESPONSE =====');
-    console.log('🔐 Response Type:', response?.type);
-    console.log('🔐 Full Response:', JSON.stringify(response, null, 2));
+    if (!response) return;
+    
+    console.log('🔐 Google OAuth Response Type:', response?.type);
     
     if (response?.type === 'success') {
       console.log('✅ Google OAuth Success!');
-      console.log('✅ Authentication object:', JSON.stringify(response.authentication, null, 2));
-      console.log('✅ Access Token:', response.authentication?.accessToken ? 'Present' : 'Missing');
-      console.log('✅ ID Token:', response.authentication?.idToken ? 'Present' : 'Missing');
       handleGoogleAuthSuccess(response.authentication);
     } else if (response?.type === 'error') {
       setIsGoogleLoading(false);
-      console.error('❌ Google OAuth Error!');
-      console.error('❌ Error code:', response.error?.code);
-      console.error('❌ Error message:', response.error?.message);
-      console.error('❌ Full error:', JSON.stringify(response.error, null, 2));
-      const errorMessage = response.error?.message || response.error?.code || 'Google sign in failed. Please try again.';
-      setApiError(errorMessage);
+      console.error('❌ Google OAuth Error:', response.error?.message || response.error?.code);
+      // User-friendly error message
+      setApiError('Google SSO is not authorized for this app. Please use email login instead.');
     } else if (response?.type === 'dismiss' || response?.type === 'cancel') {
       setIsGoogleLoading(false);
-      console.log('⚠️ Google OAuth cancelled/dismissed by user');
+      // User cancelled - no error message needed
     }
-    console.log('🔐 ==================================');
   }, [response]);
 
   // Process Google Auth Success
@@ -303,32 +296,52 @@ export default function LoginScreen() {
     // Check if OAuth request is ready
     if (!request) {
       console.error('❌ Google OAuth request not ready - request object is null');
-      console.error('❌ This usually means:');
-      console.error('   1. Client IDs are not configured correctly');
-      console.error('   2. expo-auth-session is not installed properly');
-      setApiError('Google Sign-In is not available. Please try again or use email login.');
+      setApiError('Google SSO is not available. Please use email login instead.');
       return;
     }
     
     console.log('🔐 Request object available:', !!request);
     console.log('🔐 Platform:', Platform.OS);
-    console.log('🔐 Redirect URI that will be used:', request.redirectUri);
-    console.log('🔐 Request URL:', request.url);
     
     setIsGoogleLoading(true);
+    
+    // Set a timeout - if no response in 15 seconds, show error
+    const timeoutId = setTimeout(() => {
+      if (isGoogleLoading) {
+        setIsGoogleLoading(false);
+        setApiError('Google SSO request timed out. Please try again or use email login.');
+        console.error('❌ Google OAuth timed out after 15 seconds');
+      }
+    }, 15000);
     
     try {
       console.log('🔐 Calling promptAsync()...');
       const result = await promptAsync();
+      clearTimeout(timeoutId);
+      
       console.log('🔐 promptAsync() returned:', result?.type);
-      console.log('🔐 Full result:', JSON.stringify(result, null, 2));
+      
+      // Handle different result types immediately
+      if (result?.type === 'error') {
+        setIsGoogleLoading(false);
+        const errorMsg = result.error?.message || result.error?.code || 'Unknown error';
+        console.error('❌ Google OAuth error:', errorMsg);
+        setApiError(`Google SSO failed: ${errorMsg}. Please use email login.`);
+      } else if (result?.type === 'dismiss' || result?.type === 'cancel') {
+        setIsGoogleLoading(false);
+        // User cancelled - no error message needed
+      } else if (result?.type !== 'success') {
+        // Unknown result type
+        setIsGoogleLoading(false);
+        setApiError('Google SSO is not authorized. Please use email login instead.');
+      }
+      // Success case is handled by the useEffect watching 'response'
+      
     } catch (error) {
-      console.error('❌ promptAsync() threw an error:');
-      console.error('❌ Error name:', error.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
-      setApiError(`Failed to open Google sign in: ${error.message}`);
+      clearTimeout(timeoutId);
+      console.error('❌ promptAsync() threw an error:', error.message);
       setIsGoogleLoading(false);
+      setApiError('Google SSO is not authorized. Please use email login instead.');
     }
     console.log('🔐 =====================================');
   };
