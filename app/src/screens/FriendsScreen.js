@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
-  RefreshControl,
   BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,7 +23,7 @@ const MAX_FAVORITES = 20;
 
 export default function FriendsScreen({ route }) {
   const navigation = useNavigation();
-  const { user, token, initializeAuth } = useAuth();
+  const { user, token } = useAuth();
   const { 
     favorites: cachedFavorites, 
     isLoadingFavorites,
@@ -42,7 +41,6 @@ export default function FriendsScreen({ route }) {
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   
   // Track pending additions only (removals are immediate)
   const [pendingAdditions, setPendingAdditions] = useState([]);
@@ -74,29 +72,6 @@ export default function FriendsScreen({ route }) {
   // Alias for local state
   const favorites = localFavorites;
   const setFavorites = setLocalFavorites;
-
-  // Pull to refresh handler
-  const onRefresh = useCallback(async () => {
-    if (Platform.OS === 'web') return;
-    // Don't refresh if there are pending changes
-    if (pendingAdditions.length > 0) {
-      return;
-    }
-    setRefreshing(true);
-    try {
-      // Re-initialize auth to get fresh user data
-      await initializeAuth();
-      if (user?.friends) {
-        const favs = await loadFavoritesFromStore(token, user.friends, true); // force refresh
-        setLocalFavorites(favs);
-        setOriginalFavorites(favs);
-      }
-    } catch (err) {
-      console.log('Refresh error:', err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [user?.friends, token, loadFavoritesFromStore, initializeAuth, pendingAdditions.length]);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -323,16 +298,6 @@ export default function FriendsScreen({ route }) {
         <ScrollView 
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            Platform.OS !== 'web' ? (
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#FFF"
-                colors={['#FF6B35']}
-              />
-            ) : undefined
-          }
         >
           <View style={styles.card}>
             {/* Error Message */}
