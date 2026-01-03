@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -155,8 +156,20 @@ export default function GroupsScreen({ route }) {
     }
   };
 
-  // Note: BackHandler removed - React Navigation's native stack handles back navigation automatically
-  // Use the UI back button (handleBack) for custom behavior like deselecting a group
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const backAction = () => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => subscription.remove();
+  }, [navigation]);
 
   const handleSelectGroup = async (group) => {
     setSelectedGroup(group);

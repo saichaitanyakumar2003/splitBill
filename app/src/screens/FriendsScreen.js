@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -98,13 +99,30 @@ export default function FriendsScreen({ route }) {
     }
   }, [user?.friends, token, loadFavoritesFromStore, initializeAuth, pendingAdditions.length]);
 
-  // Handle back navigation (used by UI back button)
+  // Handle back navigation (used by UI back button and hardware back)
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
       navigation.navigate('Home');
     }
+  }, [navigation]);
+
+  // Handle Android hardware back button - only on Android
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const backAction = () => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Home');
+      }
+      return true;
+    };
+    
+    const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => subscription.remove();
   }, [navigation]);
 
   // Search users from API
