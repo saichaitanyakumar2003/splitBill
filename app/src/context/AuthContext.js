@@ -3,8 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { apiFetch, reportNetworkError, setAuthToken } from '../utils/apiHelper';
 import ENV from '../config/env';
-// Push notifications disabled for now
-// import { initializePushNotifications, addNotificationListeners } from '../utils/notifications';
+import { initializePushNotifications } from '../utils/notifications';
 
 // API Base URL - from centralized config
 const API_BASE_URL = ENV.API_BASE_URL;
@@ -42,7 +41,11 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // Push notifications disabled for now
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    initializePushNotifications().catch(() => {});
+  }, [isAuthenticated, token]);
+
   const setNotificationNavigationCallback = () => {};
 
   // Poll for session expiration every 5 seconds

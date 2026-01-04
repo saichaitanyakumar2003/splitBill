@@ -2,8 +2,26 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+const navigationRef = createNavigationContainerRef();
+let initialNotificationScreen = null;
+
+Notifications.getLastNotificationResponseAsync().then(response => {
+  if (response) {
+    initialNotificationScreen = response.notification.request.content.data?.screen;
+  }
+});
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ENV from './src/config/env';
@@ -1358,15 +1376,47 @@ function AuthAwareLoginScreen({ navigation }) {
 function AppNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    if (initialNotificationScreen && navigationRef.isReady()) {
+      navigationRef.navigate(initialNotificationScreen);
+      initialNotificationScreen = null;
+    }
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const screen = response.notification.request.content.data?.screen;
+      if (screen && navigationRef.isReady()) {
+        navigationRef.navigate(screen);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [isAuthenticated]);
+
+  const handleNavReady = () => {
+    if (isAuthenticated && initialNotificationScreen) {
+      setTimeout(() => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate(initialNotificationScreen);
+          initialNotificationScreen = null;
+        }
+      }, 100);
+    }
+  };
+
   if (isLoading) {
     return <LoadingScreen />;
   }
 
-  // Get dynamic linking config based on auth state
   const linking = getLinkedScreens(isAuthenticated);
 
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer 
+      ref={navigationRef} 
+      linking={linking}
+      onReady={handleNavReady}
+    >
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

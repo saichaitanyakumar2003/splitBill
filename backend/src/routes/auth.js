@@ -5,8 +5,6 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 
-// Google OAuth - Use Web Client ID for all platforms (browser-based flow)
-// This simplifies configuration as all platforms use the same client ID
 const GOOGLE_WEB_CLIENT_ID = process.env.SPLITBILL_GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key';
@@ -16,7 +14,6 @@ const SESSION_DAYS = 7;
 const getSessionExp = () => new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 const genToken = (mailId, name) => jwt.sign({ mailId, name }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-// Register
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, phone } = req.body;
@@ -34,7 +31,6 @@ router.post('/register', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -52,7 +48,6 @@ router.post('/login', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Google OAuth
 router.post('/google', async (req, res) => {
   try {
     const { idToken, userInfo, mode } = req.body;
@@ -79,7 +74,6 @@ router.post('/google', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Me
 router.get('/me', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.mailId);
@@ -88,7 +82,6 @@ router.get('/me', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Save Expo push token for notifications (protected)
 router.post('/push-token', authenticate, async (req, res) => {
   try {
     const { pushToken } = req.body;
@@ -104,15 +97,12 @@ router.post('/push-token', authenticate, async (req, res) => {
     user.setExpoPushToken(pushToken);
     await user.save();
 
-    console.log(`Push token saved for user ${req.user.mailId}: ${pushToken.substring(0, 30)}...`);
     res.json({ success: true, message: 'Push token saved' });
   } catch (e) {
-    console.error('Error saving push token:', e);
     res.status(500).json({ success: false, message: e.message });
   }
 });
 
-// Profile update (protected)
 router.put('/profile', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.mailId);
@@ -129,7 +119,6 @@ router.put('/profile', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Password change (protected)
 router.put('/password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -141,22 +130,17 @@ router.put('/password', authenticate, async (req, res) => {
     const user = await User.findByMailIdWithPassword(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Check if user has a password set (OAuth users might not have one)
     const hasExistingPassword = user.pswd && user.pswd.length > 0;
     
-    // If user has existing password, verify current password
     if (hasExistingPassword && currentPassword) {
       const isValid = await user.verifyPassword(currentPassword);
       if (!isValid) {
         return res.status(401).json({ success: false, message: 'Current password is incorrect' });
       }
     } else if (hasExistingPassword && !currentPassword) {
-      // User has password but didn't provide current password
       return res.status(400).json({ success: false, message: 'Current password is required' });
     }
-    // If user doesn't have existing password (OAuth user), allow setting new password
 
-    // Hash and save new password
     user.pswd = await User.hashPassword(newPassword);
     await user.save();
 
@@ -167,7 +151,6 @@ router.put('/password', authenticate, async (req, res) => {
   }
 });
 
-// Add friend (protected)
 router.post('/friends/add', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.mailId);
@@ -179,7 +162,6 @@ router.post('/friends/add', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Remove friend (protected)
 router.post('/friends/remove', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.mailId);
@@ -191,7 +173,6 @@ router.post('/friends/remove', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Get friend details (protected)
 router.post('/friends/details', authenticate, async (req, res) => {
   try {
     const { emails } = req.body;
@@ -213,7 +194,6 @@ router.post('/friends/details', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Search users (protected)
 router.get('/search', authenticate, async (req, res) => {
   try {
     const { q } = req.query;
@@ -223,10 +203,8 @@ router.get('/search', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Logout (protected)
 router.post('/logout', authenticate, (req, res) => res.json({ success: true }));
 
-// Refresh token (protected)
 router.post('/refresh', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.user.mailId);
