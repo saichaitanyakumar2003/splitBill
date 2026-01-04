@@ -18,7 +18,6 @@ import { useStore } from '../context/StoreContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authGet, authPost, authDelete, reportNetworkError } from '../utils/apiHelper';
 
-// Max favorites limit
 const MAX_FAVORITES = 20;
 
 export default function FriendsScreen({ route }) {
@@ -42,15 +41,11 @@ export default function FriendsScreen({ route }) {
   const [successMsg, setSuccessMsg] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Track pending additions only (removals are immediate)
   const [pendingAdditions, setPendingAdditions] = useState([]);
   
-  // Check if there are unsaved changes
   const hasChanges = pendingAdditions.length > 0;
   
-  // Load favorites from store (cached or API) - only on initial mount
   useEffect(() => {
-    // Don't re-initialize if already done or if there are pending changes
     if (isInitialized) return;
     
     const initFavorites = async () => {
@@ -69,7 +64,6 @@ export default function FriendsScreen({ route }) {
     initFavorites();
   }, [user?.friends, token, loadFavoritesFromStore, isInitialized]);
 
-  // Alias for local state
   const favorites = localFavorites;
   const setFavorites = setLocalFavorites;
 
@@ -81,7 +75,6 @@ export default function FriendsScreen({ route }) {
     }
   };
 
-  // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const backAction = () => {
@@ -96,7 +89,6 @@ export default function FriendsScreen({ route }) {
     return () => subscription.remove();
   }, [navigation]);
 
-  // Search users from API
   useEffect(() => {
     const searchUsers = async () => {
       if (searchQuery.trim().length < 2) {
@@ -112,7 +104,6 @@ export default function FriendsScreen({ route }) {
         const data = await response.json();
         
         if (data.success) {
-          // Filter out current user and already added favorites
           const filtered = data.data.filter(
             u => u.mailId !== user?.mailId && !favorites.some(f => f.mailId === u.mailId)
           );
@@ -140,11 +131,8 @@ export default function FriendsScreen({ route }) {
       return;
     }
 
-    // Add to local favorites
     setFavorites([...favorites, userToAdd]);
-    // Track as pending addition
     setPendingAdditions([...pendingAdditions, userToAdd.mailId]);
-    // Remove from search results
     setSearchResults(searchResults.filter(u => u.mailId !== userToAdd.mailId));
     setError(null);
   };
@@ -156,7 +144,6 @@ export default function FriendsScreen({ route }) {
         removedUser.mailId?.toLowerCase().includes(searchQuery.toLowerCase());
       
       if (matchesSearch) {
-        // Add back to search results if not already there
         setSearchResults(prev => {
           if (!prev.some(u => u.mailId === removedUser.mailId)) {
             return [...prev, removedUser];
@@ -168,19 +155,15 @@ export default function FriendsScreen({ route }) {
   };
 
   const handleRemoveFavorite = async (mailId) => {
-    // Find the user being removed for potential re-add to search
     const removedUser = favorites.find(f => f.mailId === mailId);
     
-    // If it was a pending addition, just remove from local state (not saved yet)
     if (pendingAdditions.includes(mailId)) {
       setFavorites(favorites.filter(f => f.mailId !== mailId));
       setPendingAdditions(pendingAdditions.filter(m => m !== mailId));
-      // Add back to search results if matches query
       if (removedUser) addBackToSearchResults(removedUser);
       return;
     }
     
-    // Otherwise delete immediately from DB
     try {
       const response = await authPost('/auth/friends/remove', { friendEmail: mailId });
       const data = await response.json();
@@ -190,13 +173,10 @@ export default function FriendsScreen({ route }) {
         setFavorites(updatedFavorites);
         setOriginalFavorites(originalFavorites.filter(f => f.mailId !== mailId));
         
-        // Add back to search results if matches query
         if (removedUser) addBackToSearchResults(removedUser);
         
-        // Update store cache
         await removeFavoriteFromCache(mailId);
         
-        // Update local storage and refresh context
         const meResponse = await authGet('/auth/me');
         const meData = await meResponse.json();
         if (meData.success) {
@@ -211,7 +191,6 @@ export default function FriendsScreen({ route }) {
   };
 
   const handleCancel = () => {
-    // Reset to original state (only pending additions)
     setFavorites(originalFavorites);
     setPendingAdditions([]);
     setSearchQuery('');
@@ -224,22 +203,18 @@ export default function FriendsScreen({ route }) {
     setError(null);
     
     try {
-      // Process all additions
       for (const mailId of pendingAdditions) {
         await authPost('/auth/friends/add', { friendEmail: mailId });
       }
 
-      // Fetch updated user data from backend and refresh context
       const meResponse = await authGet('/auth/me');
       const meData = await meResponse.json();
       if (meData.success) {
         await AsyncStorage.setItem('@splitbill_user', JSON.stringify(meData.data));
       }
 
-      // Update store cache with the complete list
       await updateFavoritesInStore(favorites);
 
-      // Update original state (keep search results visible)
       setOriginalFavorites(favorites);
       setPendingAdditions([]);
       setSuccessMsg('Saved!');
@@ -263,7 +238,6 @@ export default function FriendsScreen({ route }) {
       >
         <StatusBar style="light" />
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
@@ -272,7 +246,6 @@ export default function FriendsScreen({ route }) {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Search Bar - OUTSIDE ScrollView */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
             <Text style={styles.searchIcon}>🔍</Text>
@@ -294,27 +267,23 @@ export default function FriendsScreen({ route }) {
           </View>
         </View>
 
-        {/* Content */}
         <ScrollView 
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
         >
           <View style={styles.card}>
-            {/* Error Message */}
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>⚠️ {error}</Text>
               </View>
             )}
 
-            {/* Success Message */}
             {successMsg && (
               <View style={styles.successContainer}>
                 <Text style={styles.successText}>✓ {successMsg}</Text>
               </View>
             )}
 
-            {/* Search Results */}
             {searchResults.length > 0 && (
               <View style={styles.searchResults}>
                 <Text style={styles.sectionTitle}>Search Results</Text>
@@ -354,14 +323,12 @@ export default function FriendsScreen({ route }) {
               </View>
             )}
 
-            {/* No Search Results */}
             {searchQuery.trim().length >= 2 && !isSearching && searchResults.length === 0 && (
               <View style={styles.noResultsContainer}>
                 <Text style={styles.noResultsText}>No users found</Text>
               </View>
             )}
 
-            {/* Favorites List */}
             <View style={styles.favoritesSection}>
               {favorites.length > 0 && (
                 <View style={styles.sectionHeader}>
@@ -400,7 +367,6 @@ export default function FriendsScreen({ route }) {
               )}
             </View>
 
-            {/* Action Buttons - Only show when there are changes */}
             {hasChanges && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity 

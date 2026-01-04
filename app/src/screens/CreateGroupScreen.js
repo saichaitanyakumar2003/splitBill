@@ -24,38 +24,31 @@ export default function CreateGroupScreen() {
   const { user, token } = useAuth();
   const { favorites, loadFavorites } = useStore();
   
-  // Check if coming from bill scan flow
   const billData = route.params?.billData || null;
   const isFromBillScan = !!billData;
   
-  // Form state
   const [groupName, setGroupName] = useState('');
   const [expenseTitle, setExpenseTitle] = useState(billData?.restaurantName || '');
   const [amount, setAmount] = useState(isFromBillScan ? billData.total?.toString() || '' : '');
   
-  // Payer state - who paid the amount
-  const [paidBy, setPaidBy] = useState(null); // { mailId, name }
+  const [paidBy, setPaidBy] = useState(null);
   const [isPayerDropdownOpen, setIsPayerDropdownOpen] = useState(false);
   const [payerSearchQuery, setPayerSearchQuery] = useState('');
   const [payerSearchResults, setPayerSearchResults] = useState([]);
   const [isPayerSearching, setIsPayerSearching] = useState(false);
   
-  // Members state
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
-  // Search state for split with
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   
-  // UI state
   const [error, setError] = useState(null);
   
-  // Validation error states
   const [validationErrors, setValidationErrors] = useState({
     groupName: false,
-    groupNameExists: false, // New: for existing group name
+    groupNameExists: false,
     expenseTitle: false,
     paidBy: false,
     amount: false,
@@ -64,7 +57,6 @@ export default function CreateGroupScreen() {
   const [isCheckingGroupName, setIsCheckingGroupName] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  // Redirect to Home on web page refresh (no navigation history)
   useEffect(() => {
     if (Platform.OS === 'web' && !isRedirecting) {
       const state = navigation.getState();
@@ -78,14 +70,12 @@ export default function CreateGroupScreen() {
     }
   }, [navigation, isRedirecting]);
   
-  // Set current user as default payer
   useEffect(() => {
     if (user && !paidBy) {
       setPaidBy({ mailId: user.mailId, name: user.name || 'You' });
     }
   }, [user]);
   
-  // Search users for payer
   useEffect(() => {
     const searchPayerUsers = async () => {
       if (payerSearchQuery.trim().length < 2) {
@@ -99,7 +89,6 @@ export default function CreateGroupScreen() {
         const data = await response.json();
         
         if (data.success) {
-          // Filter out current payer and current user (they're shown separately)
           const filtered = data.data.filter(
             u => u.mailId !== paidBy?.mailId && u.mailId !== user?.mailId
           );
@@ -116,14 +105,12 @@ export default function CreateGroupScreen() {
     return () => clearTimeout(debounce);
   }, [payerSearchQuery, token, paidBy?.mailId, user?.mailId]);
 
-  // Load favorites on mount
   useEffect(() => {
     if (user?.friends) {
       loadFavorites(token, user.friends);
     }
   }, [user?.friends, token, loadFavorites]);
 
-  // Search users
   useEffect(() => {
     const searchUsers = async () => {
       if (searchQuery.trim().length < 2) {
@@ -137,8 +124,6 @@ export default function CreateGroupScreen() {
         const data = await response.json();
         
         if (data.success) {
-          // Filter out already selected members and payer
-          // Current user CAN be in split list if they are not the payer
           const filtered = data.data.filter(
             u => !selectedMembers.some(m => m.mailId === u.mailId) && 
                  u.mailId !== paidBy?.mailId
@@ -164,7 +149,6 @@ export default function CreateGroupScreen() {
     }
   };
 
-  // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const backAction = () => {
@@ -182,7 +166,6 @@ export default function CreateGroupScreen() {
   const handleSelectMember = (member) => {
     if (!selectedMembers.some(m => m.mailId === member.mailId)) {
       setSelectedMembers([...selectedMembers, member]);
-      // Clear validation error
       if (validationErrors.selectedMembers) {
         setValidationErrors(prev => ({ ...prev, selectedMembers: false }));
       }
@@ -193,7 +176,6 @@ export default function CreateGroupScreen() {
 
   const handleRemoveMember = (mailId) => {
     setSelectedMembers(selectedMembers.filter(m => m.mailId !== mailId));
-    // Reset payer if removed member was the payer
     if (paidBy?.mailId === mailId) {
       setPaidBy(user ? { mailId: user.mailId, name: user.name || 'You' } : null);
     }
@@ -202,7 +184,6 @@ export default function CreateGroupScreen() {
   const handleSelectFromFavorites = (fav) => {
     if (!selectedMembers.some(m => m.mailId === fav.mailId)) {
       setSelectedMembers([...selectedMembers, fav]);
-      // Clear validation error
       if (validationErrors.selectedMembers) {
         setValidationErrors(prev => ({ ...prev, selectedMembers: false }));
       }
@@ -212,7 +193,7 @@ export default function CreateGroupScreen() {
   const validateForm = () => {
     const errors = {
       groupName: !groupName.trim(),
-      groupNameExists: false, // Will be set by async check
+      groupNameExists: false,
       expenseTitle: !expenseTitle.trim(),
       paidBy: !paidBy,
       amount: !amount || parseFloat(amount) <= 0,
@@ -221,7 +202,6 @@ export default function CreateGroupScreen() {
     
     setValidationErrors(errors);
     
-    // Return true if no errors (excluding groupNameExists which is checked async)
     return !errors.groupName && !errors.expenseTitle && !errors.paidBy && !errors.amount && !errors.selectedMembers;
   };
 
@@ -237,16 +217,13 @@ export default function CreateGroupScreen() {
   };
 
   const handleContinue = async () => {
-    // Clear previous error
     setError(null);
     
-    // Validate form (basic validation)
     if (!validateForm()) {
       setError('Please fill all required fields');
       return;
     }
 
-    // Check if group name already exists
     setIsCheckingGroupName(true);
     const groupExists = await checkGroupNameExists(groupName);
     setIsCheckingGroupName(false);
@@ -257,9 +234,7 @@ export default function CreateGroupScreen() {
       return;
     }
 
-    // Navigate to appropriate preview screen
     if (isFromBillScan) {
-      // Use specialized bill split preview for scanned bills
       navigation.navigate('BillSplitPreview', {
         groupName: groupName.trim(),
         expenseTitle: expenseTitle.trim(),
@@ -269,7 +244,6 @@ export default function CreateGroupScreen() {
         billData: billData,
       });
     } else {
-      // Use regular preview for manual entry
       navigation.navigate('GroupPreview', {
         groupName: groupName.trim(),
         expenseTitle: expenseTitle.trim(),
@@ -281,7 +255,6 @@ export default function CreateGroupScreen() {
     }
   };
   
-  // Clear validation error when field is updated
   const handleGroupNameChange = (text) => {
     setGroupName(text);
     if ((validationErrors.groupName || validationErrors.groupNameExists) && text.trim()) {
@@ -306,7 +279,6 @@ export default function CreateGroupScreen() {
 
   const togglePayerDropdown = () => {
     setIsPayerDropdownOpen(!isPayerDropdownOpen);
-    // Close members dropdown when opening payer dropdown
     if (!isPayerDropdownOpen) {
       setIsDropdownOpen(false);
       setPayerSearchQuery('');
@@ -319,34 +291,27 @@ export default function CreateGroupScreen() {
     setPayerSearchQuery('');
     setPayerSearchResults([]);
     setIsPayerDropdownOpen(false);
-    // Clear validation error
     if (validationErrors.paidBy) {
       setValidationErrors(prev => ({ ...prev, paidBy: false }));
     }
-    // Remove payer from selected members if they were already selected
     if (selectedMembers.some(m => m.mailId === payer.mailId)) {
       setSelectedMembers(selectedMembers.filter(m => m.mailId !== payer.mailId));
     }
   };
 
-  // Get available favorites for payer selection (exclude current payer)
   const availablePayerFavorites = favorites.filter(
     fav => fav.mailId !== paidBy?.mailId && fav.mailId !== user?.mailId
   );
 
-  // Filter favorites to exclude already selected members and payer
-  // Current user CAN be in split list if they are not the payer
   const availableFavorites = favorites.filter(
     fav => !selectedMembers.some(m => m.mailId === fav.mailId) && 
            fav.mailId !== paidBy?.mailId
   );
 
-  // Check if current user should be shown in split options (when they're not the payer)
   const showCurrentUserInSplit = user && 
     paidBy?.mailId !== user.mailId && 
     !selectedMembers.some(m => m.mailId === user.mailId);
   
-  // Current user option for split with
   const currentUserOption = showCurrentUserInSplit ? {
     mailId: user.mailId,
     name: `${user.name || 'You'} (You)`
@@ -357,11 +322,10 @@ export default function CreateGroupScreen() {
     if (!isDropdownOpen) {
       setSearchQuery('');
       setSearchResults([]);
-      setIsPayerDropdownOpen(false); // Close payer dropdown
+      setIsPayerDropdownOpen(false);
     }
   };
 
-  // Show loading while redirecting
   if (isRedirecting) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF6B35' }}>
@@ -379,7 +343,6 @@ export default function CreateGroupScreen() {
       >
         <StatusBar style="light" />
         
-        {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
@@ -394,7 +357,6 @@ export default function CreateGroupScreen() {
           showsVerticalScrollIndicator={true}
         >
             <View style={styles.card}>
-              {/* Group Name */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Group Name</Text>
                 <TextInput
@@ -409,7 +371,6 @@ export default function CreateGroupScreen() {
                 )}
               </View>
 
-              {/* Expense Title */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Expense Title</Text>
                 <TextInput
@@ -421,7 +382,6 @@ export default function CreateGroupScreen() {
                 />
               </View>
 
-              {/* Paid By - Single Selection Dropdown with Search */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Paid By</Text>
                 <TouchableOpacity 
@@ -451,7 +411,6 @@ export default function CreateGroupScreen() {
 
                 {isPayerDropdownOpen && (
                   <View style={styles.payerDropdownContent}>
-                    {/* Search Bar Inside Payer Dropdown */}
                     <View style={styles.dropdownSearchBar}>
                       <Text style={styles.searchIcon}>🔍</Text>
                       <TextInput
@@ -471,7 +430,6 @@ export default function CreateGroupScreen() {
                       showsVerticalScrollIndicator={true}
                       nestedScrollEnabled={true}
                     >
-                      {/* Search Results */}
                       {payerSearchResults.length > 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Search Results</Text>
@@ -491,7 +449,6 @@ export default function CreateGroupScreen() {
                         </View>
                       )}
 
-                      {/* Current User Option (if not selected) */}
                       {payerSearchResults.length === 0 && paidBy?.mailId !== user?.mailId && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>You</Text>
@@ -508,7 +465,6 @@ export default function CreateGroupScreen() {
                         </View>
                       )}
 
-                      {/* Favorites */}
                       {availablePayerFavorites.length > 0 && payerSearchResults.length === 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Favorites</Text>
@@ -528,7 +484,6 @@ export default function CreateGroupScreen() {
                         </View>
                       )}
 
-                      {/* Empty State */}
                       {availablePayerFavorites.length === 0 && payerSearchResults.length === 0 && payerSearchQuery.length < 2 && paidBy?.mailId === user?.mailId && (
                         <Text style={styles.emptyText}>
                           Search for a user or add favorites
@@ -545,7 +500,6 @@ export default function CreateGroupScreen() {
                 )}
               </View>
 
-              {/* Amount */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
                   Amount Paid
@@ -572,13 +526,11 @@ export default function CreateGroupScreen() {
                 </View>
               </View>
 
-              {/* Split With - Dropdown */}
               <View style={styles.splitWithSection}>
                 <Text style={styles.label}>
                   Split With ({selectedMembers.length} selected)
                 </Text>
                 
-                {/* Dropdown Trigger */}
                 <TouchableOpacity 
                   style={[
                     styles.dropdownTrigger, 
@@ -609,10 +561,8 @@ export default function CreateGroupScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Dropdown Content */}
                 {isDropdownOpen && (
                   <View style={styles.dropdownContent}>
-                    {/* Selected Members Chips - Max 2 rows visible, scrollable */}
                     {selectedMembers.length > 0 && (
                       <ScrollView 
                         style={styles.selectedChipsScrollContainer}
@@ -637,7 +587,6 @@ export default function CreateGroupScreen() {
                       </ScrollView>
                     )}
 
-                    {/* Search Bar Inside Dropdown */}
                     <View style={styles.dropdownSearchBar}>
                       <Text style={styles.searchIcon}>🔍</Text>
                       <TextInput
@@ -652,13 +601,11 @@ export default function CreateGroupScreen() {
                       {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
                     </View>
 
-                    {/* Scrollable List (Search Results or Favorites) */}
                     <ScrollView 
                       style={styles.dropdownScroll}
                       showsVerticalScrollIndicator={true}
                       nestedScrollEnabled={true}
                     >
-                      {/* Search Results */}
                       {searchResults.length > 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Search Results</Text>
@@ -678,7 +625,6 @@ export default function CreateGroupScreen() {
                         </View>
                       )}
 
-                      {/* Current User Option (when not payer) */}
                       {currentUserOption && searchResults.length === 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Add Yourself</Text>
@@ -695,7 +641,6 @@ export default function CreateGroupScreen() {
                         </View>
                       )}
 
-                      {/* Favorites */}
                       {availableFavorites.length > 0 && searchResults.length === 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Favorites</Text>
@@ -715,7 +660,6 @@ export default function CreateGroupScreen() {
                         </View>
                       )}
 
-                      {/* Empty State */}
                       {!currentUserOption && availableFavorites.length === 0 && searchResults.length === 0 && searchQuery.length < 2 && (
                         <Text style={styles.emptyText}>
                           Type to search for users
@@ -732,14 +676,12 @@ export default function CreateGroupScreen() {
                 )}
               </View>
 
-              {/* Error */}
               {error && (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>⚠️ {error}</Text>
                 </View>
               )}
 
-              {/* Continue Button */}
               <TouchableOpacity
                 style={[styles.createButton, isCheckingGroupName && styles.createButtonLoading]}
                 onPress={handleContinue}
@@ -886,7 +828,6 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontStyle: 'italic',
   },
-  // Payer dropdown styles
   payerDropdownTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1032,7 +973,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   selectedChipsScrollContainer: {
-    maxHeight: 88, // ~2 rows of chips (44px per row)
+    maxHeight: 88,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     backgroundColor: '#FFF5F0',

@@ -2,16 +2,13 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authGet, authPost, reportNetworkError } from '../utils/apiHelper';
 
-// Storage keys for persistence
 const STORAGE_KEYS = {
   FAVORITES: '@splitbill_favorites',
   GROUPS: '@splitbill_groups',
 };
 
-// Create Store Context
 const StoreContext = createContext(null);
 
-// Custom hook to use store context
 export const useStore = () => {
   const context = useContext(StoreContext);
   if (!context) {
@@ -20,28 +17,20 @@ export const useStore = () => {
   return context;
 };
 
-// Store Provider Component
 export const StoreProvider = ({ children }) => {
-  // Cached data
   const [favorites, setFavorites] = useState([]);
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
   const [groups, setGroups] = useState([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   
-  // Loading states
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
-  /**
-   * Load favorites from cache or API
-   */
   const loadFavorites = useCallback(async (token, friendEmails, forceRefresh = false) => {
-    // Return cached data if already loaded and not forcing refresh
     if (favoritesLoaded && !forceRefresh && favorites.length > 0) {
       return favorites;
     }
 
-    // If no friend emails, return empty
     if (!friendEmails || friendEmails.length === 0) {
       setFavorites([]);
       setFavoritesLoaded(true);
@@ -51,12 +40,10 @@ export const StoreProvider = ({ children }) => {
     setIsLoadingFavorites(true);
     
     try {
-      // Try to get from local storage first (for faster initial load)
       if (!forceRefresh) {
         const cached = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
         if (cached) {
           const cachedFavorites = JSON.parse(cached);
-          // Check if cached emails match current friend emails
           const cachedEmails = cachedFavorites.map(f => f.mailId).sort();
           const currentEmails = [...friendEmails].sort();
           if (JSON.stringify(cachedEmails) === JSON.stringify(currentEmails)) {
@@ -68,18 +55,15 @@ export const StoreProvider = ({ children }) => {
         }
       }
 
-      // Fetch from API
       const response = await authPost('/auth/friends/details', { emails: friendEmails });
       const data = await response.json();
       
       if (data.success && data.data) {
         setFavorites(data.data);
         setFavoritesLoaded(true);
-        // Cache to local storage
         await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(data.data));
         return data.data;
       } else {
-        // Fallback to email prefix
         const fallbackList = friendEmails.map(mailId => ({
           mailId,
           name: mailId.split('@')[0]
@@ -90,7 +74,6 @@ export const StoreProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading favorites:', error);
-      // Fallback to email prefix
       const fallbackList = friendEmails.map(mailId => ({
         mailId,
         name: mailId.split('@')[0]
@@ -101,19 +84,13 @@ export const StoreProvider = ({ children }) => {
     } finally {
       setIsLoadingFavorites(false);
     }
-  }, [favoritesLoaded]); // Removed 'favorites' to prevent infinite loop
+  }, [favoritesLoaded]);
 
-  /**
-   * Update favorites after adding/removing
-   */
   const updateFavorites = useCallback(async (newFavorites) => {
     setFavorites(newFavorites);
     await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(newFavorites));
   }, []);
 
-  /**
-   * Add a favorite to the cache
-   */
   const addFavoriteToCache = useCallback(async (userToAdd) => {
     let updated;
     setFavorites(prev => {
@@ -122,11 +99,8 @@ export const StoreProvider = ({ children }) => {
     });
     await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(updated));
     return updated;
-  }, []); // Use functional update to avoid dependency on favorites
+  }, []);
 
-  /**
-   * Remove a favorite from the cache
-   */
   const removeFavoriteFromCache = useCallback(async (mailId) => {
     let updated;
     setFavorites(prev => {
@@ -135,13 +109,9 @@ export const StoreProvider = ({ children }) => {
     });
     await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(updated));
     return updated;
-  }, []); // Use functional update to avoid dependency on favorites
+  }, []);
 
-  /**
-   * Load groups from cache or API
-   */
   const loadGroups = useCallback(async (token, forceRefresh = false) => {
-    // Return cached data if already loaded and not forcing refresh
     if (groupsLoaded && !forceRefresh && groups.length > 0) {
       return groups;
     }
@@ -149,7 +119,6 @@ export const StoreProvider = ({ children }) => {
     setIsLoadingGroups(true);
     
     try {
-      // Try to get from local storage first
       if (!forceRefresh) {
         const cached = await AsyncStorage.getItem(STORAGE_KEYS.GROUPS);
         if (cached) {
@@ -161,7 +130,6 @@ export const StoreProvider = ({ children }) => {
         }
       }
 
-      // Fetch from API
       const response = await authGet('/groups');
       const data = await response.json();
       
@@ -183,11 +151,8 @@ export const StoreProvider = ({ children }) => {
     } finally {
       setIsLoadingGroups(false);
     }
-  }, [groupsLoaded]); // Removed 'groups' to prevent infinite loop
+  }, [groupsLoaded]);
 
-  /**
-   * Clear all cached data (on logout)
-   */
   const clearStore = useCallback(async () => {
     setFavorites([]);
     setFavoritesLoaded(false);
@@ -196,23 +161,15 @@ export const StoreProvider = ({ children }) => {
     await AsyncStorage.multiRemove([STORAGE_KEYS.FAVORITES, STORAGE_KEYS.GROUPS]);
   }, []);
 
-  /**
-   * Invalidate favorites cache (force next load to fetch from API)
-   */
   const invalidateFavorites = useCallback(() => {
     setFavoritesLoaded(false);
   }, []);
 
-  /**
-   * Invalidate groups cache
-   */
   const invalidateGroups = useCallback(() => {
     setGroupsLoaded(false);
   }, []);
 
-  // Context value
   const value = {
-    // Favorites
     favorites,
     favoritesLoaded,
     isLoadingFavorites,
@@ -222,14 +179,12 @@ export const StoreProvider = ({ children }) => {
     removeFavoriteFromCache,
     invalidateFavorites,
     
-    // Groups
     groups,
     groupsLoaded,
     isLoadingGroups,
     loadGroups,
     invalidateGroups,
     
-    // Clear all
     clearStore,
   };
 
@@ -241,4 +196,3 @@ export const StoreProvider = ({ children }) => {
 };
 
 export default StoreContext;
-

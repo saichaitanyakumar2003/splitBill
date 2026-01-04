@@ -70,7 +70,6 @@ export default function PendingExpensesScreen({ route }) {
     }
   };
 
-  // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const backAction = () => {
@@ -86,7 +85,6 @@ export default function PendingExpensesScreen({ route }) {
   }, [navigation]);
 
   const handleResolve = (groupId, from, to, toName, amount) => {
-    // Show confirmation modal for both web and mobile
     setConfirmModal({
       visible: true,
       groupId,
@@ -104,10 +102,8 @@ export default function PendingExpensesScreen({ route }) {
       const data = await response.json();
       
       if (data.success) {
-        // Refresh the list
         await fetchPendingExpenses();
         
-        // Show success modal if group was completed
         if (data.data.allResolved) {
           setSuccessModal({
             visible: true,
@@ -152,7 +148,6 @@ export default function PendingExpensesScreen({ route }) {
     });
   };
 
-  // Count total pending payments
   const totalPending = pendingExpenses.reduce(
     (sum, group) => sum + (group.pendingEdges?.length || 0),
     0
@@ -167,7 +162,6 @@ export default function PendingExpensesScreen({ route }) {
       >
         <StatusBar style="light" />
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
@@ -176,7 +170,6 @@ export default function PendingExpensesScreen({ route }) {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Content */}
         <ScrollView 
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
@@ -210,13 +203,11 @@ export default function PendingExpensesScreen({ route }) {
             </View>
           ) : (
             <>
-              {/* Summary */}
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryTitle}>You Owe</Text>
                 <Text style={styles.summaryCount}>{totalPending} payment{totalPending !== 1 ? 's' : ''}</Text>
               </View>
 
-              {/* Pending Expenses by Group */}
               {pendingExpenses.map((group) => (
                 <View key={group.groupId} style={styles.groupCard}>
                   <View style={styles.groupHeader}>
@@ -234,7 +225,6 @@ export default function PendingExpensesScreen({ route }) {
                     </View>
                   </View>
 
-                  {/* Pending Edges */}
                   {group.pendingEdges?.map((edge, index) => {
                     const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
                     return (
@@ -260,7 +250,6 @@ export default function PendingExpensesScreen({ route }) {
                     );
                   })}
 
-                  {/* Resolved Edges (greyed out) */}
                   {group.resolvedEdges?.map((edge, index) => (
                     <View key={`resolved-${index}`} style={[styles.expenseRow, styles.expenseRowResolved]}>
                       <View style={styles.expenseInfo}>
@@ -282,7 +271,6 @@ export default function PendingExpensesScreen({ route }) {
           )}
         </ScrollView>
 
-        {/* Confirmation Modal */}
         <Modal
           visible={confirmModal.visible}
           transparent={true}
@@ -319,7 +307,6 @@ export default function PendingExpensesScreen({ route }) {
           </View>
         </Modal>
 
-        {/* Success Modal - Group Completed */}
         <Modal
           visible={successModal.visible}
           transparent={true}
@@ -585,7 +572,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -674,7 +660,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFF',
   },
-  // Success Modal styles
   successModalContainer: {
     backgroundColor: '#FFF',
     borderRadius: 24,

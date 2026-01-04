@@ -3,7 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const Group = require('../models/Group');
 const User = require('../models/User');
-const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitwise');
+const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitBill');
 const { sendExpenseNotifications } = require('../utils/pushNotifications');
 
 // Note: authenticate middleware is applied at server level for all /api/groups routes
