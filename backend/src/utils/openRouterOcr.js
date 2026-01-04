@@ -62,9 +62,7 @@ Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
     }
   ],
   "subtotal": 760,
-  "taxes": [
-    {"name": "CGST (2.5%)", "amount": 18.10}
-  ],
+  "taxes": [],
   "total": 760,
   "currency": "INR"
 }
@@ -80,12 +78,16 @@ CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
    - Example: Items with prices 400, 100, 100, 150, 50, 100 → subtotal = 900
    - If bill shows "Subtotal: 900", use 900 (the base price sum)
 
-3. TAXES: Extract each tax line separately (IGST, CGST, SGST, GST, Service Tax)
-   - Each tax should have name and amount
-   - These are the taxes shown AFTER subtotal line
+3. TAXES - VERY IMPORTANT:
+   - ONLY include taxes if they are EXPLICITLY printed on the bill (look for CGST, SGST, GST, IGST, Service Tax lines with amounts)
+   - If the bill shows NO tax lines, return "taxes": [] (empty array)
+   - If Grand Total equals Subtotal, there are NO taxes - return "taxes": []
+   - DO NOT calculate or assume taxes - only extract what is printed
+   - Example WITH taxes: Bill shows "CGST: 27.35, SGST: 27.35" → include them
+   - Example WITHOUT taxes: Bill shows only "Subtotal: 1094, Grand Total: 1094" → "taxes": []
 
-4. TOTAL: The final amount after adding all taxes to subtotal
-   - Example: Subtotal 900 + Taxes 68 = Total 968
+4. TOTAL: The final amount (Grand Total) shown on the bill
+   - If no taxes exist, total = subtotal
 
 CATEGORY RULES based on billType:
 
