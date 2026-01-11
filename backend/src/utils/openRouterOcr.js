@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -15,6 +16,32 @@ const FREE_VISION_MODELS = [
   'qwen/qwen-2.5-vl-7b-instruct:free',       // User's available free model
 ];
 
+// Image optimization settings
+const MAX_IMAGE_DIMENSION = 1200; // Max width or height
+const JPEG_QUALITY = 80; // Compression quality (0-100)
+
+/**
+ * Compress and optimize image for faster API processing
+ */
+async function optimizeImage(imagePath) {
+  const originalSize = fs.statSync(imagePath).size;
+  
+  // Resize and compress to JPEG
+  const optimizedBuffer = await sharp(imagePath)
+    .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, {
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .jpeg({ quality: JPEG_QUALITY })
+    .toBuffer();
+  
+  const newSize = optimizedBuffer.length;
+  const savings = Math.round((1 - newSize / originalSize) * 100);
+  console.log(`📦 Image optimized: ${Math.round(originalSize/1024)}KB → ${Math.round(newSize/1024)}KB (${savings}% smaller)`);
+  
+  return optimizedBuffer;
+}
+
 /**
  * Extract bill data from image using OpenRouter free vision models
  */
@@ -23,19 +50,10 @@ async function extractBillWithOpenRouter(imagePath) {
     throw new Error('OPENROUTER_API_KEY not configured. Get free key from https://openrouter.ai/keys');
   }
 
-  // Read image and convert to base64
-  const imageBuffer = fs.readFileSync(imagePath);
-  const base64Image = imageBuffer.toString('base64');
-  
-  // Determine mime type
-  const ext = path.extname(imagePath).toLowerCase();
-  const mimeTypes = {
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.webp': 'image/webp',
-  };
-  const mimeType = mimeTypes[ext] || 'image/jpeg';
+  // Optimize image for faster processing
+  const optimizedBuffer = await optimizeImage(imagePath);
+  const base64Image = optimizedBuffer.toString('base64');
+  const mimeType = 'image/jpeg'; // Always JPEG after optimization
 
   const prompt = `Analyze this bill/receipt image and extract the information in JSON format.
 
@@ -64,21 +82,35 @@ Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
   "subtotal": 760,
   "taxes": [],
   "total": 760,
+  "totalQty": 6,
   "currency": "INR"
 }
 
 CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
-1. ITEM PRICES: Look for "Price" or "Rate" column, NOT "Amount" or "Amt" column
+1. SKIP CONTINUATION LINES - VERY IMPORTANT:
+   - On thermal receipts, long item names wrap to the next line
+   - If a line has ONLY text with NO quantity and NO price values, SKIP IT completely
+   - DO NOT create an item for such lines - they are just continuations of previous item names
+   - Only include items that have actual Qty and Price values in the row
+   
+   EXAMPLE:
+   Line 1: "Chicken Fry      1   270.00   270.00" → Include this (has qty=1, price=270)
+   Line 2: "Biryani"  → SKIP this completely (no qty, no price - it's just text overflow)
+   
+   - Numbers in item names (like "Chicken Lollipop 6") are part of the name, NOT the quantity
+   - Always look at the Qty column to get actual quantity
+
+2. ITEM PRICES: Look for "Price" or "Rate" column, NOT "Amount" or "Amt" column
    - "Price/Rate" = base price before tax (USE THIS for unitPrice and totalPrice)
    - "Amount/Amt" = price after per-item tax (IGNORE THIS COLUMN)
    - Example: If row shows "Price: 100" and "Amt: 112", use unitPrice=100, totalPrice=100
 
-2. SUBTOTAL: This is the SUM OF BASE PRICES (Price column) of all items
+3. SUBTOTAL: This is the SUM OF BASE PRICES (Price column) of all items
    - Subtotal = sum of all item's "Price" values (NOT "Amt" values)
    - Example: Items with prices 400, 100, 100, 150, 50, 100 → subtotal = 900
    - If bill shows "Subtotal: 900", use 900 (the base price sum)
 
-3. TAXES - VERY IMPORTANT:
+4. TAXES - VERY IMPORTANT:
    - ONLY include taxes if they are EXPLICITLY printed on the bill (look for CGST, SGST, GST, IGST, Service Tax lines with amounts)
    - If the bill shows NO tax lines, return "taxes": [] (empty array)
    - If Grand Total equals Subtotal, there are NO taxes - return "taxes": []
@@ -86,8 +118,11 @@ CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
    - Example WITH taxes: Bill shows "CGST: 27.35, SGST: 27.35" → include them
    - Example WITHOUT taxes: Bill shows only "Subtotal: 1094, Grand Total: 1094" → "taxes": []
 
-4. TOTAL: The final amount (Grand Total) shown on the bill
+5. TOTAL: The final amount (Grand Total) shown on the bill
    - If no taxes exist, total = subtotal
+
+6. TOTAL QTY: If the bill shows "Total Qty: X", extract that number as totalQty
+   - This helps validate the correct number of items were extracted
 
 CATEGORY RULES based on billType:
 
@@ -139,7 +174,7 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
               ]
             }
           ],
-          max_tokens: 2048,
+          max_tokens: 1024,
           temperature: 0.1
         })
       });
@@ -188,13 +223,117 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
 }
 
 /**
+ * Validate and fix items based on total amount
+ * Removes duplicate/continuation items if sum exceeds total
+ */
+function validateAndFixItems(items, expectedSubtotal, expectedTotal, taxes, expectedQty) {
+  if (!items || items.length === 0) return items;
+  
+  const totalTax = (taxes || []).reduce((sum, t) => sum + (t.amount || 0), 0);
+  
+  // Calculate current sum
+  const currentSum = items.reduce((sum, item) => {
+    const price = item.totalPrice || item.unitPrice || 0;
+    const qty = item.quantity || 1;
+    return sum + (price * qty);
+  }, 0);
+  
+  // Calculate current total quantity
+  const currentQty = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  
+  const expectedAmount = expectedSubtotal || (expectedTotal - totalTax) || currentSum;
+  const excessAmount = currentSum - expectedAmount;
+  
+  console.log(`📊 Validation: Items sum=₹${currentSum}, Expected=₹${expectedAmount}, Qty=${currentQty}/${expectedQty || '?'}`);
+  
+  // If sum matches expected (within ₹1 tolerance), no fix needed
+  if (Math.abs(excessAmount) < 1) {
+    console.log('✅ Validation passed: amounts match');
+    return items;
+  }
+  
+  // If sum exceeds expected, find and remove the excess items
+  if (excessAmount > 0) {
+    console.log(`⚠️ Sum exceeds expected by ₹${excessAmount}. Looking for items to remove...`);
+    
+    // Single-word food suffixes that are likely continuations
+    const continuationWords = new Set([
+      'biryani', 'rice', 'curry', 'fry', 'gravy', 'masala', 'tikka', 
+      'kebab', 'korma', 'roast', 'manchurian', 'noodles', 'pulao', 
+      'dal', 'roti', 'naan', 'paratha', 'thali', 'meal'
+    ]);
+    
+    // Get price counts to find duplicates
+    const priceCount = {};
+    items.forEach(item => {
+      const price = item.totalPrice || item.unitPrice;
+      priceCount[price] = (priceCount[price] || 0) + 1;
+    });
+    
+    // Find candidates for removal (single-word continuations with duplicate prices)
+    const candidates = items.map((item, index) => {
+      const name = item.name?.trim().toLowerCase() || '';
+      const words = name.split(/\s+/);
+      const price = item.totalPrice || item.unitPrice || 0;
+      const itemTotal = price * (item.quantity || 1);
+      
+      const isSingleWord = words.length === 1;
+      const isContinuationWord = continuationWords.has(name);
+      const hasDuplicatePrice = priceCount[price] > 1;
+      
+      return {
+        index,
+        item,
+        itemTotal,
+        isCandidate: isSingleWord && isContinuationWord && hasDuplicatePrice
+      };
+    });
+    
+    // Find items to remove that match the excess amount
+    const toRemove = new Set();
+    let removedSum = 0;
+    
+    for (const candidate of candidates) {
+      if (candidate.isCandidate && removedSum < excessAmount) {
+        // Check if removing this item helps match the total
+        if (Math.abs((removedSum + candidate.itemTotal) - excessAmount) < Math.abs(removedSum - excessAmount) ||
+            removedSum + candidate.itemTotal <= excessAmount) {
+          toRemove.add(candidate.index);
+          removedSum += candidate.itemTotal;
+          console.log(`🚫 Removing: "${candidate.item.name}" (₹${candidate.itemTotal}) - likely continuation`);
+        }
+      }
+    }
+    
+    // Filter out the items to remove
+    const filtered = items.filter((_, index) => !toRemove.has(index));
+    
+    const newSum = filtered.reduce((sum, item) => sum + ((item.totalPrice || item.unitPrice || 0) * (item.quantity || 1)), 0);
+    console.log(`📊 After fix: Items sum=₹${newSum}, Expected=₹${expectedAmount}`);
+    
+    return filtered;
+  }
+  
+  return items;
+}
+
+/**
  * Transform response to standard format
  */
 function transformResponse(data) {
   const billType = data.billType || 'restaurant';
   const isRestaurant = billType === 'restaurant';
 
-  const items = (data.items || []).map(item => ({
+  // Validate and fix items based on totals
+  const validatedItems = validateAndFixItems(
+    data.items || [],
+    data.subtotal,
+    data.total,
+    data.taxes,
+    data.totalQty
+  );
+
+  const items = validatedItems.map(item => ({
     name: item.name,
     quantity: item.quantity || 1,
     price: item.unitPrice || item.totalPrice,
@@ -203,7 +342,6 @@ function transformResponse(data) {
   }));
 
   // For restaurant bills, categorize items
-  // For other bills, put everything in "Others"
   const vegItems = isRestaurant ? items.filter(i => i.category === '🥬 Veg') : [];
   const nonVegItems = isRestaurant ? items.filter(i => i.category === '🍖 Non-Veg') : [];
   const beverageItems = isRestaurant ? items.filter(i => i.category === '🥤 Beverages') : [];

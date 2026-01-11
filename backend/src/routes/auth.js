@@ -8,8 +8,8 @@ const { authenticate } = require('../middleware/auth');
 const GOOGLE_WEB_CLIENT_ID = process.env.SPLITBILL_GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || 'splitbill-secret-key';
-const JWT_EXPIRES_IN = '7d';
-const SESSION_DAYS = 7;
+const JWT_EXPIRES_IN = '30d';
+const SESSION_DAYS = 30;
 
 const getSessionExp = () => new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 const genToken = (mailId, name) => jwt.sign({ mailId, name }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
