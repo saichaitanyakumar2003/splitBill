@@ -17,16 +17,21 @@ import { Ionicons } from '@expo/vector-icons';
 // Helper function to detect non-veg items by name
 const isNonVegByName = (name) => {
   const nameLower = name.toLowerCase();
-  const nonVegKeywords = [
-    'chicken', 'mutton', 'fish', 'egg', 'prawn', 'meat', 'kebab', 'tandoori',
-    'biryani', 'keema', 'gosht', 'lamb', 'beef', 'pork', 'crab', 'lobster',
-    'shrimp', 'squid', 'apollo', 'lollypop', 'lollipop', 'tikka', 'kabab',
-    'seekh', 'malai', 'butter chicken', 'korma', 'roast', 'fry', '65'
-  ];
-  // Check if any non-veg keyword is in the name
-  // But exclude items that are explicitly veg (like "veg biryani")
+  
+  // Items with these words are ALWAYS vegetarian
+  const vegKeywords = ['paneer', 'gobi', 'aloo', 'dal', 'chole', 'rajma', 'palak', 'mushroom', 'corn', 'tofu', 'soya'];
+  if (vegKeywords.some(keyword => nameLower.includes(keyword))) return false;
+  
+  // Explicitly marked as veg
   const isExplicitlyVeg = nameLower.includes('veg ') || nameLower.startsWith('veg');
   if (isExplicitlyVeg) return false;
+  
+  // Non-veg keywords - only MEAT items, not ambiguous words like biryani/tikka/fry
+  const nonVegKeywords = [
+    'chicken', 'mutton', 'fish', 'egg', 'prawn', 'meat', 'keema', 'gosht', 
+    'lamb', 'beef', 'pork', 'crab', 'lobster', 'shrimp', 'squid', 'apollo', 
+    'lollypop', 'lollipop', 'seekh kebab', 'butter chicken', 'tandoori chicken'
+  ];
   
   return nonVegKeywords.some(keyword => nameLower.includes(keyword));
 };

@@ -124,17 +124,27 @@ CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
 6. TOTAL QTY: If the bill shows "Total Qty: X", extract that number as totalQty
    - This helps validate the correct number of items were extracted
 
+7. QUANTITY EXTRACTION - VERY IMPORTANT:
+   - Read the ACTUAL quantity from the "QTY", "Qty", "Quantity", or "No." column on the bill
+   - DO NOT assume quantity = 1 for all items
+   - The first number in each row is usually the quantity
+   - Example row: "2  South Indian Thali  419.00  838.00" → quantity=2, unitPrice=419, totalPrice=838
+   - Example row: "3  Water Btl Dinein    5.50   16.50" → quantity=3, unitPrice=5.50, totalPrice=16.50
+   - unitPrice = price per single item, totalPrice = unitPrice × quantity
+
 CATEGORY RULES based on billType:
 
 For "restaurant" bills:
-- "veg": Paneer, Dal, Rice, Naan, Roti, Vegetables, Salads, Pulao, Sambar, Rasam, Idli, Dosa (plain/masala), Uttapam, Veg Biryani, Gobi, Aloo, Chole, Rajma
-- "nonveg": ANY item containing these words MUST be nonveg:
+- "veg": ANY item containing PANEER is ALWAYS VEG (Paneer Tikka, Paneer Biryani, Shahi Paneer, Paneer Butter Masala, Kadai Paneer, Paneer Tikka Biryani, Paneer 65, Paneer Manchurian)
+  Also veg: Dal, Rice, Naan, Roti, Vegetables, Salads, Pulao, Sambar, Rasam, Idli, Dosa (plain/masala), Uttapam, Veg Biryani, Gobi, Aloo, Chole, Rajma, Thali (if not specified as non-veg), North Indian Thali, South Indian Thali
+- "nonveg": ONLY items containing actual meat keywords:
   * CHICKEN: Chicken Biryani, Chicken Fry, Chicken 65, Chicken Lollypop, Chicken Tikka, Butter Chicken, Tandoori Chicken, Chicken Curry, Chicken Manchurian, Chilli Chicken
   * MUTTON: Mutton Biryani, Mutton Curry, Mutton Fry, Mutton Keema, Rogan Josh, Mutton Korma
   * FISH: Fish Fry, Fish Curry, Apollo Fish, Fish Biryani, Pomfret, Surmai, Fish Tikka
   * PRAWNS/SHRIMP: Prawn Fry, Prawn Curry, Prawn Biryani, Chilli Prawns, Tandoori Prawns
   * EGG: Egg Curry, Egg Biryani, Omelette, Egg Fried Rice, Egg Bhurji
-  * OTHER MEAT: Kebab, Seekh Kebab, Keema, Gosht, Lamb, Beef, Pork, Crab, Lobster, Squid
+  * OTHER MEAT: Kebab (without Paneer), Seekh Kebab, Keema, Gosht, Lamb, Beef, Pork, Crab, Lobster, Squid
+  NOTE: "Tikka" alone does NOT mean non-veg. "Paneer Tikka" is VEG. Only "Chicken Tikka", "Fish Tikka" etc. are non-veg.
 - "beverage": Juice, Soft drinks, Tea, Coffee, Lassi, Buttermilk, Milkshake, Mocktail, Soda, Lime Water
 - "other": Water, Water Bottle, Mineral Water, Papad, Pickle, anything that doesn't fit above
 
@@ -208,7 +218,7 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
       console.log('📋 OCR Raw Response:', JSON.stringify({
         subtotal: billData.subtotal,
         total: billData.total,
-        itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice }))
+        itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
       }, null, 2));
       return transformResponse(billData);
 
@@ -231,11 +241,9 @@ function validateAndFixItems(items, expectedSubtotal, expectedTotal, taxes, expe
   
   const totalTax = (taxes || []).reduce((sum, t) => sum + (t.amount || 0), 0);
   
-  // Calculate current sum
+  // Calculate current sum (totalPrice is already unitPrice × quantity)
   const currentSum = items.reduce((sum, item) => {
-    const price = item.totalPrice || item.unitPrice || 0;
-    const qty = item.quantity || 1;
-    return sum + (price * qty);
+    return sum + (item.totalPrice || item.unitPrice || 0);
   }, 0);
   
   // Calculate current total quantity
@@ -274,12 +282,11 @@ function validateAndFixItems(items, expectedSubtotal, expectedTotal, taxes, expe
     const candidates = items.map((item, index) => {
       const name = item.name?.trim().toLowerCase() || '';
       const words = name.split(/\s+/);
-      const price = item.totalPrice || item.unitPrice || 0;
-      const itemTotal = price * (item.quantity || 1);
+      const itemTotal = item.totalPrice || item.unitPrice || 0; // totalPrice is already the total
       
       const isSingleWord = words.length === 1;
       const isContinuationWord = continuationWords.has(name);
-      const hasDuplicatePrice = priceCount[price] > 1;
+      const hasDuplicatePrice = priceCount[itemTotal] > 1;
       
       return {
         index,
@@ -308,7 +315,7 @@ function validateAndFixItems(items, expectedSubtotal, expectedTotal, taxes, expe
     // Filter out the items to remove
     const filtered = items.filter((_, index) => !toRemove.has(index));
     
-    const newSum = filtered.reduce((sum, item) => sum + ((item.totalPrice || item.unitPrice || 0) * (item.quantity || 1)), 0);
+    const newSum = filtered.reduce((sum, item) => sum + (item.totalPrice || item.unitPrice || 0), 0);
     console.log(`📊 After fix: Items sum=₹${newSum}, Expected=₹${expectedAmount}`);
     
     return filtered;
@@ -318,15 +325,49 @@ function validateAndFixItems(items, expectedSubtotal, expectedTotal, taxes, expe
 }
 
 /**
+ * Fix items with post-processing rules
+ * - Paneer items are ALWAYS veg
+ * - Fix quantities based on totalPrice/unitPrice ratio
+ */
+function fixItemsPostProcessing(items) {
+  return items.map(item => {
+    const name = (item.name || '').toLowerCase();
+    const fixedItem = { ...item };
+    
+    // Fix 1: Paneer items are ALWAYS vegetarian
+    if (name.includes('paneer')) {
+      fixedItem.category = 'veg';
+    }
+    
+    // Fix 2: Calculate correct quantity from totalPrice/unitPrice
+    const unitPrice = item.unitPrice || 0;
+    const totalPrice = item.totalPrice || 0;
+    
+    if (unitPrice > 0 && totalPrice > 0 && totalPrice > unitPrice) {
+      const calculatedQty = Math.round(totalPrice / unitPrice);
+      // Verify it's a clean division (within 1% tolerance)
+      if (Math.abs((calculatedQty * unitPrice) - totalPrice) < totalPrice * 0.01) {
+        fixedItem.quantity = calculatedQty;
+      }
+    }
+    
+    return fixedItem;
+  });
+}
+
+/**
  * Transform response to standard format
  */
 function transformResponse(data) {
   const billType = data.billType || 'restaurant';
   const isRestaurant = billType === 'restaurant';
 
-  // Validate and fix items based on totals
+  // First apply post-processing fixes
+  const fixedItems = fixItemsPostProcessing(data.items || []);
+
+  // Then validate and fix items based on totals
   const validatedItems = validateAndFixItems(
-    data.items || [],
+    fixedItems,
     data.subtotal,
     data.total,
     data.taxes,
