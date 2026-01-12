@@ -13,7 +13,9 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Free vision models on OpenRouter
 const FREE_VISION_MODELS = [
-  'qwen/qwen-2.5-vl-7b-instruct:free',       // User's available free model
+  'nvidia/nemotron-nano-12b-v2-vl:free',     // Primary - Nvidia vision model
+  'qwen/qwen-2.5-vl-7b-instruct:free',       // Fallback 1 - Qwen vision
+  'google/gemma-3-27b-it:free',              // Fallback 2 - Google Gemma
 ];
 
 // Image optimization settings
@@ -184,14 +186,16 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
               ]
             }
           ],
-          max_tokens: 1024,
+          max_tokens: 4096,
           temperature: 0.1
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error(`${model} failed:`, errorData.error?.message || errorData);
+        console.error(`${model} failed:`);
+        console.error(`  Status: ${response.status}`);
+        console.error(`  Full error:`, JSON.stringify(errorData, null, 2));
         lastError = new Error(errorData.error?.message || 'API error');
         continue;
       }
@@ -220,7 +224,7 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
         total: billData.total,
         itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
       }, null, 2));
-      return transformResponse(billData);
+      return transformResponse(billData, model);
 
     } catch (err) {
       console.error(`${model} error:`, err.message);
@@ -358,7 +362,7 @@ function fixItemsPostProcessing(items) {
 /**
  * Transform response to standard format
  */
-function transformResponse(data) {
+function transformResponse(data, modelUsed) {
   const billType = data.billType || 'restaurant';
   const isRestaurant = billType === 'restaurant';
 
@@ -405,7 +409,8 @@ function transformResponse(data) {
     total: data.total ? roundToTwo(data.total) : roundToTwo(subtotal),
     currency: data.currency || 'INR',
     billType: billType,
-    ocrEngine: 'openrouter'
+    ocrEngine: 'openrouter',
+    modelUsed: modelUsed || 'unknown'
   };
 }
 

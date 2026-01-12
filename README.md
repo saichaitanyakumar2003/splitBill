@@ -33,22 +33,32 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 ## 🤖 Powered by Advanced AI
 
-SplitBill uses **Qwen 2.5 VL (Vision-Language)** — a state-of-the-art multimodal AI model developed by Alibaba Cloud. This cutting-edge model excels at understanding and extracting structured data from bill images, providing:
+SplitBill uses **multiple Vision-Language AI models** with automatic fallback for reliability:
+
+| Priority | Model | Provider |
+|----------|-------|----------|
+| 1️⃣ Primary | Nemotron Nano 12B VL | Nvidia |
+| 2️⃣ Fallback | Qwen 2.5 VL 7B | Alibaba Cloud |
+| 3️⃣ Fallback | Gemma 3 27B | Google |
+
+These cutting-edge multimodal models excel at understanding and extracting structured data from bill images, providing:
 
 - 🎯 **High accuracy** in recognizing item names, prices, and quantities
 - 🧠 **Smart categorization** of food items (Veg, Non-Veg, General)
 - 📊 **Automatic tax & charge detection** (CGST, SGST, Service Charge)
 - 🏪 **Restaurant/merchant name extraction**
+- 🔄 **Auto-fallback** ensures high availability
 
 ---
 
 ## ✨ Features
 
-- **📸 OCR Receipt Scanning** - Take a photo of any receipt and automatically extract items and prices using Qwen 2.5 VL AI
+- **📸 OCR Receipt Scanning** - Take a photo of any receipt and automatically extract items and prices using AI
 - **🧮 Smart Splitting** - Assign specific items to specific people with proportional or equal tax/tip distribution
 - **📊 Clear Breakdowns** - See exactly what each person owes with detailed item breakdowns
 - **📤 Easy Sharing** - Share split summaries with your friends
-- **🌐 Web & Mobile** - Works on Android, and Web browsers
+- **🔔 Push Notifications** - Get notified when you owe money or when expenses are added
+- **🌐 Web & Mobile** - Works on Android and Web browsers
 
 ## 🚀 Quick Start
 
@@ -117,8 +127,9 @@ splitBill/
 | **Frontend** | React Native + Expo |
 | **Styling** | expo-linear-gradient |
 | **Backend** | Node.js + Express |
-| **AI/OCR** | Qwen 2.5 VL (Vision-Language Model) |
+| **AI/OCR** | Nvidia Nemotron, Qwen VL, Google Gemma (with fallback) |
 | **Database** | MongoDB |
+| **Notifications** | Expo Push Notifications + FCM |
 | **Hosting** | Vercel (Frontend) + Render (Backend) |
 
 
