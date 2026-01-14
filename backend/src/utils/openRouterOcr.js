@@ -11,11 +11,11 @@ const sharp = require('sharp');
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Free vision models - Nvidia → Google → Qwen
+// Free vision models - Qwen → Nvidia → Google
 const FREE_VISION_MODELS = [
-  'nvidia/nemotron-nano-12b-v2-vl:free',     // Primary - Nvidia
-  'google/gemma-3-27b-it:free',              // Fallback 1 - Google
-  'qwen/qwen-2.5-vl-7b-instruct:free',       // Fallback 2 - Qwen
+  'qwen/qwen-2.5-vl-7b-instruct:free',       // Primary - Qwen
+  'nvidia/nemotron-nano-12b-v2-vl:free',     // Fallback 1 - Nvidia
+  'google/gemma-3-27b-it:free',              // Fallback 2 - Google
 ];
 
 // Image optimization settings - aggressive for speed
