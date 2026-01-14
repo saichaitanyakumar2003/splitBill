@@ -11,16 +11,17 @@ const sharp = require('sharp');
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Free vision models on OpenRouter
+// Free vision models - Nvidia → Google → Qwen
 const FREE_VISION_MODELS = [
-  'nvidia/nemotron-nano-12b-v2-vl:free',     // Primary - Nvidia vision model
-  'qwen/qwen-2.5-vl-7b-instruct:free',       // Fallback 1 - Qwen vision
-  'google/gemma-3-27b-it:free',              // Fallback 2 - Google Gemma
+  'nvidia/nemotron-nano-12b-v2-vl:free',     // Primary - Nvidia
+  'google/gemma-3-27b-it:free',              // Fallback 1 - Google
+  'qwen/qwen-2.5-vl-7b-instruct:free',       // Fallback 2 - Qwen
 ];
 
-// Image optimization settings
-const MAX_IMAGE_DIMENSION = 1200; // Max width or height
-const JPEG_QUALITY = 80; // Compression quality (0-100)
+// Image optimization settings - aggressive for speed
+const MAX_IMAGE_DIMENSION = 640; // Smaller for faster upload
+const JPEG_QUALITY = 50; // More compression
+const MODEL_TIMEOUT_MS = 25000; // 25 second timeout per model
 
 /**
  * Compress and optimize image for faster API processing
@@ -157,10 +158,15 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
 
   let lastError = null;
 
-  // Try each free model
+  // Try each free model with timeout
   for (const model of FREE_VISION_MODELS) {
     try {
-      console.log(`Trying OpenRouter model: ${model}`);
+      console.log(`⏱️ Trying ${model}...`);
+      const startTime = Date.now();
+      
+      // Create timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
       
       const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
@@ -186,18 +192,19 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
               ]
             }
           ],
-          max_tokens: 4096,
+          max_tokens: 1500,
           temperature: 0.1
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error(`${model} failed:`);
-        console.error(`  Status: ${response.status}`);
-        console.error(`  Full error:`, JSON.stringify(errorData, null, 2));
-        lastError = new Error(errorData.error?.message || 'API error');
-        continue;
+        console.error(`${model} failed: ${response.status}`);
+        lastError = new Error(errorData.error?.message || `API error: ${response.status}`);
+        continue; // Try next model
       }
 
       const data = await response.json();
@@ -205,10 +212,12 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
 
       if (!textResponse) {
         console.error(`${model}: No response content`);
-        continue;
+        lastError = new Error('No response content');
+        continue; // Try next model
       }
 
-      console.log(`✅ Success with ${model}`);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`✅ Success with ${model} in ${elapsed}s`);
       
       // Parse JSON response
       let jsonStr = textResponse.trim();
@@ -227,13 +236,17 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
       return transformResponse(billData, model);
 
     } catch (err) {
-      console.error(`${model} error:`, err.message);
+      if (err.name === 'AbortError') {
+        console.error(`⏱️ ${model} timed out after ${MODEL_TIMEOUT_MS/1000}s`);
+      } else {
+        console.error(`${model} error:`, err.message);
+      }
       lastError = err;
-      continue;
+      continue; // Try next model on any error
     }
   }
 
-  throw lastError || new Error('All OpenRouter models failed');
+  throw lastError || new Error('All models failed');
 }
 
 /**
