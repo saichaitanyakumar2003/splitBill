@@ -21,7 +21,7 @@ const FREE_VISION_MODELS = [
 // Image optimization settings - aggressive for speed
 const MAX_IMAGE_DIMENSION = 640; // Smaller for faster upload
 const JPEG_QUALITY = 50; // More compression
-const MODEL_TIMEOUT_MS = 30000; // 30 second timeout for all parallel calls
+const MODEL_TIMEOUT_MS = 60000; // 60 second timeout for all parallel calls
 
 /**
  * Compress and optimize image for faster API processing
