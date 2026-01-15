@@ -21,7 +21,7 @@ const FREE_VISION_MODELS = [
 // Image optimization settings - aggressive for speed
 const MAX_IMAGE_DIMENSION = 640; // Smaller for faster upload
 const JPEG_QUALITY = 50; // More compression
-const MODEL_TIMEOUT_MS = 15000; // 15 second timeout per model
+const MODEL_TIMEOUT_MS = 30000; // 30 second timeout for all parallel calls
 
 /**
  * Compress and optimize image for faster API processing
@@ -156,99 +156,107 @@ For ALL other bill types (grocery, pharmacy, electronics, fuel, other):
 
 Extract ACTUAL values from the bill. All prices should be numbers.`;
 
-  let lastError = null;
+  const startTime = Date.now();
+  console.log(`🚀 Calling all ${FREE_VISION_MODELS.length} models in parallel...`);
 
-  // Try each free model with timeout
-  for (const model of FREE_VISION_MODELS) {
-    try {
-      console.log(`⏱️ Trying ${model}...`);
-      const startTime = Date.now();
-      
-      // Wrap entire API call in timeout
-      const apiCall = async () => {
-        const response = await fetch(OPENROUTER_URL, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://splitbill.app',
-            'X-Title': 'SplitBill OCR'
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  { type: 'text', text: prompt },
-                  { 
-                    type: 'image_url', 
-                    image_url: { 
-                      url: `data:${mimeType};base64,${base64Image}` 
-                    } 
-                  }
-                ]
+  // Create API call function for a single model
+  const callModel = async (model) => {
+    const modelStart = Date.now();
+    
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://splitbill.app',
+        'X-Title': 'SplitBill OCR'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { 
+                type: 'image_url', 
+                image_url: { 
+                  url: `data:${mimeType};base64,${base64Image}` 
+                } 
               }
-            ],
-            max_tokens: 1500,
-            temperature: 0.1
-          })
-        });
+            ]
+          }
+        ],
+        max_tokens: 1500,
+        temperature: 0.1
+      })
+    });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || `API error: ${response.status}`);
-        }
-
-        return response.json();
-      };
-      
-      // Create timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('TIMEOUT')), MODEL_TIMEOUT_MS);
-      });
-      
-      // Race between API call and timeout
-      const data = await Promise.race([apiCall(), timeoutPromise]);
-      const textResponse = data.choices?.[0]?.message?.content;
-
-      if (!textResponse) {
-        console.error(`${model}: No response content`);
-        lastError = new Error('No response content');
-        continue; // Try next model
-      }
-
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`✅ Success with ${model} in ${elapsed}s`);
-      
-      // Parse JSON response
-      let jsonStr = textResponse.trim();
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-
-      const billData = JSON.parse(jsonStr);
-      console.log('📋 OCR Raw Response:', JSON.stringify({
-        subtotal: billData.subtotal,
-        total: billData.total,
-        itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
-      }, null, 2));
-      return transformResponse(billData, model);
-
-    } catch (err) {
-      if (err.message === 'TIMEOUT') {
-        console.error(`⏱️ ${model} timed out after ${MODEL_TIMEOUT_MS/1000}s`);
-      } else {
-        console.error(`${model} error:`, err.message);
-      }
-      lastError = err;
-      continue; // Try next model on any error
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`${model}: ${errorData.error?.message || response.status}`);
     }
-  }
 
-  throw lastError || new Error('All models failed');
+    const data = await response.json();
+    const textResponse = data.choices?.[0]?.message?.content;
+
+    if (!textResponse) {
+      throw new Error(`${model}: No response content`);
+    }
+
+    const elapsed = ((Date.now() - modelStart) / 1000).toFixed(1);
+    console.log(`✅ ${model} responded in ${elapsed}s`);
+
+    // Parse JSON response
+    let jsonStr = textResponse.trim();
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const billData = JSON.parse(jsonStr);
+    return { billData, model };
+  };
+
+  // Create timeout promise
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('All models timed out')), MODEL_TIMEOUT_MS);
+  });
+
+  try {
+    // Race all models in parallel - first success wins
+    const modelPromises = FREE_VISION_MODELS.map(model => 
+      callModel(model).catch(err => {
+        console.error(`❌ ${err.message}`);
+        throw err;
+      })
+    );
+
+    // Promise.any returns first fulfilled promise, rejects only if ALL reject
+    const result = await Promise.race([
+      Promise.any(modelPromises),
+      timeoutPromise
+    ]);
+
+    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`🏆 Winner: ${result.model} (total: ${totalElapsed}s)`);
+    
+    console.log('📋 OCR Raw Response:', JSON.stringify({
+      subtotal: result.billData.subtotal,
+      total: result.billData.total,
+      itemPrices: result.billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
+    }, null, 2));
+
+    return transformResponse(result.billData, result.model);
+
+  } catch (err) {
+    if (err instanceof AggregateError) {
+      console.error('❌ All models failed:', err.errors.map(e => e.message));
+      throw new Error('All AI models failed to process the image');
+    }
+    throw err;
+  }
 }
 
 /**
