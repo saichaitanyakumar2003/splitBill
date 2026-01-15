@@ -21,7 +21,7 @@ const FREE_VISION_MODELS = [
 // Image optimization settings - aggressive for speed
 const MAX_IMAGE_DIMENSION = 640; // Smaller for faster upload
 const JPEG_QUALITY = 50; // More compression
-const MODEL_TIMEOUT_MS = 25000; // 25 second timeout per model
+const MODEL_TIMEOUT_MS = 15000; // 15 second timeout per model
 
 /**
  * Compress and optimize image for faster API processing
@@ -164,50 +164,52 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
       console.log(`⏱️ Trying ${model}...`);
       const startTime = Date.now();
       
-      // Create timeout controller
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+      // Wrap entire API call in timeout
+      const apiCall = async () => {
+        const response = await fetch(OPENROUTER_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://splitbill.app',
+            'X-Title': 'SplitBill OCR'
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: prompt },
+                  { 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: `data:${mimeType};base64,${base64Image}` 
+                    } 
+                  }
+                ]
+              }
+            ],
+            max_tokens: 1500,
+            temperature: 0.1
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || `API error: ${response.status}`);
+        }
+
+        return response.json();
+      };
       
-      const response = await fetch(OPENROUTER_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://splitbill.app',
-          'X-Title': 'SplitBill OCR'
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: prompt },
-                { 
-                  type: 'image_url', 
-                  image_url: { 
-                    url: `data:${mimeType};base64,${base64Image}` 
-                  } 
-                }
-              ]
-            }
-          ],
-          max_tokens: 1500,
-          temperature: 0.1
-        }),
-        signal: controller.signal
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('TIMEOUT')), MODEL_TIMEOUT_MS);
       });
       
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`${model} failed: ${response.status}`);
-        lastError = new Error(errorData.error?.message || `API error: ${response.status}`);
-        continue; // Try next model
-      }
-
-      const data = await response.json();
+      // Race between API call and timeout
+      const data = await Promise.race([apiCall(), timeoutPromise]);
       const textResponse = data.choices?.[0]?.message?.content;
 
       if (!textResponse) {
@@ -236,7 +238,7 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
       return transformResponse(billData, model);
 
     } catch (err) {
-      if (err.name === 'AbortError') {
+      if (err.message === 'TIMEOUT') {
         console.error(`⏱️ ${model} timed out after ${MODEL_TIMEOUT_MS/1000}s`);
       } else {
         console.error(`${model} error:`, err.message);
