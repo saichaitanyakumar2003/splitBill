@@ -11,17 +11,13 @@ const sharp = require('sharp');
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Free vision models - Nvidia → Qwen → Google
-const FREE_VISION_MODELS = [
-  'nvidia/nemotron-nano-12b-v2-vl:free',     // Primary - Nvidia
-  'qwen/qwen-2.5-vl-7b-instruct:free',       // Fallback 1 - Qwen
-  'google/gemma-3-27b-it:free',              // Fallback 2 - Google
-];
+// Single model - Qwen
+const MODEL = 'qwen/qwen-2.5-vl-7b-instruct:free';
 
-// Image optimization settings - aggressive for speed
-const MAX_IMAGE_DIMENSION = 640; // Smaller for faster upload
-const JPEG_QUALITY = 50; // More compression
-const MODEL_TIMEOUT_MS = 60000; // 60 second timeout per model
+// Image optimization settings
+const MAX_IMAGE_DIMENSION = 640;
+const JPEG_QUALITY = 50;
+const MODEL_TIMEOUT_MS = 120000; // 120 second timeout
 
 /**
  * Compress and optimize image for faster API processing
@@ -58,24 +54,115 @@ async function extractBillWithOpenRouter(imagePath) {
   const base64Image = optimizedBuffer.toString('base64');
   const mimeType = 'image/jpeg'; // Always JPEG after optimization
 
-  // Simplified prompt - just extract raw data, backend handles categorization
-  const prompt = `Extract bill data as JSON. Return ONLY valid JSON (no markdown): {"merchantName":"shop name or null","date":"DD/MM/YYYY or null","items":[{"name":"item name","qty":1,"rate":100,"amt":100}],"subtotal":500,"taxes":[{"name":"CGST","amount":25}],"total":550}. Rules: 1) Skip text-only lines without qty/price. 2) Only include taxes if printed on bill. 3) Read actual qty from Qty column.`;
+  // Detailed prompt for bill extraction
+  const prompt = `Analyze this bill/receipt image and extract the information in JSON format.
+
+First, determine the bill type:
+- "restaurant": If it's a food/restaurant bill (has food items like biryani, pizza, burger, dal, etc.)
+- "grocery": If it's a grocery/supermarket bill
+- "pharmacy": If it's a medical/pharmacy bill
+- "electronics": If it's an electronics store bill
+- "fuel": If it's a petrol/fuel bill
+- "other": For any other type of bill
+
+Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
+{
+  "billType": "restaurant" or "grocery" or "pharmacy" or "electronics" or "fuel" or "other",
+  "merchantName": "Name of shop/restaurant or null",
+  "date": "Date in DD/MM/YYYY format or null",
+  "items": [
+    {
+      "name": "Item name (clean, no quantity suffix)",
+      "quantity": 1,
+      "unitPrice": 240,
+      "totalPrice": 240,
+      "category": "see category rules below"
+    }
+  ],
+  "subtotal": 760,
+  "taxes": [],
+  "total": 760,
+  "totalQty": 6,
+  "currency": "INR"
+}
+
+CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
+1. SKIP CONTINUATION LINES - VERY IMPORTANT:
+   - On thermal receipts, long item names wrap to the next line
+   - If a line has ONLY text with NO quantity and NO price values, SKIP IT completely
+   - DO NOT create an item for such lines - they are just continuations of previous item names
+   - Only include items that have actual Qty and Price values in the row
+   
+   EXAMPLE:
+   Line 1: "Chicken Fry      1   270.00   270.00" → Include this (has qty=1, price=270)
+   Line 2: "Biryani"  → SKIP this completely (no qty, no price - it's just text overflow)
+   
+   - Numbers in item names (like "Chicken Lollipop 6") are part of the name, NOT the quantity
+   - Always look at the Qty column to get actual quantity
+
+2. ITEM PRICES: Look for "Price" or "Rate" column, NOT "Amount" or "Amt" column
+   - "Price/Rate" = base price before tax (USE THIS for unitPrice and totalPrice)
+   - "Amount/Amt" = price after per-item tax (IGNORE THIS COLUMN)
+   - Example: If row shows "Price: 100" and "Amt: 112", use unitPrice=100, totalPrice=100
+
+3. SUBTOTAL: This is the SUM OF BASE PRICES (Price column) of all items
+   - Subtotal = sum of all item's "Price" values (NOT "Amt" values)
+   - Example: Items with prices 400, 100, 100, 150, 50, 100 → subtotal = 900
+   - If bill shows "Subtotal: 900", use 900 (the base price sum)
+
+4. TAXES - VERY IMPORTANT:
+   - ONLY include taxes if they are EXPLICITLY printed on the bill (look for CGST, SGST, GST, IGST, Service Tax lines with amounts)
+   - If the bill shows NO tax lines, return "taxes": [] (empty array)
+   - If Grand Total equals Subtotal, there are NO taxes - return "taxes": []
+   - DO NOT calculate or assume taxes - only extract what is printed
+   - Example WITH taxes: Bill shows "CGST: 27.35, SGST: 27.35" → include them
+   - Example WITHOUT taxes: Bill shows only "Subtotal: 1094, Grand Total: 1094" → "taxes": []
+
+5. TOTAL: The final amount (Grand Total) shown on the bill
+   - If no taxes exist, total = subtotal
+
+6. TOTAL QTY: If the bill shows "Total Qty: X", extract that number as totalQty
+   - This helps validate the correct number of items were extracted
+
+7. QUANTITY EXTRACTION - VERY IMPORTANT:
+   - Read the ACTUAL quantity from the "QTY", "Qty", "Quantity", or "No." column on the bill
+   - DO NOT assume quantity = 1 for all items
+   - The first number in each row is usually the quantity
+   - Example row: "2  South Indian Thali  419.00  838.00" → quantity=2, unitPrice=419, totalPrice=838
+   - Example row: "3  Water Btl Dinein    5.50   16.50" → quantity=3, unitPrice=5.50, totalPrice=16.50
+   - unitPrice = price per single item, totalPrice = unitPrice × quantity
+
+CATEGORY RULES based on billType:
+
+For "restaurant" bills:
+- "veg": ANY item containing PANEER is ALWAYS VEG (Paneer Tikka, Paneer Biryani, Shahi Paneer, Paneer Butter Masala, Kadai Paneer, Paneer Tikka Biryani, Paneer 65, Paneer Manchurian)
+  Also veg: Dal, Rice, Naan, Roti, Vegetables, Salads, Pulao, Sambar, Rasam, Idli, Dosa (plain/masala), Uttapam, Veg Biryani, Gobi, Aloo, Chole, Rajma, Thali (if not specified as non-veg), North Indian Thali, South Indian Thali
+- "nonveg": ONLY items containing actual meat keywords:
+  * CHICKEN: Chicken Biryani, Chicken Fry, Chicken 65, Chicken Lollypop, Chicken Tikka, Butter Chicken, Tandoori Chicken, Chicken Curry, Chicken Manchurian, Chilli Chicken
+  * MUTTON: Mutton Biryani, Mutton Curry, Mutton Fry, Mutton Keema, Rogan Josh, Mutton Korma
+  * FISH: Fish Fry, Fish Curry, Apollo Fish, Fish Biryani, Pomfret, Surmai, Fish Tikka
+  * PRAWNS/SHRIMP: Prawn Fry, Prawn Curry, Prawn Biryani, Chilli Prawns, Tandoori Prawns
+  * EGG: Egg Curry, Egg Biryani, Omelette, Egg Fried Rice, Egg Bhurji
+  * OTHER MEAT: Kebab (without Paneer), Seekh Kebab, Keema, Gosht, Lamb, Beef, Pork, Crab, Lobster, Squid
+  NOTE: "Tikka" alone does NOT mean non-veg. "Paneer Tikka" is VEG. Only "Chicken Tikka", "Fish Tikka" etc. are non-veg.
+- "beverage": Juice, Soft drinks, Tea, Coffee, Lassi, Buttermilk, Milkshake, Mocktail, Soda, Lime Water
+- "other": Water, Water Bottle, Mineral Water, Papad, Pickle, anything that doesn't fit above
+
+For ALL other bill types (grocery, pharmacy, electronics, fuel, other):
+- Use "other" for ALL items (we display them as single "Items" category)
+
+Extract ACTUAL values from the bill. All prices should be numbers.`;
 
   const startTime = Date.now();
-  console.log(`🚀 Calling models sequentially: qwen → nvidia → google (${MODEL_TIMEOUT_MS/1000}s timeout each)`);
+  console.log(`🚀 Calling ${MODEL} with ${MODEL_TIMEOUT_MS/1000}s timeout`);
 
-  // Create API call function for a single model with timeout
-  const callModelWithTimeout = async (model) => {
-    const modelStart = Date.now();
-    console.log(`📡 Trying ${model}...`);
-    
-    // Create timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`TIMEOUT`)), MODEL_TIMEOUT_MS);
-    });
-    
-    // Create API call promise
-    const apiPromise = (async () => {
+  // Create timeout promise
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(`TIMEOUT after ${MODEL_TIMEOUT_MS/1000}s`)), MODEL_TIMEOUT_MS);
+  });
+  
+  // Create API call promise
+  const apiPromise = (async () => {
       const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
@@ -85,7 +172,7 @@ async function extractBillWithOpenRouter(imagePath) {
           'X-Title': 'SplitBill OCR'
         },
         body: JSON.stringify({
-          model: model,
+        model: MODEL,
           messages: [
             {
               role: 'user',
@@ -100,23 +187,23 @@ async function extractBillWithOpenRouter(imagePath) {
               ]
             }
           ],
-          max_tokens: 1000,
+          max_tokens: 2048,
           temperature: 0.1
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
       const textResponse = data.choices?.[0]?.message?.content;
 
       if (!textResponse) {
-        throw new Error('No response content');
+      throw new Error('No response content');
       }
-
+      
       // Parse JSON response
       let jsonStr = textResponse.trim();
       if (jsonStr.startsWith('```json')) {
@@ -125,47 +212,29 @@ async function extractBillWithOpenRouter(imagePath) {
         jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
 
-      const billData = JSON.parse(jsonStr);
-      return billData;
-    })();
+    return JSON.parse(jsonStr);
+  })();
 
+  try {
     // Race API call against timeout
     const billData = await Promise.race([apiPromise, timeoutPromise]);
     
-    const elapsed = ((Date.now() - modelStart) / 1000).toFixed(1);
-    console.log(`✅ ${model} responded in ${elapsed}s`);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`✅ ${MODEL} responded in ${elapsed}s`);
     
-    return { billData, model };
-  };
-
-  // Try models sequentially
-  let lastError = null;
-  
-  for (const model of FREE_VISION_MODELS) {
-    try {
-      const result = await callModelWithTimeout(model);
-      
-      const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`🏆 Success with ${model} (total: ${totalElapsed}s)`);
-      
       console.log('📋 OCR Raw Response:', JSON.stringify({
-        subtotal: result.billData.subtotal,
-        total: result.billData.total,
-        itemPrices: result.billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
+        subtotal: billData.subtotal,
+        total: billData.total,
+      itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
       }, null, 2));
 
-      return transformResponse(result.billData, result.model);
-      
-    } catch (err) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.error(`❌ ${model} failed (${elapsed}s): ${err.message}`);
-      lastError = err;
-      // Continue to next model
-    }
-  }
+    return transformResponse(billData, MODEL);
 
-  // All models failed
-  throw new Error(`All AI models failed. Last error: ${lastError?.message || 'Unknown error'}`);
+    } catch (err) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.error(`❌ ${MODEL} failed (${elapsed}s): ${err.message}`);
+    throw new Error(`OCR failed: ${err.message}`);
+  }
 }
 
 /**
@@ -396,6 +465,26 @@ function processItems(rawItems) {
 }
 
 /**
+ * Fix and normalize tax names
+ * Common OCR mistakes: CST → CGST, SST → SGST, etc.
+ */
+function normalizeTaxName(name) {
+  if (!name) return name;
+  const upper = name.toUpperCase().trim();
+  
+  // Fix common OCR misreads
+  if (upper === 'CST' || upper === 'C.G.S.T' || upper === 'C GST') return 'CGST';
+  if (upper === 'SST' || upper === 'S.G.S.T' || upper === 'S GST') return 'SGST';
+  if (upper === 'IST' || upper === 'I.G.S.T' || upper === 'I GST') return 'IGST';
+  if (upper.includes('CGST')) return 'CGST';
+  if (upper.includes('SGST')) return 'SGST';
+  if (upper.includes('IGST')) return 'IGST';
+  if (upper.includes('SERVICE')) return 'Service Tax';
+  
+  return name;
+}
+
+/**
  * Deduplicate taxes with the same name
  * Merges duplicate tax entries by keeping unique entries
  */
@@ -405,16 +494,66 @@ function deduplicateTaxes(taxes) {
   const seen = new Map();
   
   for (const tax of taxes) {
-    const key = tax.name?.toLowerCase() || `tax_${tax.amount}`;
+    // Normalize tax name first
+    const normalizedName = normalizeTaxName(tax.name);
+    const key = normalizedName?.toLowerCase() || `tax_${tax.amount}`;
     
     if (!seen.has(key)) {
-      seen.set(key, tax);
+      seen.set(key, { ...tax, name: normalizedName });
     } else {
       console.log(`🔄 Removing duplicate tax: ${tax.name} ₹${tax.amount}`);
     }
   }
   
   return Array.from(seen.values());
+}
+
+/**
+ * Infer missing CGST/SGST if only one is present
+ * In India, CGST and SGST are always equal (both 2.5% or both 9%)
+ */
+function inferMissingTaxes(taxes, subtotal, total) {
+  if (!taxes || taxes.length === 0) return taxes;
+  
+  const expectedTotalTax = total - subtotal;
+  const extractedTotalTax = taxes.reduce((sum, t) => sum + (t.amount || 0), 0);
+  
+  // If extracted taxes match expected, no inference needed
+  if (Math.abs(extractedTotalTax - expectedTotalTax) < 1) {
+    return taxes;
+  }
+  
+  const hasCGST = taxes.some(t => t.name?.toUpperCase() === 'CGST');
+  const hasSGST = taxes.some(t => t.name?.toUpperCase() === 'SGST');
+  const hasIGST = taxes.some(t => t.name?.toUpperCase() === 'IGST');
+  
+  // If we have IGST, don't add CGST/SGST (interstate vs intrastate)
+  if (hasIGST) return taxes;
+  
+  // If we have only CGST, infer SGST (they're always equal)
+  if (hasCGST && !hasSGST) {
+    const cgst = taxes.find(t => t.name?.toUpperCase() === 'CGST');
+    const inferredSGST = expectedTotalTax - extractedTotalTax;
+    
+    // Only add if inferred amount is close to CGST (they should be equal)
+    if (cgst && Math.abs(inferredSGST - cgst.amount) < 1) {
+      console.log(`📊 Inferring missing SGST: ₹${inferredSGST.toFixed(2)} (same as CGST)`);
+      return [...taxes, { name: 'SGST', amount: roundToTwo(inferredSGST) }];
+    }
+  }
+  
+  // If we have only SGST, infer CGST
+  if (hasSGST && !hasCGST) {
+    const sgst = taxes.find(t => t.name?.toUpperCase() === 'SGST');
+    const inferredCGST = expectedTotalTax - extractedTotalTax;
+    
+    if (sgst && Math.abs(inferredCGST - sgst.amount) < 1) {
+      console.log(`📊 Inferring missing CGST: ₹${inferredCGST.toFixed(2)} (same as SGST)`);
+      return [{ name: 'CGST', amount: roundToTwo(inferredCGST) }, ...taxes];
+    }
+  }
+  
+  return taxes;
 }
 
 /**
@@ -453,9 +592,11 @@ function transformResponse(data, modelUsed) {
   const otherItems = isRestaurant ? items.filter(i => i.category === '📦 Others') : items;
 
   const subtotal = data.subtotal || items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+  const total = data.total || subtotal;
   
-  // Deduplicate taxes
+  // Deduplicate and normalize taxes, then infer missing CGST/SGST
   const dedupedTaxes = deduplicateTaxes(data.taxes || []);
+  const finalTaxes = inferMissingTaxes(dedupedTaxes, subtotal, total);
 
   return {
     merchantName: data.merchantName || data.restaurantName,
@@ -468,8 +609,8 @@ function transformResponse(data, modelUsed) {
       '📦 Others': otherItems
     },
     subtotal: roundToTwo(subtotal),
-    taxes: dedupedTaxes,
-    total: data.total ? roundToTwo(data.total) : roundToTwo(subtotal),
+    taxes: finalTaxes,
+    total: roundToTwo(total),
     currency: data.currency || 'INR',
     billType: billType,
     ocrEngine: 'openrouter',
