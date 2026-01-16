@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-  Alert,
   BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,137 +13,58 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Helper function to detect non-veg items by name
-const isNonVegByName = (name) => {
-  const nameLower = name.toLowerCase();
-  
-  // Items with these words are ALWAYS vegetarian
-  const vegKeywords = ['paneer', 'gobi', 'aloo', 'dal', 'chole', 'rajma', 'palak', 'mushroom', 'corn', 'tofu', 'soya'];
-  if (vegKeywords.some(keyword => nameLower.includes(keyword))) return false;
-  
-  // Explicitly marked as veg
-  const isExplicitlyVeg = nameLower.includes('veg ') || nameLower.startsWith('veg');
-  if (isExplicitlyVeg) return false;
-  
-  // Non-veg keywords - only MEAT items, not ambiguous words like biryani/tikka/fry
-  const nonVegKeywords = [
-    'chicken', 'mutton', 'fish', 'egg', 'prawn', 'meat', 'keema', 'gosht', 
-    'lamb', 'beef', 'pork', 'crab', 'lobster', 'shrimp', 'squid', 'apollo', 
-    'lollypop', 'lollipop', 'seekh kebab', 'butter chicken', 'tandoori chicken'
-  ];
-  
-  return nonVegKeywords.some(keyword => nameLower.includes(keyword));
-};
-
-// Transform bill data from API to display format
+// Transform bill data from API to display format (backend handles categorization)
 const transformBillData = (bill) => {
   if (!bill) return null;
   
   const categorizedItems = bill.categorizedItems || {};
   const isFoodBill = bill.billType === 'restaurant';
   
-  // Separate items by category
-  const vegItems = [];
-  const nonVegItems = [];
-  const beverageItems = [];
-  const generalItems = [];
+  // Extract items from backend's categorized response
+  const vegItems = (categorizedItems['🥬 Veg'] || []).map(item => ({
+    name: item.name,
+    quantity: item.quantity || 1,
+    price: item.totalPrice || item.price || 0,
+  }));
+  
+  const nonVegItems = (categorizedItems['🍖 Non-Veg'] || []).map(item => ({
+    name: item.name,
+    quantity: item.quantity || 1,
+    price: item.totalPrice || item.price || 0,
+  }));
+  
+  const beverageItems = (categorizedItems['🥤 Beverages'] || []).map(item => ({
+    name: item.name,
+    quantity: item.quantity || 1,
+    price: item.totalPrice || item.price || 0,
+  }));
+  
+  const otherItems = (categorizedItems['📦 Others'] || []).map(item => ({
+    name: item.name,
+    quantity: item.quantity || 1,
+    price: item.totalPrice || item.price || 0,
+  }));
 
-  // Process categorized items from API response
-  for (const [category, items] of Object.entries(categorizedItems)) {
-    if (!items || items.length === 0) continue;
-    
-    for (const item of items) {
-      const processedItem = {
-        name: item.name,
-        quantity: item.quantity || 1,
-        price: item.totalPrice || item.price || 0,
-      };
-      
-      // For non-food bills, put everything in general items
-      if (!isFoodBill) {
-        generalItems.push(processedItem);
-        continue;
-      }
-      
-      // For food bills, categorize items
-      const itemNameLower = item.name.toLowerCase();
-      const isWater = itemNameLower.includes('water') || itemNameLower.includes('mineral');
-      
-      if (isWater) {
-        generalItems.push(processedItem);
-      } else if (isNonVegByName(item.name)) {
-        // Fallback: detect non-veg by item name (handles miscategorized items)
-        nonVegItems.push(processedItem);
-      } else if (category.includes('Veg') && !category.includes('Non')) {
-        vegItems.push(processedItem);
-      } else if (category.includes('Non-Veg') || category.includes('🍖')) {
-        nonVegItems.push(processedItem);
-      } else if (category.includes('Beverage') || category.includes('🥤')) {
-        beverageItems.push(processedItem);
-      } else {
-        generalItems.push(processedItem);
-      }
-    }
-  }
+  // Combine beverages and others for display
+  const generalItems = [...beverageItems, ...otherItems];
 
-  // If no categorized items, process from items array directly
-  if (vegItems.length === 0 && nonVegItems.length === 0 && generalItems.length === 0 && bill.items) {
-    for (const item of bill.items) {
-      const processedItem = {
-        name: item.name,
-        quantity: item.quantity || 1,
-        price: item.totalPrice || item.price || 0,
-      };
-      
-      // For non-food bills, put everything in general items
-      if (!isFoodBill) {
-        generalItems.push(processedItem);
-        continue;
-      }
-      
-      // For food bills, categorize items - check name first, then category
-      if (isNonVegByName(item.name)) {
-        nonVegItems.push(processedItem);
-      } else {
-        const cat = item.category?.toLowerCase() || '';
-        if (cat.includes('veg') && !cat.includes('non')) {
-          vegItems.push(processedItem);
-        } else if (cat.includes('non') || cat.includes('🍖')) {
-          nonVegItems.push(processedItem);
-        } else if (cat.includes('beverage') || cat.includes('🥤')) {
-          beverageItems.push(processedItem);
-        } else {
-          generalItems.push(processedItem);
-        }
-      }
-    }
-  }
-
-  // Combine beverages with general items for display
-  const allGeneral = [...beverageItems, ...generalItems];
-
-  // Calculate subtotal
-  const allItems = [...vegItems, ...nonVegItems, ...allGeneral];
-  const subtotal = bill.subtotal || allItems.reduce((sum, item) => sum + item.price, 0);
-
-  // Process taxes
+  // Use backend values
+  const subtotal = bill.subtotal || 0;
   const taxes = bill.taxes || [];
-  const totalTaxAmount = taxes.reduce((sum, tax) => sum + (tax.amount || 0), 0);
 
   return {
-    isFoodBill: isFoodBill,
+    isFoodBill,
     billType: bill.billType || 'restaurant',
     items: {
       veg: vegItems,
       nonVeg: nonVegItems,
-      general: allGeneral,
+      general: generalItems,
     },
-    taxes: taxes,
-    subtotal: subtotal,
-    total: bill.total || (subtotal + totalTaxAmount),
+    taxes,
+    subtotal,
+    total: bill.total || subtotal,
     restaurantName: bill.merchantName || (isFoodBill ? 'Restaurant Bill' : 'Bill'),
     date: bill.date || new Date().toLocaleDateString(),
-    ocrEngine: bill.ocrEngine || 'openrouter',
   };
 };
 
