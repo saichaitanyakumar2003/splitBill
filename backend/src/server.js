@@ -10,10 +10,10 @@ const fs = require('fs');
 const { connectDB, getConnectionStatus } = require('./utils/mongodb');
 
 // Import routes
-const ocrRoutes = require('./routes/ocr');
 const billRoutes = require('./routes/bills');
 const groupRoutes = require('./routes/groups');
 const authRoutes = require('./routes/auth');
+const configRoutes = require('./routes/config');
 
 // Import middleware
 const { authenticate } = require('./middleware/auth');
@@ -35,12 +35,19 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Check Gemini configuration on startup
+if (process.env.GEMINI_API_KEY) {
+  console.log('Gemini: ✅ Configured (Gemini 2.5 Flash)');
+} else {
+  console.log('Gemini: ❌ Not configured - Add GEMINI_API_KEY to environment');
+}
+
 // Routes
 // Auth routes - some public (login, register), some protected (handled inside)
 app.use('/api/auth', authRoutes);
 
 // Protected routes - require valid JWT token
-app.use('/api/ocr', authenticate, ocrRoutes);
+app.use('/api/config', configRoutes);  // Auth handled inside route (provides Gemini API key)
 app.use('/api/bills', authenticate, billRoutes);
 app.use('/api/groups', authenticate, groupRoutes);
 
@@ -61,11 +68,20 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       auth: '/api/auth',
-      ocr: '/api/ocr',
+      config: '/api/config',
       bills: '/api/bills',
       groups: '/api/groups',
       health: '/health',
     },
+  });
+});
+
+// 404 handler - Return JSON instead of HTML for API routes
+app.use('/api/*', (req, res) => {
+  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    error: `Endpoint not found: ${req.method} ${req.originalUrl}`,
   });
 });
 

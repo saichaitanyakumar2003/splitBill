@@ -1,10 +1,18 @@
 import ENV from '../config/env';
+import { getAuthToken } from '../utils/apiHelper';
+import { scanBillWithGemini } from '../utils/geminiOCR';
 
 const API_BASE_URL = ENV.API_BASE_URL;
+
+// Cache for OCR config (API key)
+let ocrConfigCache = null;
+let ocrConfigExpiry = 0;
+const OCR_CONFIG_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 class ApiClient {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    const authToken = getAuthToken();
     
     const config = {
       ...options,
@@ -14,44 +22,82 @@ class ApiClient {
       },
     };
 
+    // Add auth token if available
+    if (authToken) {
+      config.headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
     try {
+      console.log(`📡 API Request: ${options.method || 'GET'} ${endpoint}`);
       const response = await fetch(url, config);
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Non-JSON response:', text.substring(0, 100));
+        throw new Error('Server returned non-JSON response. Is the endpoint correct?');
+      }
+      
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
+        throw new Error(data.error || data.message || 'Request failed');
       }
       
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('API Error:', error.message);
       throw error;
     }
   }
 
-  // OCR endpoints
-  async scanBill(imageUri) {
-    const formData = new FormData();
-    formData.append('image', {
-      uri: imageUri,
-      type: 'image/jpeg',
-      name: 'bill.jpg',
-    });
-
-    const response = await fetch(`${API_BASE_URL}/ocr/scan`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to scan bill');
+  // Get OCR config (Gemini API key) from backend
+  async getOcrConfig() {
+    // Return cached config if still valid
+    if (ocrConfigCache && Date.now() < ocrConfigExpiry) {
+      return ocrConfigCache;
     }
 
-    return response.json();
+    try {
+      const response = await this.request('/config/ocr');
+      if (response.success && response.data?.apiKey) {
+        ocrConfigCache = response.data;
+        ocrConfigExpiry = Date.now() + OCR_CONFIG_CACHE_DURATION;
+        return response.data;
+      }
+      throw new Error(response.error || 'Failed to get OCR configuration');
+    } catch (error) {
+      // Check if it's an HTML response (server returned error page)
+      if (error.message?.includes('<!DOCTYPE') || error.message?.includes('Unexpected token')) {
+        console.error('❌ Server returned HTML instead of JSON. Is the backend updated?');
+        throw new Error('OCR service unavailable. Please try again later.');
+      }
+      throw error;
+    }
+  }
+
+  // OCR - Client-side processing with Gemini
+  async scanBill(imageUri) {
+    console.log('📸 scanBill called with image:', imageUri.substring(0, 50) + '...');
+    
+    try {
+      // Step 1: Get API key from backend (cached)
+      const isCached = ocrConfigCache && Date.now() < ocrConfigExpiry;
+      console.log(`🔑 Getting OCR config... ${isCached ? '(from cache)' : '(from server)'}`);
+      const config = await this.getOcrConfig();
+      console.log('✅ Got API key for provider:', config.provider);
+      
+      // Step 2: Process image locally with Gemini
+      console.log('📱 Starting client-side OCR processing...');
+      const result = await scanBillWithGemini(imageUri, config.apiKey);
+      
+      console.log('🎉 Bill scan complete!');
+      return result;
+    } catch (error) {
+      console.error('❌ Scan failed:', error.message);
+      throw new Error(error.message || 'Failed to scan bill');
+    }
   }
 
   // Bills endpoints

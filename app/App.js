@@ -25,6 +25,7 @@ Notifications.getLastNotificationResponseAsync().then(response => {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ENV from './src/config/env';
+import { api } from './src/api/client';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
@@ -834,38 +835,12 @@ function HomeScreen({ navigation, route }) {
       setProcessingError(null);
 
       try {
-        // Process image with OCR API
-        const formData = new FormData();
-        
-        if (Platform.OS === 'web') {
-          const response = await fetch(imageUri);
-          const blob = await response.blob();
-          formData.append('image', blob, 'bill.jpg');
-        } else {
-          formData.append('image', {
-            uri: imageUri,
-            type: 'image/jpeg',
-            name: 'bill.jpg',
-          });
-        }
+        // Process image with client-side OCR (calls Gemini directly)
+        console.log('📸 Processing image with client-side OCR...');
+        const data = await api.scanBill(imageUri);
 
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-        };
-        if (Platform.OS !== 'web') {
-          headers['Content-Type'] = 'multipart/form-data';
-        }
-
-        const apiResponse = await fetch(`${ENV.API_BASE_URL}/ocr/scan`, {
-          method: 'POST',
-          body: formData,
-          headers,
-        });
-
-        const data = await apiResponse.json();
-
-        if (!apiResponse.ok || !data.success) {
-          throw new Error(data.error || data.message || 'Failed to scan bill');
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to scan bill');
         }
 
         // Store bill data in sessionStorage (web) to avoid URL length issues
@@ -928,30 +903,12 @@ function HomeScreen({ navigation, route }) {
       setProcessingError(null);
 
       try {
-        // Process image with OCR API
-        const formData = new FormData();
-        
-        formData.append('image', {
-          uri: imageUri,
-          type: 'image/jpeg',
-          name: 'bill.jpg',
-        });
+        // Process image with client-side OCR (calls Gemini directly)
+        console.log('📷 Processing camera image with client-side OCR...');
+        const data = await api.scanBill(imageUri);
 
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        };
-
-        const apiResponse = await fetch(`${ENV.API_BASE_URL}/ocr/scan`, {
-          method: 'POST',
-          body: formData,
-          headers,
-        });
-
-        const data = await apiResponse.json();
-
-        if (!apiResponse.ok || !data.success) {
-          throw new Error(data.error || data.message || 'Failed to scan bill');
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to scan bill');
         }
 
         // On mobile, pass data through params
