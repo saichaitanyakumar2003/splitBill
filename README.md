@@ -31,23 +31,22 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 ---
 
-## 🤖 Powered by Advanced AI
+## 🤖 Powered by Google Gemini AI
 
-SplitBill uses **multiple Vision-Language AI models** with automatic fallback for reliability:
+SplitBill uses **Google Gemini 2.5 Flash** — one of the most advanced multimodal AI models available:
 
-| Priority | Model | Provider |
-|----------|-------|----------|
-| 1️⃣ Primary | Nemotron Nano 12B VL | Nvidia |
-| 2️⃣ Fallback | Qwen 2.5 VL 7B | Alibaba Cloud |
-| 3️⃣ Fallback | Gemma 3 27B | Google |
+| Model | Provider | Capability |
+|-------|----------|------------|
+| **Gemini 2.5 Flash** | Google AI | Vision + Language Understanding |
 
-These cutting-edge multimodal models excel at understanding and extracting structured data from bill images, providing:
+This cutting-edge multimodal model excels at understanding and extracting structured data from bill images, providing:
 
 - 🎯 **High accuracy** in recognizing item names, prices, and quantities
-- 🧠 **Smart categorization** of food items (Veg, Non-Veg, General)
+- 🧠 **Smart categorization** of food items (Veg, Non-Veg, Beverages, Others)
 - 📊 **Automatic tax & charge detection** (CGST, SGST, Service Charge)
 - 🏪 **Restaurant/merchant name extraction**
-- 🔄 **Auto-fallback** ensures high availability
+- 💡 **Tax-inclusive bill handling** — correctly handles Indian GST bills
+- ⚡ **Fast processing** — results in seconds
 
 ---
 
@@ -127,7 +126,7 @@ splitBill/
 | **Frontend** | React Native + Expo |
 | **Styling** | expo-linear-gradient |
 | **Backend** | Node.js + Express |
-| **AI/OCR** | Nvidia Nemotron, Qwen VL, Google Gemma (with fallback) |
+| **AI/OCR** | Google Gemini 2.5 Flash |
 | **Database** | MongoDB |
 | **Notifications** | Expo Push Notifications + FCM |
 | **Hosting** | Vercel (Frontend) + Render (Backend) |

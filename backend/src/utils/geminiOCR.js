@@ -1,27 +1,111 @@
 /**
- * OpenRouter OCR - Uses FREE vision models
- * Get API key from: https://openrouter.ai/keys
- * FREE models with vision support!
+ * Gemini OCR - Uses Google Generative AI with structured output
+ * Get API key from: https://aistudio.google.com/app/apikey
  */
 
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-// Parallel models - call both simultaneously, use first successful response
-// Qwen first (better at reading taxes), nvidia as backup
-const MODELS = [
-  { id: 'qwen/qwen-2.5-vl-7b-instruct:free', name: 'qwen' },
-  { id: 'nvidia/nemotron-nano-12b-v2-vl:free', name: 'nvidia' }
-];
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Image optimization settings
-const MAX_IMAGE_DIMENSION = 640;
-const JPEG_QUALITY = 50;
-const MODEL_TIMEOUT_MS = 180000; // 180 second timeout per model
+const MAX_IMAGE_DIMENSION = 1024;
+const JPEG_QUALITY = 80;
+const MODEL_TIMEOUT_MS = 60000; // 60 second timeout
+
+// Response schema for structured output
+const billSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    billType: {
+      type: SchemaType.STRING,
+      description: 'Type of bill: restaurant, grocery, pharmacy, electronics, fuel, or other',
+      enum: ['restaurant', 'grocery', 'pharmacy', 'electronics', 'fuel', 'other']
+    },
+    merchantName: {
+      type: SchemaType.STRING,
+      description: 'Name of the shop/restaurant',
+      nullable: true
+    },
+    date: {
+      type: SchemaType.STRING,
+      description: 'Date in DD/MM/YYYY format',
+      nullable: true
+    },
+    items: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          name: {
+            type: SchemaType.STRING,
+            description: 'Item name (clean, no quantity suffix)'
+          },
+          quantity: {
+            type: SchemaType.NUMBER,
+            description: 'Quantity of items'
+          },
+          unitPrice: {
+            type: SchemaType.NUMBER,
+            description: 'Price per unit (from Price/Rate column, NOT Amount column)'
+          },
+          totalPrice: {
+            type: SchemaType.NUMBER,
+            description: 'Total price for this item (unitPrice × quantity)'
+          },
+          category: {
+            type: SchemaType.STRING,
+            description: 'Category: veg, nonveg, beverage, or other',
+            enum: ['veg', 'nonveg', 'beverage', 'other']
+          }
+        },
+        required: ['name', 'quantity', 'unitPrice', 'totalPrice', 'category']
+      }
+    },
+    subtotal: {
+      type: SchemaType.NUMBER,
+      description: 'Sum of all item prices before tax'
+    },
+    taxes: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          name: {
+            type: SchemaType.STRING,
+            description: 'Tax name (CGST, SGST, IGST, Service Tax, etc.)'
+          },
+          rate: {
+            type: SchemaType.NUMBER,
+            description: 'Tax rate percentage',
+            nullable: true
+          },
+          amount: {
+            type: SchemaType.NUMBER,
+            description: 'Tax amount'
+          }
+        },
+        required: ['name', 'amount']
+      }
+    },
+    total: {
+      type: SchemaType.NUMBER,
+      description: 'Final total amount (Grand Total)'
+    },
+    totalQty: {
+      type: SchemaType.NUMBER,
+      description: 'Total quantity of all items',
+      nullable: true
+    },
+    currency: {
+      type: SchemaType.STRING,
+      description: 'Currency code (INR, USD, etc.)'
+    }
+  },
+  required: ['billType', 'items', 'subtotal', 'total', 'currency']
+};
 
 /**
  * Compress and optimize image for faster API processing
@@ -46,20 +130,52 @@ async function optimizeImage(imagePath) {
 }
 
 /**
- * Extract bill data from image using OpenRouter free vision models
+ * Extract bill data from image using Google Gemini with structured output
  */
-async function extractBillWithOpenRouter(imagePath) {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OPENROUTER_API_KEY not configured. Get free key from https://openrouter.ai/keys');
+async function extractBillWithGemini(imagePath) {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY not configured. Get API key from https://aistudio.google.com/app/apikey');
   }
+
+  // Initialize Google Generative AI
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  
+  // Get the Gemini model - using latest stable flash model
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8192
+    }
+  });
 
   // Optimize image for faster processing
   const optimizedBuffer = await optimizeImage(imagePath);
   const base64Image = optimizedBuffer.toString('base64');
-  const mimeType = 'image/jpeg'; // Always JPEG after optimization
 
   // Detailed prompt for bill extraction
   const prompt = `Analyze this bill/receipt image and extract the information in JSON format.
+
+Return ONLY valid JSON (no markdown, no explanation) with this structure:
+{
+  "billType": "restaurant" or "grocery" or "pharmacy" or "electronics" or "fuel" or "other",
+  "merchantName": "Name of shop/restaurant or null",
+  "date": "Date in DD/MM/YYYY format or null",
+  "items": [
+    {
+      "name": "Item name",
+      "quantity": 1,
+      "unitPrice": 100,
+      "totalPrice": 100,
+      "category": "veg" or "nonveg" or "beverage" or "other"
+    }
+  ],
+  "subtotal": 500,
+  "taxes": [{"name": "CGST", "amount": 25}, {"name": "SGST", "amount": 25}],
+  "total": 550,
+  "totalQty": 5,
+  "currency": "INR"
+}
 
 First, determine the bill type:
 - "restaurant": If it's a food/restaurant bill (has food items like biryani, pizza, burger, dal, etc.)
@@ -69,72 +185,44 @@ First, determine the bill type:
 - "fuel": If it's a petrol/fuel bill
 - "other": For any other type of bill
 
-Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
-{
-  "billType": "restaurant" or "grocery" or "pharmacy" or "electronics" or "fuel" or "other",
-  "merchantName": "Name of shop/restaurant or null",
-  "date": "Date in DD/MM/YYYY format or null",
-  "items": [
-    {
-      "name": "Item name (clean, no quantity suffix)",
-      "quantity": 1,
-      "unitPrice": 240,
-      "totalPrice": 240,
-      "category": "see category rules below"
-    }
-  ],
-  "subtotal": 760,
-  "taxes": [],
-  "total": 760,
-  "totalQty": 6,
-  "currency": "INR"
-}
-
 CRITICAL PRICE EXTRACTION RULES (MUST FOLLOW):
-1. SKIP CONTINUATION LINES - VERY IMPORTANT:
+
+1. USE PRICES EXACTLY AS SHOWN ON THE BILL - VERY IMPORTANT:
+   - Extract the EXACT numbers shown in the Rate/Price column
+   - DO NOT calculate or reverse-engineer prices
+   - If bill shows "GOBI CHILLI 1 190 190", use unitPrice=190, totalPrice=190
+   - NEVER divide prices by tax rates or modify them in any way
+
+2. TAX-INCLUSIVE BILLS - VERY IMPORTANT:
+   - If bill says "Prices incl. of taxes", "Tax inclusive", "MRP inclusive of all taxes", etc.
+   - The prices shown ALREADY INCLUDE TAX - use them as-is
+   - Set taxes to EMPTY ARRAY [] (taxes are already in prices, don't double-count)
+   - subtotal = total (they are the same for tax-inclusive bills)
+   - Example: Bill shows "Food Total: 1210" and "Prices incl. of taxes" → subtotal=1210, total=1210, taxes=[]
+
+3. TAX-EXCLUSIVE BILLS (taxes added separately):
+   - If taxes are shown as separate line items ADDED to subtotal
+   - Example: "Subtotal: 1000, CGST: 25, SGST: 25, Total: 1050"
+   - Then include taxes: [{"name": "CGST", "amount": 25}, {"name": "SGST", "amount": 25}]
+
+4. SKIP CONTINUATION LINES:
    - On thermal receipts, long item names wrap to the next line
-   - If a line has ONLY text with NO quantity and NO price values, SKIP IT completely
-   - DO NOT create an item for such lines - they are just continuations of previous item names
-   - Only include items that have actual Qty and Price values in the row
-   
-   EXAMPLE:
-   Line 1: "Chicken Fry      1   270.00   270.00" → Include this (has qty=1, price=270)
-   Line 2: "Biryani"  → SKIP this completely (no qty, no price - it's just text overflow)
-   
-   - Numbers in item names (like "Chicken Lollipop 6") are part of the name, NOT the quantity
-   - Always look at the Qty column to get actual quantity
+   - If a line has ONLY text with NO quantity and NO price values, SKIP IT
+   - Only include items that have actual Qty and Price values
 
-2. ITEM PRICES: Look for "Price" or "Rate" column, NOT "Amount" or "Amt" column
-   - "Price/Rate" = base price before tax (USE THIS for unitPrice and totalPrice)
-   - "Amount/Amt" = price after per-item tax (IGNORE THIS COLUMN)
-   - Example: If row shows "Price: 100" and "Amt: 112", use unitPrice=100, totalPrice=100
+5. QUANTITY EXTRACTION:
+   - Read the ACTUAL quantity from the Qty column
+   - Numbers in item names (like "Chicken 65") are part of the name, NOT the quantity
 
-3. SUBTOTAL: This is the SUM OF BASE PRICES (Price column) of all items
-   - Subtotal = sum of all item's "Price" values (NOT "Amt" values)
-   - Example: Items with prices 400, 100, 100, 150, 50, 100 → subtotal = 900
-   - If bill shows "Subtotal: 900", use 900 (the base price sum)
+6. TOTAL: The final amount (Grand Total/Total Rs) shown on the bill
 
-4. TAXES - VERY IMPORTANT:
-   - ONLY include taxes if they are EXPLICITLY printed on the bill (look for CGST, SGST, GST, IGST, Service Tax lines with amounts)
-   - If the bill shows NO tax lines, return "taxes": [] (empty array)
-   - If Grand Total equals Subtotal, there are NO taxes - return "taxes": []
-   - DO NOT calculate or assume taxes - only extract what is printed
-   - Example WITH taxes: Bill shows "CGST: 27.35, SGST: 27.35" → include them
-   - Example WITHOUT taxes: Bill shows only "Subtotal: 1094, Grand Total: 1094" → "taxes": []
+7. TOTAL QTY: If the bill shows "Total Qty: X" or "7/7", extract that number as totalQty
 
-5. TOTAL: The final amount (Grand Total) shown on the bill
-   - If no taxes exist, total = subtotal
-
-6. TOTAL QTY: If the bill shows "Total Qty: X", extract that number as totalQty
-   - This helps validate the correct number of items were extracted
-
-7. QUANTITY EXTRACTION - VERY IMPORTANT:
-   - Read the ACTUAL quantity from the "QTY", "Qty", "Quantity", or "No." column on the bill
-   - DO NOT assume quantity = 1 for all items
-   - The first number in each row is usually the quantity
-   - Example row: "2  South Indian Thali  419.00  838.00" → quantity=2, unitPrice=419, totalPrice=838
-   - Example row: "3  Water Btl Dinein    5.50   16.50" → quantity=3, unitPrice=5.50, totalPrice=16.50
-   - unitPrice = price per single item, totalPrice = unitPrice × quantity
+8. QUANTITY AND PRICE CALCULATION:
+   - Read quantity from Qty column
+   - unitPrice = price per single item (from Rate column)
+   - totalPrice = unitPrice × quantity
+   - Example: "2  Thali  419  838" → quantity=2, unitPrice=419, totalPrice=838
 
 CATEGORY RULES based on billType:
 
@@ -155,95 +243,44 @@ For "restaurant" bills:
 For ALL other bill types (grocery, pharmacy, electronics, fuel, other):
 - Use "other" for ALL items (we display them as single "Items" category)
 
-Extract ACTUAL values from the bill. All prices should be numbers.`;
+Extract ACTUAL values from the bill. All prices should be numbers.
+IMPORTANT: Return ONLY the JSON object, no markdown code blocks, no explanations.`;
 
   const startTime = Date.now();
-  console.log(`🚀 Calling ${MODELS.length} models in parallel (${MODELS.map(m => m.name).join(', ')}) with ${MODEL_TIMEOUT_MS/1000}s timeout each`);
+  console.log(`🚀 Calling Gemini 2.5 Flash...`);
 
-  // Create API call promise for a specific model with timeout
-  const createModelPromise = (model) => {
-    const modelStartTime = Date.now();
-    
-    // Create timeout promise for this model
+  try {
+    // Create the image part for Gemini
+    const imagePart = {
+      inlineData: {
+        data: base64Image,
+        mimeType: 'image/jpeg'
+      }
+    };
+
+    // Create a promise with timeout
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error(`TIMEOUT after ${MODEL_TIMEOUT_MS/1000}s`)), MODEL_TIMEOUT_MS);
     });
+
+    // Call Gemini API
+    const apiPromise = model.generateContent([prompt, imagePart]);
     
-    // Create API call promise
-    const apiPromise = (async () => {
-      console.log(`  📡 Starting ${model.name}...`);
-      
-      const response = await fetch(OPENROUTER_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://splitbill.app',
-          'X-Title': 'SplitBill OCR'
-        },
-        body: JSON.stringify({
-          model: model.id,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: prompt },
-                { 
-                  type: 'image_url', 
-                  image_url: { 
-                    url: `data:${mimeType};base64,${base64Image}` 
-                  } 
-                }
-              ]
-            }
-          ],
-          max_tokens: 2048,
-          temperature: 0.1
-        })
-      });
+    const result = await Promise.race([apiPromise, timeoutPromise]);
+    const response = await result.response;
+    const text = response.text();
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-      }
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`✅ Gemini responded in ${elapsed}s`);
 
-      const data = await response.json();
-      const textResponse = data.choices?.[0]?.message?.content;
-
-      if (!textResponse) {
-        throw new Error('No response content');
-      }
-      
-      // Parse JSON response
-      let jsonStr = textResponse.trim();
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-
-      const billData = JSON.parse(jsonStr);
-      const elapsed = ((Date.now() - modelStartTime) / 1000).toFixed(1);
-      console.log(`  ✅ ${model.name} succeeded in ${elapsed}s`);
-      
-      return { billData, model };
-    })();
-    
-    // Race API call against timeout
-    return Promise.race([apiPromise, timeoutPromise]).catch(err => {
-      const elapsed = ((Date.now() - modelStartTime) / 1000).toFixed(1);
-      console.log(`  ❌ ${model.name} failed (${elapsed}s): ${err.message}`);
-      throw err;
-    });
-  };
-
-  try {
-    // Call all models in parallel, use first successful response
-    const modelPromises = MODELS.map(model => createModelPromise(model));
-    const { billData, model } = await Promise.any(modelPromises);
-    
-    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`🏆 Winner: ${model.name} (total time: ${totalElapsed}s)`);
+    // Parse the JSON response - clean up markdown if present
+    let jsonStr = text.trim();
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    const billData = JSON.parse(jsonStr);
     
     console.log('📋 OCR Raw Response:', JSON.stringify({
       subtotal: billData.subtotal,
@@ -252,14 +289,12 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
       itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
     }, null, 2));
 
-    return transformResponse(billData, model.name);
+    return transformResponse(billData, 'gemini-2.5-flash');
 
   } catch (err) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    // Promise.any throws AggregateError when all promises reject
-    const errorMsg = err.errors ? err.errors.map(e => e.message).join(', ') : err.message;
-    console.error(`❌ All models failed (${elapsed}s): ${errorMsg}`);
-    throw new Error(`OCR failed: All models failed - ${errorMsg}`);
+    console.error(`❌ Gemini failed (${elapsed}s): ${err.message}`);
+    throw new Error(`OCR failed: ${err.message}`);
   }
 }
 
@@ -590,8 +625,8 @@ function transformResponse(data, modelUsed) {
     total: roundToTwo(total),
     currency: data.currency || 'INR',
     billType: billType,
-    ocrEngine: 'openrouter',
-    modelUsed: modelUsed || 'unknown'
+    ocrEngine: 'gemini',
+    modelUsed: modelUsed || 'gemini-2.5-flash'
   };
 }
 
@@ -610,5 +645,4 @@ function roundToTwo(num) {
   return Math.round(num * 100) / 100;
 }
 
-module.exports = { extractBillWithOpenRouter };
-
+module.exports = { extractBillWithGemini };

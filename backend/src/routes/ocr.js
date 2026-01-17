@@ -5,15 +5,15 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
-// OpenRouter OCR (FREE vision models)
-const { extractBillWithOpenRouter } = require('../utils/openRouterOcr');
+// Gemini OCR (Google AI)
+const { extractBillWithGemini } = require('../utils/geminiOCR');
 const { getCategoriesForBillType } = require('../utils/itemClassifier');
 
-// Check OpenRouter configuration on startup
-if (process.env.OPENROUTER_API_KEY) {
-  console.log('OpenRouter: ✅ Configured (Qwen 2.5 VL - FREE)');
+// Check Gemini configuration on startup
+if (process.env.GEMINI_API_KEY) {
+  console.log('Gemini: ✅ Configured (Gemini 2.5 Flash)');
 } else {
-  console.log('OpenRouter: ❌ Not configured - Add OPENROUTER_API_KEY to environment');
+  console.log('Gemini: ❌ Not configured - Add GEMINI_API_KEY to environment');
 }
 
 // Configure multer for image uploads
@@ -47,7 +47,7 @@ const upload = multer({
   }
 });
 
-// POST /api/ocr/scan - Scan a bill image using OpenRouter (FREE)
+// POST /api/ocr/scan - Scan a bill image using Gemini
 router.post('/scan', upload.single('image'), async (req, res, next) => {
   try {
     if (!req.file) {
@@ -57,26 +57,26 @@ router.post('/scan', upload.single('image'), async (req, res, next) => {
       });
     }
 
-    // Check if OpenRouter is configured
-    if (!process.env.OPENROUTER_API_KEY) {
+    // Check if Gemini is configured
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
-        error: 'OCR not configured. Please add OPENROUTER_API_KEY to environment.'
+        error: 'OCR not configured. Please add GEMINI_API_KEY to environment.'
       });
     }
 
     const imagePath = req.file.path;
 
     try {
-      console.log('🔵 Processing image with OpenRouter (Qwen 2.5 VL)...');
-      const billData = await extractBillWithOpenRouter(imagePath);
+      console.log('🔵 Processing image with Gemini 2.5 Flash...');
+      const billData = await extractBillWithGemini(imagePath);
       console.log('✅ OCR Success!');
       
       return res.json({
         success: true,
-        confidence: 92,
+        confidence: 95,
         bill: billData,
-        engine: 'openrouter'
+        engine: 'gemini'
       });
 
     } catch (ocrError) {
