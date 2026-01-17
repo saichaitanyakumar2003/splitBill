@@ -286,7 +286,7 @@ export default function BillScanScreen() {
                   </View>
                 )}
 
-                {/* Total Tax Row - Show if subtotal != total */}
+                {/* Total Tax Row - Show only if subtotal != total (taxes added on top) */}
                 {getSubtotal() !== billData.total && (
                   <View style={styles.taxesTotalSection}>
                     <Text style={styles.taxesTotalLabel}>Total Taxes & Charges</Text>

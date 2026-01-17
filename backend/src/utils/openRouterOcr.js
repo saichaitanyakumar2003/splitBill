@@ -11,13 +11,17 @@ const sharp = require('sharp');
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Single model - Qwen
-const MODEL = 'qwen/qwen-2.5-vl-7b-instruct:free';
+// Parallel models - call both simultaneously, use first successful response
+// Qwen first (better at reading taxes), nvidia as backup
+const MODELS = [
+  { id: 'qwen/qwen-2.5-vl-7b-instruct:free', name: 'qwen' },
+  { id: 'nvidia/nemotron-nano-12b-v2-vl:free', name: 'nvidia' }
+];
 
 // Image optimization settings
 const MAX_IMAGE_DIMENSION = 640;
 const JPEG_QUALITY = 50;
-const MODEL_TIMEOUT_MS = 120000; // 120 second timeout
+const MODEL_TIMEOUT_MS = 180000; // 180 second timeout per model
 
 /**
  * Compress and optimize image for faster API processing
@@ -154,15 +158,21 @@ For ALL other bill types (grocery, pharmacy, electronics, fuel, other):
 Extract ACTUAL values from the bill. All prices should be numbers.`;
 
   const startTime = Date.now();
-  console.log(`🚀 Calling ${MODEL} with ${MODEL_TIMEOUT_MS/1000}s timeout`);
+  console.log(`🚀 Calling ${MODELS.length} models in parallel (${MODELS.map(m => m.name).join(', ')}) with ${MODEL_TIMEOUT_MS/1000}s timeout each`);
 
-  // Create timeout promise
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`TIMEOUT after ${MODEL_TIMEOUT_MS/1000}s`)), MODEL_TIMEOUT_MS);
-  });
-  
-  // Create API call promise
-  const apiPromise = (async () => {
+  // Create API call promise for a specific model with timeout
+  const createModelPromise = (model) => {
+    const modelStartTime = Date.now();
+    
+    // Create timeout promise for this model
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`TIMEOUT after ${MODEL_TIMEOUT_MS/1000}s`)), MODEL_TIMEOUT_MS);
+    });
+    
+    // Create API call promise
+    const apiPromise = (async () => {
+      console.log(`  📡 Starting ${model.name}...`);
+      
       const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
@@ -172,7 +182,7 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
           'X-Title': 'SplitBill OCR'
         },
         body: JSON.stringify({
-        model: MODEL,
+          model: model.id,
           messages: [
             {
               role: 'user',
@@ -194,14 +204,14 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
 
       if (!response.ok) {
         const errorData = await response.json();
-      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
       const textResponse = data.choices?.[0]?.message?.content;
 
       if (!textResponse) {
-      throw new Error('No response content');
+        throw new Error('No response content');
       }
       
       // Parse JSON response
@@ -212,28 +222,44 @@ Extract ACTUAL values from the bill. All prices should be numbers.`;
         jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
 
-    return JSON.parse(jsonStr);
-  })();
+      const billData = JSON.parse(jsonStr);
+      const elapsed = ((Date.now() - modelStartTime) / 1000).toFixed(1);
+      console.log(`  ✅ ${model.name} succeeded in ${elapsed}s`);
+      
+      return { billData, model };
+    })();
+    
+    // Race API call against timeout
+    return Promise.race([apiPromise, timeoutPromise]).catch(err => {
+      const elapsed = ((Date.now() - modelStartTime) / 1000).toFixed(1);
+      console.log(`  ❌ ${model.name} failed (${elapsed}s): ${err.message}`);
+      throw err;
+    });
+  };
 
   try {
-    // Race API call against timeout
-    const billData = await Promise.race([apiPromise, timeoutPromise]);
+    // Call all models in parallel, use first successful response
+    const modelPromises = MODELS.map(model => createModelPromise(model));
+    const { billData, model } = await Promise.any(modelPromises);
     
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ ${MODEL} responded in ${elapsed}s`);
+    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`🏆 Winner: ${model.name} (total time: ${totalElapsed}s)`);
     
-      console.log('📋 OCR Raw Response:', JSON.stringify({
-        subtotal: billData.subtotal,
-        total: billData.total,
+    console.log('📋 OCR Raw Response:', JSON.stringify({
+      subtotal: billData.subtotal,
+      total: billData.total,
+      taxes: billData.taxes,
       itemPrices: billData.items?.map(i => ({ name: i.name, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category }))
-      }, null, 2));
+    }, null, 2));
 
-    return transformResponse(billData, MODEL);
+    return transformResponse(billData, model.name);
 
-    } catch (err) {
+  } catch (err) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`❌ ${MODEL} failed (${elapsed}s): ${err.message}`);
-    throw new Error(`OCR failed: ${err.message}`);
+    // Promise.any throws AggregateError when all promises reject
+    const errorMsg = err.errors ? err.errors.map(e => e.message).join(', ') : err.message;
+    console.error(`❌ All models failed (${elapsed}s): ${errorMsg}`);
+    throw new Error(`OCR failed: All models failed - ${errorMsg}`);
   }
 }
 
@@ -509,54 +535,6 @@ function deduplicateTaxes(taxes) {
 }
 
 /**
- * Infer missing CGST/SGST if only one is present
- * In India, CGST and SGST are always equal (both 2.5% or both 9%)
- */
-function inferMissingTaxes(taxes, subtotal, total) {
-  if (!taxes || taxes.length === 0) return taxes;
-  
-  const expectedTotalTax = total - subtotal;
-  const extractedTotalTax = taxes.reduce((sum, t) => sum + (t.amount || 0), 0);
-  
-  // If extracted taxes match expected, no inference needed
-  if (Math.abs(extractedTotalTax - expectedTotalTax) < 1) {
-    return taxes;
-  }
-  
-  const hasCGST = taxes.some(t => t.name?.toUpperCase() === 'CGST');
-  const hasSGST = taxes.some(t => t.name?.toUpperCase() === 'SGST');
-  const hasIGST = taxes.some(t => t.name?.toUpperCase() === 'IGST');
-  
-  // If we have IGST, don't add CGST/SGST (interstate vs intrastate)
-  if (hasIGST) return taxes;
-  
-  // If we have only CGST, infer SGST (they're always equal)
-  if (hasCGST && !hasSGST) {
-    const cgst = taxes.find(t => t.name?.toUpperCase() === 'CGST');
-    const inferredSGST = expectedTotalTax - extractedTotalTax;
-    
-    // Only add if inferred amount is close to CGST (they should be equal)
-    if (cgst && Math.abs(inferredSGST - cgst.amount) < 1) {
-      console.log(`📊 Inferring missing SGST: ₹${inferredSGST.toFixed(2)} (same as CGST)`);
-      return [...taxes, { name: 'SGST', amount: roundToTwo(inferredSGST) }];
-    }
-  }
-  
-  // If we have only SGST, infer CGST
-  if (hasSGST && !hasCGST) {
-    const sgst = taxes.find(t => t.name?.toUpperCase() === 'SGST');
-    const inferredCGST = expectedTotalTax - extractedTotalTax;
-    
-    if (sgst && Math.abs(inferredCGST - sgst.amount) < 1) {
-      console.log(`📊 Inferring missing CGST: ₹${inferredCGST.toFixed(2)} (same as SGST)`);
-      return [{ name: 'CGST', amount: roundToTwo(inferredCGST) }, ...taxes];
-    }
-  }
-  
-  return taxes;
-}
-
-/**
  * Transform response to standard format
  */
 function transformResponse(data, modelUsed) {
@@ -594,9 +572,8 @@ function transformResponse(data, modelUsed) {
   const subtotal = data.subtotal || items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
   const total = data.total || subtotal;
   
-  // Deduplicate and normalize taxes, then infer missing CGST/SGST
+  // Deduplicate and normalize taxes
   const dedupedTaxes = deduplicateTaxes(data.taxes || []);
-  const finalTaxes = inferMissingTaxes(dedupedTaxes, subtotal, total);
 
   return {
     merchantName: data.merchantName || data.restaurantName,
@@ -609,7 +586,7 @@ function transformResponse(data, modelUsed) {
       '📦 Others': otherItems
     },
     subtotal: roundToTwo(subtotal),
-    taxes: finalTaxes,
+    taxes: dedupedTaxes,
     total: roundToTwo(total),
     currency: data.currency || 'INR',
     billType: billType,
