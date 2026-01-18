@@ -1230,14 +1230,30 @@ function AppContent() {
   );
 }
 
+// Bridge component to connect Auth and Network contexts
+function AuthNetworkBridge({ children }) {
+  const { initializeAuth } = useAuth();
+  const { setAuthReinitCallback } = useNetwork();
+  
+  useEffect(() => {
+    // Register the auth reinitialize callback with NetworkContext
+    setAuthReinitCallback(initializeAuth);
+    return () => setAuthReinitCallback(null);
+  }, [initializeAuth, setAuthReinitCallback]);
+  
+  return children;
+}
+
 // Main App with Network and Auth Providers
 export default function App() {
   return (
     <NetworkProvider>
       <AuthProvider>
-        <StoreProvider>
-          <AppContent />
-        </StoreProvider>
+        <AuthNetworkBridge>
+          <StoreProvider>
+            <AppContent />
+          </StoreProvider>
+        </AuthNetworkBridge>
       </AuthProvider>
     </NetworkProvider>
   );

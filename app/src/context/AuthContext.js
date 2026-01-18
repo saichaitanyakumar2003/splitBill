@@ -98,15 +98,24 @@ export const AuthProvider = ({ children }) => {
         }
         
         // Verify token with backend
-        const isValid = await verifyToken(storedToken);
+        const result = await verifyToken(storedToken);
         
-        if (isValid) {
+        if (result.valid) {
+          // Token verified successfully
           setToken(storedToken);
           setAuthToken(storedToken); // Set global token for apiHelper
           setUser(userData);
           setIsAuthenticated(true);
+        } else if (result.networkError) {
+          // Network error - use cached credentials (don't clear auth)
+          // User can still use the app with cached data
+          console.log('Network error during auth init - using cached session');
+          setToken(storedToken);
+          setAuthToken(storedToken);
+          setUser(userData);
+          setIsAuthenticated(true);
         } else {
-          // Token invalid - clear storage
+          // Token explicitly invalid - clear storage
           await clearAuth();
         }
       } else {
@@ -122,6 +131,7 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Verify token with backend
+   * Returns: { valid: true } | { valid: false } | { networkError: true }
    */
   const verifyToken = async (authToken) => {
     try {
@@ -139,14 +149,16 @@ export const AuthProvider = ({ children }) => {
           // Update user data from server
           await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.data));
           setUser(data.data);
-          return true;
+          return { valid: true };
         }
       }
-      return false;
+      // Server responded but token is invalid (401, 403, etc.)
+      return { valid: false };
     } catch (error) {
       console.error('Token verification error:', error);
       reportNetworkError(error);
-      return false;
+      // Network error - don't invalidate the token
+      return { networkError: true };
     }
   };
 

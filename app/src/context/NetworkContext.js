@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { setNetworkErrorCallback, isNetworkError } from '../utils/apiHelper';
 import ENV from '../config/env';
 
@@ -13,6 +13,14 @@ export function NetworkProvider({ children }) {
   const [isConnected, setIsConnected] = useState(true);
   const [isChecking, setIsChecking] = useState(false);
   const [lastError, setLastError] = useState(null);
+  
+  // Store a reference to the auth reinitialize function
+  const authReinitRef = useRef(null);
+  
+  // Set the auth reinitialize callback (called from App.js)
+  const setAuthReinitCallback = useCallback((callback) => {
+    authReinitRef.current = callback;
+  }, []);
 
   // Call this when an API call fails due to network issues
   const reportNetworkError = useCallback((error) => {
@@ -28,7 +36,7 @@ export function NetworkProvider({ children }) {
     return () => setNetworkErrorCallback(null);
   }, [reportNetworkError]);
 
-  // Manual retry - checks health endpoint
+  // Manual retry - checks health endpoint and re-initializes auth
   const retryNow = useCallback(async () => {
     setIsChecking(true);
     try {
@@ -45,6 +53,12 @@ export function NetworkProvider({ children }) {
       if (response.ok) {
         setIsConnected(true);
         setLastError(null);
+        
+        // Re-initialize auth to verify/refresh session from storage
+        if (authReinitRef.current) {
+          console.log('Network restored - re-initializing auth...');
+          await authReinitRef.current();
+        }
       } else {
         throw new Error(`Server returned ${response.status}`);
       }
@@ -69,7 +83,8 @@ export function NetworkProvider({ children }) {
       lastError, 
       retryNow,
       reportNetworkError,
-      resetNetworkState
+      resetNetworkState,
+      setAuthReinitCallback
     }}>
       {children}
     </NetworkContext.Provider>
