@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Alert,
   Modal,
   BackHandler,
+  Linking,
+  AppState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -47,7 +49,24 @@ export default function PendingExpensesScreen({ route }) {
     to: null,
     groupName: '',
   });
-  const [wipModal, setWipModal] = useState(false);
+  const [upiErrorModal, setUpiErrorModal] = useState({
+    visible: false,
+    recipientName: '',
+  });
+  const [paymentConfirmModal, setPaymentConfirmModal] = useState({
+    visible: false,
+    groupId: null,
+    from: null,
+    to: null,
+    toName: '',
+    amount: 0,
+    isLastEdge: false,
+    groupName: '',
+  });
+  
+  // Track if we're waiting for UPI payment confirmation
+  const pendingPaymentRef = useRef(null);
+  const appStateRef = useRef(AppState.currentState);
 
   const fetchPendingExpenses = async () => {
     try {
@@ -94,6 +113,48 @@ export default function PendingExpensesScreen({ route }) {
     const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => subscription.remove();
   }, [navigation]);
+
+  // Listen for app state changes to detect return from UPI app
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      // For web, use visibilitychange event
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && pendingPaymentRef.current) {
+          // Small delay to ensure smooth transition
+          setTimeout(() => {
+            if (pendingPaymentRef.current) {
+              setPaymentConfirmModal({
+                visible: true,
+                ...pendingPaymentRef.current,
+              });
+              pendingPaymentRef.current = null;
+            }
+          }, 500);
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    } else {
+      // For native apps, use AppState
+      const subscription = AppState.addEventListener('change', nextAppState => {
+        if (
+          appStateRef.current.match(/inactive|background/) &&
+          nextAppState === 'active' &&
+          pendingPaymentRef.current
+        ) {
+          setPaymentConfirmModal({
+            visible: true,
+            ...pendingPaymentRef.current,
+          });
+          pendingPaymentRef.current = null;
+        }
+        appStateRef.current = nextAppState;
+      });
+
+      return () => subscription.remove();
+    }
+  }, []);
 
   const handleResolve = (groupId, from, to, toName, amount, groupName, pendingCount) => {
     const isLastEdge = pendingCount === 1;
@@ -193,8 +254,114 @@ export default function PendingExpensesScreen({ route }) {
     });
   };
 
-  const handlePayNow = (edge) => {
-    setWipModal(true);
+  // Helper to detect mobile browser
+  const isMobileBrowser = () => {
+    if (Platform.OS !== 'web') return false;
+    if (typeof navigator === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
+  const handlePayNow = async (groupId, edge, groupName, pendingCount) => {
+    // Check if recipient has UPI ID
+    if (!edge.toUpiId) {
+      setUpiErrorModal({
+        visible: true,
+        recipientName: edge.toName,
+      });
+      
+      // Send notification to recipient about missing UPI ID
+      try {
+        await authPost('/groups/notify-upi-missing', {
+          recipientEmail: edge.to,
+          amount: edge.amount,
+        });
+      } catch (error) {
+        console.log('Failed to send UPI missing notification:', error);
+        // Silent fail - don't block the user
+      }
+      return;
+    }
+    
+    // Build UPI deep link
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(edge.toUpiId)}&pn=${encodeURIComponent(edge.toName)}&am=${edge.amount.toFixed(2)}&cu=INR`;
+    
+    // Store payment details for confirmation when user returns
+    const isLastEdge = pendingCount === 1;
+    const paymentDetails = {
+      groupId,
+      from: edge.from,
+      to: edge.to,
+      toName: edge.toName,
+      amount: edge.amount,
+      isLastEdge,
+      groupName,
+    };
+    
+    if (Platform.OS === 'web') {
+      // Check if it's a mobile browser
+      if (!isMobileBrowser()) {
+        setUpiErrorModal({
+          visible: true,
+          recipientName: 'desktop_not_supported',
+        });
+        return;
+      }
+      
+      // Mobile web - try to open UPI link
+      try {
+        pendingPaymentRef.current = paymentDetails;
+        window.location.href = upiUrl;
+      } catch (error) {
+        console.error('Error opening UPI link:', error);
+        pendingPaymentRef.current = null;
+        Alert.alert('Error', 'Failed to open UPI app. Please try again.');
+      }
+      return;
+    }
+    
+    // Native app
+    try {
+      const canOpen = await Linking.canOpenURL(upiUrl);
+      if (canOpen) {
+        pendingPaymentRef.current = paymentDetails;
+        await Linking.openURL(upiUrl);
+      } else {
+        Alert.alert(
+          'No UPI App Found',
+          'Please install a UPI app (like Google Pay, PhonePe, Paytm) to make payments.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error opening UPI app:', error);
+      Alert.alert('Error', 'Failed to open UPI app. Please try again.');
+    }
+  };
+
+  const handlePaymentConfirm = async (wasSuccessful) => {
+    if (!wasSuccessful) {
+      setPaymentConfirmModal({ visible: false, groupId: null, from: null, to: null, toName: '', amount: 0, isLastEdge: false, groupName: '' });
+      return;
+    }
+    
+    // Payment was successful - mark as settled
+    const { groupId, from, to, isLastEdge, groupName } = paymentConfirmModal;
+    
+    if (isLastEdge) {
+      // Show completion choice modal
+      setPaymentConfirmModal({ visible: false, groupId: null, from: null, to: null, toName: '', amount: 0, isLastEdge: false, groupName: '' });
+      setCompletionChoiceModal({
+        visible: true,
+        groupId,
+        from,
+        to,
+        groupName,
+      });
+    } else {
+      // Directly resolve the edge
+      setPaymentConfirmModal({ visible: false, groupId: null, from: null, to: null, toName: '', amount: 0, isLastEdge: false, groupName: '' });
+      await processResolve(groupId, from, to, false);
+    }
   };
 
   const totalPending = pendingExpenses.reduce(
@@ -324,7 +491,7 @@ export default function PendingExpensesScreen({ route }) {
                               </TouchableOpacity>
                               <TouchableOpacity
                                 style={styles.payNowButton}
-                                onPress={() => handlePayNow(edge)}
+                                onPress={() => handlePayNow(group.groupId, edge, group.groupName, pendingCount)}
                               >
                                 <Text style={styles.payNowButtonText}>Pay Now</Text>
                               </TouchableOpacity>
@@ -476,37 +643,84 @@ export default function PendingExpensesScreen({ route }) {
           </View>
         </Modal>
 
-        {/* Work In Progress Modal */}
+        {/* UPI Error Modal */}
         <Modal
-          visible={wipModal}
+          visible={upiErrorModal.visible}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setWipModal(false)}
+          onRequestClose={() => setUpiErrorModal({ visible: false, recipientName: '' })}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.wipModalContainer}>
+            <View style={styles.upiErrorModalContainer}>
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => setWipModal(false)}
+                onPress={() => setUpiErrorModal({ visible: false, recipientName: '' })}
               >
                 <Text style={styles.closeButtonText}>✕</Text>
               </TouchableOpacity>
-              <View style={styles.wipIconContainer}>
-                <Text style={styles.wipIcon}>🚧</Text>
+              <View style={styles.upiErrorIconContainer}>
+                <Text style={styles.upiErrorIcon}>💳</Text>
               </View>
-              <Text style={styles.wipTitle}>Coming Soon!</Text>
-              <Text style={styles.wipMessage}>
-                This feature is currently under development. Stay tuned for updates!
+              <Text style={styles.upiErrorTitle}>
+                {upiErrorModal.recipientName === 'desktop_not_supported' 
+                  ? 'Not Supported' 
+                  : 'UPI ID Not Set'}
+              </Text>
+              <Text style={styles.upiErrorMessage}>
+                {upiErrorModal.recipientName === 'desktop_not_supported'
+                  ? 'UPI payments are only supported on mobile devices. Please open this page on your phone or use the mobile app.'
+                  : `${upiErrorModal.recipientName} hasn't added their UPI ID yet. Ask them to update their profile to receive payments.`}
               </Text>
               <TouchableOpacity
-                style={styles.wipButton}
-                onPress={() => setWipModal(false)}
+                style={styles.upiErrorButton}
+                onPress={() => setUpiErrorModal({ visible: false, recipientName: '' })}
               >
-                <Text style={styles.wipButtonText}>Got it</Text>
+                <Text style={styles.upiErrorButtonText}>Got it</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
+
+        {/* Payment Confirmation Modal */}
+        <Modal
+          visible={paymentConfirmModal.visible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => handlePaymentConfirm(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.paymentConfirmModalContainer}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => handlePaymentConfirm(false)}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+              <View style={styles.paymentConfirmIconContainer}>
+                <Text style={styles.paymentConfirmIcon}>✓</Text>
+              </View>
+              <Text style={styles.paymentConfirmTitle}>Payment Complete?</Text>
+              <Text style={styles.paymentConfirmMessage}>
+                Did you successfully pay ₹{paymentConfirmModal.amount?.toFixed(2)} to {paymentConfirmModal.toName}?
+              </Text>
+              <View style={styles.paymentConfirmButtons}>
+                <TouchableOpacity
+                  style={styles.paymentConfirmNoButton}
+                  onPress={() => handlePaymentConfirm(false)}
+                >
+                  <Text style={styles.paymentConfirmNoButtonText}>No</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.paymentConfirmYesButton}
+                  onPress={() => handlePaymentConfirm(true)}
+                >
+                  <Text style={styles.paymentConfirmYesButtonText}>Yes, Paid</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
       </LinearGradient>
     </View>
   );
@@ -1046,8 +1260,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   
-  // WIP Modal Styles
-  wipModalContainer: {
+  // UPI Error Modal Styles
+  upiErrorModalContainer: {
     backgroundColor: '#FFF',
     borderRadius: 24,
     padding: 28,
@@ -1062,7 +1276,7 @@ const styles = StyleSheet.create({
     elevation: 15,
     position: 'relative',
   },
-  wipIconContainer: {
+  upiErrorIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
@@ -1071,23 +1285,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  wipIcon: {
+  upiErrorIcon: {
     fontSize: 42,
   },
-  wipTitle: {
+  upiErrorTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: '#1A1A1A',
     marginBottom: 12,
   },
-  wipMessage: {
+  upiErrorMessage: {
     fontSize: 15,
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
   },
-  wipButton: {
+  upiErrorButton: {
     width: '100%',
     paddingVertical: 14,
     borderRadius: 12,
@@ -1095,7 +1309,83 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
-  wipButtonText: {
+  upiErrorButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  
+  // Payment Confirmation Modal Styles
+  paymentConfirmModalContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 28,
+    paddingTop: 40,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+    position: 'relative',
+  },
+  paymentConfirmIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  paymentConfirmIcon: {
+    fontSize: 42,
+    color: '#4CAF50',
+  },
+  paymentConfirmTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 12,
+  },
+  paymentConfirmMessage: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  paymentConfirmButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  paymentConfirmNoButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  paymentConfirmNoButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  paymentConfirmYesButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  paymentConfirmYesButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',

@@ -104,6 +104,7 @@ UserSchema.methods.getDetails = function() {
   return {
     name: this.name || '',
     phone: compressed.phone || '',
+    upiId: compressed.upiId || '',
     groupIds: compressed.groupIds || [],
     friends: compressed.friends || [],
     expoPushToken: compressed.expoPushToken || null
@@ -133,6 +134,10 @@ UserSchema.methods.setDetails = function(details) {
     current.phone = digits;
   }
   
+  if (details.upiId !== undefined) {
+    current.upiId = details.upiId || '';
+  }
+  
   if (details.groupIds !== undefined) {
     current.groupIds = details.groupIds;
   }
@@ -155,6 +160,7 @@ UserSchema.methods.addGroupId = function(groupId) {
     details.groupIds.push(groupIdStr);
     this.compressedDetails = compressData({
       phone: details.phone,
+      upiId: details.upiId,
       groupIds: details.groupIds,
       friends: details.friends,
       expoPushToken: details.expoPushToken
@@ -175,6 +181,7 @@ UserSchema.methods.removeGroupId = function(groupId) {
   if (details.groupIds.length !== originalLength) {
     this.compressedDetails = compressData({
       phone: details.phone,
+      upiId: details.upiId,
       groupIds: details.groupIds,
       friends: details.friends,
       expoPushToken: details.expoPushToken
@@ -199,6 +206,7 @@ UserSchema.methods.addFriend = function(friendMailId) {
     details.friends.push(normalizedEmail);
     this.compressedDetails = compressData({
       phone: details.phone,
+      upiId: details.upiId,
       groupIds: details.groupIds,
       friends: details.friends,
       expoPushToken: details.expoPushToken
@@ -212,6 +220,7 @@ UserSchema.methods.removeFriend = function(friendMailId) {
   details.friends = details.friends.filter(f => f !== friendMailId.toLowerCase().trim());
   this.compressedDetails = compressData({
     phone: details.phone,
+    upiId: details.upiId,
     groupIds: details.groupIds,
     friends: details.friends,
     expoPushToken: details.expoPushToken
@@ -225,6 +234,7 @@ UserSchema.methods.toJSON = function() {
     mailId: this._id,
     name: this.name,
     phone: details.phone,
+    upiId: details.upiId,
     groupIds: details.groupIds,
     friends: details.friends,
     sessionExpiresAt: this.sessionExpiresAt,

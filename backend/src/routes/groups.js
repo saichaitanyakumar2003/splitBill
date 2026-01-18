@@ -95,6 +95,27 @@ async function getEmailToNameMap(emails) {
   return emailToName;
 }
 
+// Helper: Get email to user details mapping (name + upiId)
+async function getEmailToUserDetailsMap(emails) {
+  const memberDocs = await User.find({ _id: { $in: emails } });
+  const emailToDetails = {};
+  memberDocs.forEach(doc => {
+    const details = doc.getDetails();
+    const name = (doc.name && doc.name.trim()) || doc._id.split('@')[0];
+    const upiId = details.upiId || '';
+    emailToDetails[doc._id.toLowerCase()] = { name, upiId };
+    emailToDetails[doc._id] = { name, upiId };
+  });
+  emails.forEach(email => {
+    const lowerEmail = email.toLowerCase();
+    if (!emailToDetails[lowerEmail]) {
+      emailToDetails[lowerEmail] = { name: email.split('@')[0], upiId: '' };
+      emailToDetails[email] = { name: email.split('@')[0], upiId: '' };
+    }
+  });
+  return emailToDetails;
+}
+
 // Helper: Clean up deleted groups from user's groupIds
 async function cleanupDeletedGroups(user) {
   const details = user.getDetails();
@@ -423,19 +444,20 @@ router.get('/pending', async (req, res) => {
       }
     }
     
-    const emailToName = await getEmailToNameMap(Array.from(allMemberEmails));
+    const emailToDetails = await getEmailToUserDetailsMap(Array.from(allMemberEmails));
     
     const pendingWithNames = pendingExpenses.map(item => ({
       ...item,
       pendingEdges: item.pendingEdges.map(edge => ({
         ...edge,
-        fromName: emailToName[edge.from] || edge.from.split('@')[0],
-        toName: emailToName[edge.to] || edge.to.split('@')[0]
+        fromName: emailToDetails[edge.from]?.name || edge.from.split('@')[0],
+        toName: emailToDetails[edge.to]?.name || edge.to.split('@')[0],
+        toUpiId: emailToDetails[edge.to]?.upiId || ''
       })),
       resolvedEdges: item.resolvedEdges.map(edge => ({
         ...edge,
-        fromName: emailToName[edge.from] || edge.from.split('@')[0],
-        toName: emailToName[edge.to] || edge.to.split('@')[0]
+        fromName: emailToDetails[edge.from]?.name || edge.from.split('@')[0],
+        toName: emailToDetails[edge.to]?.name || edge.to.split('@')[0]
       }))
     }));
     
@@ -710,6 +732,50 @@ router.delete('/:id', async (req, res) => {
     await History.deleteOne({ groupId: req.params.id });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Notify recipient that their UPI ID is not set
+router.post('/notify-upi-missing', async (req, res) => {
+  try {
+    const { recipientEmail, amount } = req.body;
+    const payerMailId = req.user.mailId;
+    
+    if (!recipientEmail || !amount) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+    
+    // Get payer's name
+    const payer = await User.findById(payerMailId);
+    const payerName = payer?.name || payerMailId.split('@')[0];
+    
+    // Get recipient's push token
+    const recipient = await User.findById(recipientEmail);
+    if (!recipient) {
+      return res.json({ success: true, notified: false, reason: 'Recipient not found' });
+    }
+    
+    const recipientDetails = recipient.getDetails();
+    if (!recipientDetails.expoPushToken) {
+      return res.json({ success: true, notified: false, reason: 'No push token' });
+    }
+    
+    // Send notification
+    await sendPushNotification(recipientDetails.expoPushToken, {
+      title: '💸 Payment Attempt Failed',
+      body: `${payerName} tried to send you ₹${parseFloat(amount).toFixed(2)}, but the payment couldn't be completed because your UPI ID is missing. Add your UPI ID in your Profile to receive future payments.`,
+      data: {
+        type: 'upi_missing',
+        screen: 'Profile',
+        payerName,
+        amount: parseFloat(amount),
+      },
+    });
+    
+    res.json({ success: true, notified: true });
+  } catch (e) {
+    console.error('Error sending UPI missing notification:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 module.exports = router;
