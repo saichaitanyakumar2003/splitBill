@@ -282,8 +282,8 @@ export default function PendingExpensesScreen({ route }) {
       return;
     }
     
-    // Build UPI deep link
-    const upiUrl = `upi://pay?pa=${encodeURIComponent(edge.toUpiId)}&pn=${encodeURIComponent(edge.toName)}&am=${edge.amount.toFixed(2)}&cu=INR`;
+    // Build UPI deep link - only pa (UPI ID) and am (amount), no name to avoid mismatch
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(edge.toUpiId)}&am=${edge.amount.toFixed(2)}&cu=INR`;
     
     // Store payment details for confirmation when user returns
     const isLastEdge = pendingCount === 1;
