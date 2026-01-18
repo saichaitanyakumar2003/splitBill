@@ -440,7 +440,7 @@ export default function CreateGroupScreen() {
                               onPress={() => selectPayer(result)}
                             >
                               <View style={styles.userInfo}>
-                                <Text style={styles.userName}>{result.name}</Text>
+                                <Text style={styles.userName} numberOfLines={1}>{result.name}</Text>
                                 <Text style={styles.userEmail}>{result.mailId}</Text>
                               </View>
                               <Text style={styles.selectIcon}>○</Text>
@@ -457,7 +457,7 @@ export default function CreateGroupScreen() {
                             onPress={() => selectPayer({ mailId: user?.mailId, name: user?.name || 'You' })}
                           >
                             <View style={styles.userInfo}>
-                              <Text style={styles.userName}>{user?.name || 'You'}</Text>
+                              <Text style={styles.userName} numberOfLines={1}>{user?.name || 'You'}</Text>
                               <Text style={styles.userEmail}>{user?.mailId}</Text>
                             </View>
                             <Text style={styles.selectIcon}>○</Text>
@@ -475,7 +475,7 @@ export default function CreateGroupScreen() {
                               onPress={() => selectPayer(fav)}
                             >
                               <View style={styles.userInfo}>
-                                <Text style={styles.userName}>{fav.name}</Text>
+                                <Text style={styles.userName} numberOfLines={1}>{fav.name}</Text>
                                 <Text style={styles.userEmail}>{fav.mailId}</Text>
                               </View>
                               <Text style={styles.selectIcon}>○</Text>
@@ -616,7 +616,7 @@ export default function CreateGroupScreen() {
                               onPress={() => handleSelectMember(result)}
                             >
                               <View style={styles.userInfo}>
-                                <Text style={styles.userName}>{result.name}</Text>
+                                <Text style={styles.userName} numberOfLines={1}>{result.name}</Text>
                                 <Text style={styles.userEmail}>{result.mailId}</Text>
                               </View>
                               <Text style={styles.addIcon}>+</Text>
@@ -633,7 +633,7 @@ export default function CreateGroupScreen() {
                             onPress={() => handleSelectFromFavorites({ mailId: user.mailId, name: user.name || 'You' })}
                           >
                             <View style={styles.userInfo}>
-                              <Text style={styles.userName}>{user.name || 'You'} (You)</Text>
+                              <Text style={styles.userName} numberOfLines={1}>{user.name || 'You'} (You)</Text>
                               <Text style={styles.userEmail}>{user.mailId}</Text>
                             </View>
                             <Text style={styles.addIcon}>+</Text>
@@ -651,7 +651,7 @@ export default function CreateGroupScreen() {
                               onPress={() => handleSelectFromFavorites(fav)}
                             >
                               <View style={styles.userInfo}>
-                                <Text style={styles.userName}>{fav.name}</Text>
+                                <Text style={styles.userName} numberOfLines={1}>{fav.name}</Text>
                                 <Text style={styles.userEmail}>{fav.mailId}</Text>
                               </View>
                               <Text style={styles.addIcon}>+</Text>

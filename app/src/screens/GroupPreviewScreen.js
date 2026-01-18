@@ -217,7 +217,7 @@ export default function GroupPreviewScreen() {
             {/* Group Name */}
             <View style={styles.groupNameSection}>
               <Text style={styles.groupNameLabel}>Group</Text>
-              <Text style={styles.groupNameText}>{groupName}</Text>
+              <Text style={styles.groupNameText} numberOfLines={1}>{groupName}</Text>
             </View>
 
             {/* Expenses List */}
@@ -304,7 +304,7 @@ export default function GroupPreviewScreen() {
                   {expenses[activeExpenseIndex].members.map(member => (
                     <View key={member.mailId} style={styles.memberRow}>
                       <View style={styles.memberInfo}>
-                        <Text style={styles.memberName}>{member.name}</Text>
+                        <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                         {member.mailId === expenses[activeExpenseIndex].paidBy && (
                           <Text style={styles.payerBadge}>Payer</Text>
                         )}

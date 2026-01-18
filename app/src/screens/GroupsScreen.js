@@ -290,7 +290,7 @@ export default function GroupsScreen({ route }) {
                     </Text>
                   </View>
                   <View style={styles.groupInfo}>
-                    <Text style={styles.groupName}>{group.name}</Text>
+                    <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
                     <Text style={[
                       styles.groupStatus,
                       group.status === 'completed' && styles.groupStatusCompleted
@@ -332,7 +332,7 @@ export default function GroupsScreen({ route }) {
           {/* Group Name */}
           <View style={styles.groupNameSection}>
             <Text style={styles.groupNameLabel}>Group</Text>
-            <Text style={styles.groupNameText}>{selectedGroup?.name}</Text>
+            <Text style={styles.groupNameText} numberOfLines={1}>{selectedGroup?.name}</Text>
           </View>
 
           {loadingDetails ? (

@@ -189,7 +189,7 @@ export default function HistoryScreen({ route }) {
                         </Text>
                       </View>
                       <View style={styles.groupInfo}>
-                        <Text style={styles.groupName}>{record.groupName}</Text>
+                        <Text style={styles.groupName} numberOfLines={1}>{record.groupName}</Text>
                         <Text style={styles.settledCount}>
                           {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
                         </Text>
@@ -279,11 +279,11 @@ export default function HistoryScreen({ route }) {
                       </View>
                     </View>
                     <View style={styles.settlementNames}>
-                      <Text style={styles.settlementFromName}>
+                      <Text style={styles.settlementFromName} numberOfLines={1}>
                         {edge.fromName || edge.from?.split('@')[0] || 'Unknown'}
                       </Text>
                       <Text style={styles.settlementToText}> paid </Text>
-                      <Text style={styles.settlementToName}>
+                      <Text style={styles.settlementToName} numberOfLines={1}>
                         {edge.toName || edge.to?.split('@')[0] || 'Unknown'}
                       </Text>
                     </View>
@@ -450,6 +450,7 @@ const styles = StyleSheet.create({
   },
   groupInfo: {
     flex: 1,
+    marginRight: 12,
   },
   groupName: {
     fontSize: 16,

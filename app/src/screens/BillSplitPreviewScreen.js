@@ -314,11 +314,11 @@ export default function BillSplitPreviewScreen() {
             <View style={styles.summarySection}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Group</Text>
-                <Text style={styles.summaryValue}>{groupName}</Text>
+                <Text style={styles.summaryValue} numberOfLines={1}>{groupName}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Expense</Text>
-                <Text style={styles.summaryValue}>{expenseTitle}</Text>
+                <Text style={styles.summaryValue} numberOfLines={1}>{expenseTitle}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Paid By</Text>
@@ -411,7 +411,7 @@ export default function BillSplitPreviewScreen() {
                                   <Text style={[
                                     styles.memberName,
                                     isSelected && styles.memberNameSelected,
-                                  ]}>
+                                  ]} numberOfLines={1}>
                                     {member.name}
                                     {member.isPayer && ' (Payer)'}
                                   </Text>
@@ -500,7 +500,7 @@ export default function BillSplitPreviewScreen() {
                         </Text>
                       </View>
                       <View>
-                        <Text style={styles.splitMemberName}>
+                        <Text style={styles.splitMemberName} numberOfLines={1}>
                           {member.name}
                           {isCurrentUser && ' (You)'}
                         </Text>

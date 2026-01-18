@@ -216,7 +216,7 @@ export default function SelectGroupScreen() {
                       </Text>
                     </View>
                     <View style={styles.groupInfo}>
-                      <Text style={styles.groupName}>{group.name}</Text>
+                      <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
                       <Text style={styles.groupStatus}>● Active</Text>
                     </View>
                     <Text style={styles.groupArrow}>›</Text>

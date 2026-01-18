@@ -292,7 +292,7 @@ export default function FriendsScreen({ route }) {
                   return (
                     <View key={searchUser.mailId} style={styles.userRow}>
                       <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{searchUser.name}</Text>
+                        <Text style={styles.userName} numberOfLines={1}>{searchUser.name}</Text>
                         <Text style={styles.userEmail}>{searchUser.mailId}</Text>
                       </View>
                       {alreadyAdded ? (
@@ -347,7 +347,7 @@ export default function FriendsScreen({ route }) {
                       ]}
                     >
                       <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{fav.name}</Text>
+                        <Text style={styles.userName} numberOfLines={1}>{fav.name}</Text>
                         <Text style={styles.userEmail}>{fav.mailId}</Text>
                       </View>
                       <TouchableOpacity 

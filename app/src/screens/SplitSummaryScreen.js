@@ -409,7 +409,7 @@ export default function SplitSummaryScreen() {
             Split Created!
           </Animated.Text>
 
-          <Animated.Text style={[styles.groupName, { opacity: fadeAnim }]}>
+          <Animated.Text style={[styles.groupName, { opacity: fadeAnim }]} numberOfLines={1}>
             {groupName}
           </Animated.Text>
 
@@ -454,9 +454,9 @@ export default function SplitSummaryScreen() {
                 {consolidatedExpenses.map((exp, index) => (
                   <View key={index} style={styles.expenseRow}>
                     <View style={styles.expenseNames}>
-                      <Text style={styles.fromName}>{exp.fromName}</Text>
+                      <Text style={styles.fromName} numberOfLines={1}>{exp.fromName}</Text>
                       <Text style={styles.arrow}>→</Text>
-                      <Text style={styles.toName}>{exp.toName}</Text>
+                      <Text style={styles.toName} numberOfLines={1}>{exp.toName}</Text>
                     </View>
                     <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
                   </View>

@@ -283,7 +283,7 @@ export default function PendingExpensesScreen({ route }) {
                           </Text>
                         </View>
                         <View style={styles.groupInfo}>
-                          <Text style={styles.groupName}>{group.groupName}</Text>
+                          <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
                           <Text style={styles.groupStatus}>
                             {group.pendingEdges?.length || 0} pending
                             {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
@@ -304,7 +304,7 @@ export default function PendingExpensesScreen({ route }) {
                                 </Text>
                               </View>
                               <View style={styles.expenseInfo}>
-                                <Text style={styles.expenseText}>
+                                <Text style={styles.expenseText} numberOfLines={1}>
                                   Pay <Text style={styles.expenseName}>{edge.toName}</Text>
                                 </Text>
                                 <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
@@ -343,7 +343,7 @@ export default function PendingExpensesScreen({ route }) {
                               </Text>
                             </View>
                             <View style={styles.expenseInfo}>
-                              <Text style={styles.expenseTextResolved}>
+                              <Text style={styles.expenseTextResolved} numberOfLines={1}>
                                 Paid {edge.toName}
                               </Text>
                               <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
