@@ -63,7 +63,6 @@ export default function ProfileScreen() {
   const [userName, setUserName] = useState(user?.name || 'User');
   const [email, setEmail] = useState(user?.mailId || '');
   const [mobile, setMobile] = useState(user?.phone || '');
-  const [upiId, setUpiId] = useState(user?.upiId || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -83,7 +82,6 @@ export default function ProfileScreen() {
       // Clean phone number - only digits
       const cleanPhone = (user.phone || '').replace(/[^0-9]/g, '');
       setMobile(cleanPhone);
-      setUpiId(user.upiId || '');
     }
   }, [user]);
 
@@ -130,7 +128,6 @@ export default function ProfileScreen() {
       const result = await updateProfile({
         name: userName,
         phone: mobile,
-        upiId: upiId,
       });
       
       if (result.success) {
@@ -386,32 +383,6 @@ export default function ProfileScreen() {
                 </View>
               ) : (
                 <Text style={styles.fieldValue}>{mobile || 'Not set'}</Text>
-              )}
-            </View>
-
-            <View style={styles.fieldDivider} />
-
-            {/* UPI ID Field */}
-            <View style={styles.fieldContainer}>
-              <View style={styles.fieldHeader}>
-                <Text style={styles.fieldIcon}>💳</Text>
-                <Text style={styles.fieldLabel}>UPI ID</Text>
-              </View>
-              {isEditing ? (
-                <View>
-                  <TextInput
-                    style={styles.fieldInput}
-                    value={upiId}
-                    onChangeText={setUpiId}
-                    placeholder="e.g., yourname@upi"
-                    placeholderTextColor="#999"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <Text style={styles.hintText}>Required for receiving payments via UPI</Text>
-                </View>
-              ) : (
-                <Text style={styles.fieldValue}>{upiId || 'Not set'}</Text>
               )}
             </View>
 

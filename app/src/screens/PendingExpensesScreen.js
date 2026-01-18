@@ -13,7 +13,6 @@ import {
   BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import RNUpiPayment from 'react-native-upi-payment';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { authGet, authPost } from '../utils/apiHelper';
@@ -47,10 +46,6 @@ export default function PendingExpensesScreen({ route }) {
     from: null,
     to: null,
     groupName: '',
-  });
-  const [upiErrorModal, setUpiErrorModal] = useState({
-    visible: false,
-    recipientName: '',
   });
 
   const fetchPendingExpenses = async () => {
@@ -198,96 +193,6 @@ export default function PendingExpensesScreen({ route }) {
     });
   };
 
-  // Android only - Pay Now with UPI intent
-  const handlePayNow = async (groupId, edge, groupName, pendingCount) => {
-    // Only works on Android
-    if (Platform.OS !== 'android') return;
-    
-    // Check if recipient has UPI ID
-    if (!edge.toUpiId) {
-      setUpiErrorModal({
-        visible: true,
-        recipientName: edge.toName,
-      });
-      
-      // Send notification to recipient about missing UPI ID
-      try {
-        await authPost('/groups/notify-upi-missing', {
-          recipientEmail: edge.to,
-          amount: edge.amount,
-        });
-      } catch (error) {
-        console.log('Failed to send UPI missing notification:', error);
-      }
-      return;
-    }
-    
-    const isLastEdge = pendingCount === 1;
-    
-    // Android - use intent-based UPI payment with callback
-    RNUpiPayment.initializePayment(
-      {
-        vpa: edge.toUpiId,
-        amount: edge.amount.toFixed(2),
-        name: edge.toName,
-        transactionRef: `splitbill-${groupId}-${Date.now()}`,
-      },
-      async (successResponse) => {
-        // Payment successful
-        console.log('UPI Payment Success:', successResponse);
-        
-        if (isLastEdge) {
-          // Show completion choice modal for last edge
-          setCompletionChoiceModal({
-            visible: true,
-            groupId,
-            from: edge.from,
-            to: edge.to,
-            groupName,
-          });
-        } else {
-          // Directly resolve the edge
-          await processResolve(groupId, edge.from, edge.to, false);
-        }
-      },
-      (failureResponse) => {
-        // Payment failed or cancelled
-        console.log('UPI Payment Failed:', failureResponse);
-        
-        if (failureResponse?.status === 'FAILURE') {
-          Alert.alert('Payment Failed', failureResponse.message || 'The payment could not be completed.');
-        } else if (failureResponse?.status === 'SUBMITTED') {
-          // Payment submitted but pending
-          Alert.alert(
-            'Payment Pending',
-            'Your payment is being processed. Please check your bank app for status.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Mark as Paid',
-                onPress: async () => {
-                  if (isLastEdge) {
-                    setCompletionChoiceModal({
-                      visible: true,
-                      groupId,
-                      from: edge.from,
-                      to: edge.to,
-                      groupName,
-                    });
-                  } else {
-                    await processResolve(groupId, edge.from, edge.to, false);
-                  }
-                },
-              },
-            ]
-          );
-        }
-        // USER_CANCELLED - do nothing, user cancelled
-      }
-    );
-  };
-
-
   const totalPending = pendingExpenses.reduce(
     (sum, group) => sum + (group.pendingEdges?.length || 0),
     0
@@ -413,14 +318,6 @@ export default function PendingExpensesScreen({ route }) {
                                   <Text style={styles.resolveButtonText}>Mark as Settled</Text>
                                 )}
                               </TouchableOpacity>
-                              {Platform.OS === 'android' && (
-                                <TouchableOpacity
-                                  style={styles.payNowButton}
-                                  onPress={() => handlePayNow(group.groupId, edge, group.groupName, pendingCount)}
-                                >
-                                  <Text style={styles.payNowButtonText}>Pay Now</Text>
-                                </TouchableOpacity>
-                              )}
                             </View>
                           </View>
                         );
@@ -568,45 +465,6 @@ export default function PendingExpensesScreen({ route }) {
             </View>
           </View>
         </Modal>
-
-        {/* UPI Error Modal */}
-        <Modal
-          visible={upiErrorModal.visible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setUpiErrorModal({ visible: false, recipientName: '' })}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.upiErrorModalContainer}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setUpiErrorModal({ visible: false, recipientName: '' })}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
-              <View style={styles.upiErrorIconContainer}>
-                <Text style={styles.upiErrorIcon}>💳</Text>
-              </View>
-              <Text style={styles.upiErrorTitle}>
-                {upiErrorModal.recipientName === 'desktop_not_supported' 
-                  ? 'Not Supported' 
-                  : 'UPI ID Not Set'}
-              </Text>
-              <Text style={styles.upiErrorMessage}>
-                {upiErrorModal.recipientName === 'desktop_not_supported'
-                  ? 'UPI payments are only supported on mobile devices. Please open this page on your phone or use the mobile app.'
-                  : `${upiErrorModal.recipientName} hasn't added their UPI ID yet. Ask them to update their profile to receive payments.`}
-              </Text>
-              <TouchableOpacity
-                style={styles.upiErrorButton}
-                onPress={() => setUpiErrorModal({ visible: false, recipientName: '' })}
-              >
-                <Text style={styles.upiErrorButtonText}>Got it</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
 
       </LinearGradient>
     </View>
@@ -859,18 +717,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
-  },
-  payNowButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
-  },
-  payNowButtonText: {
-    color: '#FFF',
-    fontSize: 13,
-    fontWeight: '700',
   },
   resolveButton: {
     backgroundColor: '#FFF',
@@ -1146,60 +992,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
-  
-  // UPI Error Modal Styles
-  upiErrorModalContainer: {
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    padding: 28,
-    paddingTop: 40,
-    width: '100%',
-    maxWidth: 340,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 15,
-    position: 'relative',
-  },
-  upiErrorIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF5E6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  upiErrorIcon: {
-    fontSize: 42,
-  },
-  upiErrorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 12,
-  },
-  upiErrorMessage: {
-    fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  upiErrorButton: {
-    width: '100%',
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#FF6B35',
-    alignItems: 'center',
-    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
-  },
-  upiErrorButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFF',
-  },
-  
 });
