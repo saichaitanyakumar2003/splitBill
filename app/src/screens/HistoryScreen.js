@@ -9,24 +9,33 @@ import {
   RefreshControl,
   ActivityIndicator,
   BackHandler,
+  Modal,
+  Pressable,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { authGet } from '../utils/apiHelper';
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 export default function HistoryScreen({ route }) {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [completedGroups, setCompletedGroups] = useState([]);
+  const [historyRecords, setHistoryRecords] = useState([]);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const slideAnim = useState(new Animated.Value(SCREEN_HEIGHT))[0];
 
   const fetchHistory = async () => {
     try {
       const response = await authGet('/groups/history');
       const data = await response.json();
       if (data.success) {
-        setCompletedGroups(data.data || []);
+        setHistoryRecords(data.data || []);
       }
     } catch (error) {
       console.error('Error fetching history:', error);
@@ -57,6 +66,10 @@ export default function HistoryScreen({ route }) {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const backAction = () => {
+      if (modalVisible) {
+        closeModal();
+        return true;
+      }
       if (navigation.canGoBack()) {
         navigation.goBack();
       } else {
@@ -66,7 +79,7 @@ export default function HistoryScreen({ route }) {
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => subscription.remove();
-  }, [navigation]);
+  }, [navigation, modalVisible]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -77,10 +90,31 @@ export default function HistoryScreen({ route }) {
     });
   };
 
-  // Calculate total amount from expenses
-  const getTotalAmount = (expenses) => {
-    if (!expenses || !Array.isArray(expenses)) return 0;
-    return expenses.reduce((sum, exp) => sum + (exp.totalAmount || exp.amount || 0), 0);
+  const getTotalSettled = (settledEdges) => {
+    if (!settledEdges || !Array.isArray(settledEdges)) return 0;
+    return settledEdges.reduce((sum, edge) => sum + (edge.amount || 0), 0);
+  };
+
+  const openModal = (record) => {
+    setSelectedRecord(record);
+    setModalVisible(true);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeModal = () => {
+    Animated.timing(slideAnim, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setModalVisible(false);
+      setSelectedRecord(null);
+    });
   };
 
   return (
@@ -101,7 +135,7 @@ export default function HistoryScreen({ route }) {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Content - Fixed card with scrollable content inside */}
+        {/* Content */}
         <View style={styles.content}>
           {loading ? (
             <View style={styles.card}>
@@ -110,13 +144,13 @@ export default function HistoryScreen({ route }) {
                 <Text style={styles.loadingText}>Loading history...</Text>
               </View>
             </View>
-          ) : completedGroups.length === 0 ? (
+          ) : historyRecords.length === 0 ? (
             <View style={styles.card}>
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>📜</Text>
                 <Text style={styles.emptyTitle}>No History Yet</Text>
                 <Text style={styles.emptySubtext}>
-                  Completed groups will appear here once all payments are settled
+                  Settled payments will appear here once you complete transactions
                 </Text>
               </View>
             </View>
@@ -124,11 +158,13 @@ export default function HistoryScreen({ route }) {
             <View style={styles.card}>
               {/* Summary Header */}
               <View style={styles.summaryHeader}>
-                <Text style={styles.summaryTitle}>Completed Groups</Text>
-                <Text style={styles.summaryCount}>{completedGroups.length}</Text>
+                <Text style={styles.summaryTitle}>Settlement History</Text>
+                <Text style={styles.summaryCount}>
+                  {historyRecords.length} group{historyRecords.length !== 1 ? 's' : ''}
+                </Text>
               </View>
 
-              {/* Scrollable Groups List */}
+              {/* Scrollable History List */}
               <ScrollView 
                 style={styles.groupsList}
                 contentContainerStyle={styles.groupsListContent}
@@ -144,63 +180,28 @@ export default function HistoryScreen({ route }) {
                   ) : undefined
                 }
               >
-                {completedGroups.map((group) => (
-                  <View key={group.id} style={styles.groupCard}>
-                    <View style={styles.groupHeader}>
+                {historyRecords.map((record) => (
+                  <View key={record.id} style={styles.historyItem}>
+                    <View style={styles.historyItemLeft}>
                       <View style={styles.groupIcon}>
                         <Text style={styles.groupIconText}>
-                          {group.name.substring(0, 2).toUpperCase()}
+                          {record.groupName.substring(0, 2).toUpperCase()}
                         </Text>
                       </View>
                       <View style={styles.groupInfo}>
-                        <Text style={styles.groupName}>{group.name}</Text>
-                        <Text style={styles.groupDate}>
-                          Completed {formatDate(group.updatedAt)}
-                        </Text>
-                      </View>
-                      <View style={styles.completedBadge}>
-                        <Text style={styles.completedBadgeText}>✓</Text>
-                      </View>
-                    </View>
-
-                    {/* Group Stats */}
-                    <View style={styles.statsRow}>
-                      <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Total</Text>
-                        <Text style={styles.statValue}>
-                          ₹{getTotalAmount(group.expenses).toFixed(2)}
-                        </Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Expenses</Text>
-                        <Text style={styles.statValue}>
-                          {group.expenses?.length || 0}
-                        </Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>Settlements</Text>
-                        <Text style={styles.statValue}>
-                          {group.consolidatedExpenses?.length || 0}
+                        <Text style={styles.groupName}>{record.groupName}</Text>
+                        <Text style={styles.settledCount}>
+                          {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
                         </Text>
                       </View>
                     </View>
-
-                    {/* Settlement Summary - Show all settlements */}
-                    {group.consolidatedExpenses && group.consolidatedExpenses.length > 0 && (
-                      <View style={styles.settlementsSection}>
-                        <Text style={styles.settlementsTitle}>Settlements</Text>
-                        {group.consolidatedExpenses.map((edge, index) => (
-                          <View key={index} style={styles.settlementRow}>
-                            <View style={styles.settlementNamesContainer}>
-                              <Text style={styles.settlementName}>{edge.fromName || edge.from?.split('@')[0]}</Text>
-                              <Text style={styles.settlementArrow}> → </Text>
-                              <Text style={styles.settlementName}>{edge.toName || edge.to?.split('@')[0]}</Text>
-                            </View>
-                            <Text style={styles.settlementAmount}>₹{edge.amount?.toFixed(2)}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
+                    <TouchableOpacity 
+                      style={styles.viewButton}
+                      onPress={() => openModal(record)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.viewButtonText}>View settlements</Text>
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -208,6 +209,103 @@ export default function HistoryScreen({ route }) {
           )}
         </View>
       </LinearGradient>
+
+      {/* Bottom Sheet Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="none"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={closeModal} />
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              { transform: [{ translateY: slideAnim }] }
+            ]}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>
+                {selectedRecord?.groupName || 'Settlements'}
+              </Text>
+              <TouchableOpacity onPress={closeModal} style={styles.modalCloseButton}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Stats */}
+            {selectedRecord && (
+              <View style={styles.modalStats}>
+                <View style={styles.modalStatItem}>
+                  <Text style={styles.modalStatValue}>
+                    {selectedRecord.settledEdges?.length || 0}
+                  </Text>
+                  <Text style={styles.modalStatLabel}>Settlements</Text>
+                </View>
+                <View style={styles.modalStatDivider} />
+                <View style={styles.modalStatItem}>
+                  <Text style={styles.modalStatValue}>
+                    ₹{getTotalSettled(selectedRecord.settledEdges).toFixed(2)}
+                  </Text>
+                  <Text style={styles.modalStatLabel}>Total Amount</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Settlements List */}
+            <ScrollView 
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              {selectedRecord?.settledEdges?.map((edge, index) => (
+                <View key={index} style={styles.settlementItem}>
+                  <View style={styles.settlementLeft}>
+                    <View style={styles.settlementAvatars}>
+                      <View style={styles.avatarFrom}>
+                        <Text style={styles.avatarText}>
+                          {(edge.fromName || edge.from || '?').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.avatarArrow}>
+                        <Text style={styles.avatarArrowText}>→</Text>
+                      </View>
+                      <View style={styles.avatarTo}>
+                        <Text style={styles.avatarText}>
+                          {(edge.toName || edge.to || '?').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.settlementNames}>
+                      <Text style={styles.settlementFromName}>
+                        {edge.fromName || edge.from?.split('@')[0] || 'Unknown'}
+                      </Text>
+                      <Text style={styles.settlementToText}> paid </Text>
+                      <Text style={styles.settlementToName}>
+                        {edge.toName || edge.to?.split('@')[0] || 'Unknown'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.settlementRight}>
+                    <Text style={styles.settlementAmount}>₹{edge.amount?.toFixed(2)}</Text>
+                    {edge.settledAt && (
+                      <Text style={styles.settlementDate}>{formatDate(edge.settledAt)}</Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+              
+              {(!selectedRecord?.settledEdges || selectedRecord.settledEdges.length === 0) && (
+                <View style={styles.noSettlements}>
+                  <Text style={styles.noSettlementsText}>No settlements yet</Text>
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -223,7 +321,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 65 : 50,
+    paddingTop: Platform.OS === 'ios' ? 65 : (Platform.OS === 'web' ? 20 : 50),
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
@@ -234,9 +332,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-    }),
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
   backText: {
     fontSize: 28,
@@ -261,7 +357,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -307,7 +403,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   summaryTitle: {
     fontSize: 16,
@@ -315,7 +411,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   summaryCount: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#28A745',
   },
@@ -325,22 +421,24 @@ const styles = StyleSheet.create({
   groupsListContent: {
     paddingBottom: 10,
   },
-  groupCard: {
-    backgroundColor: '#F8F8F8',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  groupHeader: {
+  historyItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  historyItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   groupIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#6C757D',
+    backgroundColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -354,16 +452,145 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupName: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
     marginBottom: 2,
   },
-  groupDate: {
+  settledCount: {
     fontSize: 13,
     color: '#888',
   },
-  completedBadge: {
+  viewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  viewButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6B35',
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalHandle: {
+    position: 'absolute',
+    top: 8,
+    left: '50%',
+    marginLeft: -20,
+    width: 40,
+    height: 4,
+    backgroundColor: '#DDD',
+    borderRadius: 2,
+  },
+  modalTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+  },
+  modalStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#F8F8F8',
+  },
+  modalStatItem: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#28A745',
+  },
+  modalStatLabel: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  modalStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#E0E0E0',
+  },
+  modalScrollView: {
+    paddingHorizontal: 20,
+    maxHeight: SCREEN_HEIGHT * 0.45,
+  },
+  settlementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  settlementLeft: {
+    flex: 1,
+  },
+  settlementAvatars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  avatarFrom: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarTo: {
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -371,86 +598,56 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  completedBadgeText: {
-    color: '#FFF',
-    fontSize: 14,
+  avatarText: {
+    fontSize: 12,
     fontWeight: '700',
+    color: '#FFF',
   },
-  statsRow: {
+  avatarArrow: {
+    paddingHorizontal: 8,
+  },
+  avatarArrowText: {
+    fontSize: 14,
+    color: '#888',
+  },
+  settlementNames: {
     flexDirection: 'row',
-    backgroundColor: '#F8F8F8',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  statItem: {
-    flex: 1,
+    flexWrap: 'wrap',
     alignItems: 'center',
   },
-  statLabel: {
-    fontSize: 10,
-    color: '#888',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    textAlign: 'center',
-  },
-  statValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#333',
-    textAlign: 'center',
-  },
-  settlementsSection: {
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 12,
-  },
-  settlementsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#888',
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  settlementRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 6,
-    flexWrap: 'wrap',
-  },
-  settlementNamesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    flex: 1,
-    marginRight: 12,
-  },
-  settlementArrow: {
-    fontSize: 13,
-    color: '#666',
-  },
-  settlementName: {
-    fontSize: 13,
+  settlementFromName: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
+  },
+  settlementToText: {
+    fontSize: 14,
+    color: '#888',
+  },
+  settlementToName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  settlementRight: {
+    alignItems: 'flex-end',
   },
   settlementAmount: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#28A745',
-    flexShrink: 0,
   },
-  moreSettlementsRow: {
-    backgroundColor: '#E8F5E9',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginTop: 8,
+  settlementDate: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 2,
+  },
+  noSettlements: {
+    paddingVertical: 40,
     alignItems: 'center',
   },
-  moreSettlements: {
-    fontSize: 13,
-    color: '#28A745',
-    fontWeight: '600',
+  noSettlementsText: {
+    fontSize: 16,
+    color: '#888',
   },
 });

@@ -23,7 +23,15 @@ const GroupSchema = new mongoose.Schema({
   compressedDetails: {
     type: Buffer,
     required: true,
-    default: () => compressData({ expenses: [], consolidatedExpenses: [] })
+    default: () => compressData({ expenses: [] })
+  },
+
+  // TTL - document will be deleted after this date
+  // Set when group is marked as completed (7 days after completion)
+  expiresAt: {
+    type: Date,
+    default: null,
+    index: { expires: 0 } // TTL index
   },
 
   createdAt: { type: Date, default: Date.now },
@@ -31,165 +39,74 @@ const GroupSchema = new mongoose.Schema({
 }, { _id: false });
 
 GroupSchema.methods.getDetails = function() {
-  if (!this.compressedDetails) return { expenses: [], consolidatedExpenses: [] };
-  return decompressData(this.compressedDetails);
+  if (!this.compressedDetails) return { expenses: [] };
+  const data = decompressData(this.compressedDetails);
+  // Remove consolidatedExpenses if it exists (legacy data)
+  return { expenses: data.expenses || [] };
 };
 
 GroupSchema.methods.setDetails = function(details) {
-  this.compressedDetails = compressData(details);
+  // Only store expenses, not consolidatedExpenses
+  this.compressedDetails = compressData({ expenses: details.expenses || [] });
   this.updatedAt = new Date();
+};
+
+GroupSchema.methods.getExpenses = function() {
+  const details = this.getDetails();
+  return details.expenses || [];
+};
+
+GroupSchema.methods.hasExpenseWithName = function(name) {
+  const details = this.getDetails();
+  const normalizedName = name.toLowerCase().trim();
+  return details.expenses.some(e => e.name.toLowerCase().trim() === normalizedName);
 };
 
 GroupSchema.methods.addExpense = function(expense) {
   const details = this.getDetails();
   
+  // Check for unique expense name
+  const normalizedName = expense.name.toLowerCase().trim();
+  const existingNames = details.expenses.map(e => e.name.toLowerCase().trim());
+  
+  let finalName = expense.name;
+  if (existingNames.includes(normalizedName)) {
+    // Generate unique name by appending a number
+    let counter = 2;
+    while (existingNames.includes(`${normalizedName} (${counter})`)) {
+      counter++;
+    }
+    finalName = `${expense.name} (${counter})`;
+  }
+  
   details.expenses.push({
     id: new mongoose.Types.ObjectId().toString(),
-    name: expense.name,
+    name: finalName,
     payer: expense.payer.toLowerCase().trim(),
-    payees: (expense.payees || []).map(p => p.toLowerCase().trim()),
+    payees: (expense.payees || []).map(p => 
+      typeof p === 'object' ? p : p.toLowerCase().trim()
+    ),
     amount: parseFloat(expense.amount),
+    totalAmount: expense.totalAmount || parseFloat(expense.amount),
     createdAt: new Date().toISOString()
   });
   
-  this.compressedDetails = compressData(details);
+  this.compressedDetails = compressData({ expenses: details.expenses });
   this.updatedAt = new Date();
-  
-  this.recalculateConsolidated();
 };
 
 GroupSchema.methods.removeExpense = function(expenseId) {
   const details = this.getDetails();
   details.expenses = details.expenses.filter(e => e.id !== expenseId);
-  this.compressedDetails = compressData(details);
+  this.compressedDetails = compressData({ expenses: details.expenses });
   this.updatedAt = new Date();
-  this.recalculateConsolidated();
 };
 
-GroupSchema.methods.recalculateConsolidated = function() {
-  const details = this.getDetails();
-  const balances = {};
-
-  const resolvedPayments = [];
-  if (details.consolidatedExpenses) {
-    details.consolidatedExpenses.forEach(edge => {
-      if (edge.resolved) {
-        resolvedPayments.push({
-          from: edge.from,
-          to: edge.to,
-          amount: edge.amount
-        });
-      }
-    });
-  }
-
-  for (const expense of details.expenses) {
-    const payer = expense.payer;
-    const totalAmount = expense.totalAmount || expense.amount;
-    
-    balances[payer] = (balances[payer] || 0) + totalAmount;
-    
-    for (const payee of (expense.payees || [])) {
-      if (typeof payee === 'object') {
-        balances[payee.mailId] = (balances[payee.mailId] || 0) - payee.amount;
-      } else {
-        const splitAmount = totalAmount / (expense.payees.length || 1);
-        balances[payee] = (balances[payee] || 0) - splitAmount;
-      }
-    }
-  }
-
-  for (const payment of resolvedPayments) {
-    balances[payment.from] = (balances[payment.from] || 0) + payment.amount;
-    balances[payment.to] = (balances[payment.to] || 0) - payment.amount;
-  }
-
-  const creditors = [];
-  const debtors = [];
-
-  for (const [mailId, balance] of Object.entries(balances)) {
-    const roundedBalance = Math.round(balance * 100) / 100;
-    if (roundedBalance > 0.01) {
-      creditors.push({ mailId, amount: roundedBalance });
-    } else if (roundedBalance < -0.01) {
-      debtors.push({ mailId, amount: Math.abs(roundedBalance) });
-    }
-  }
-
-  creditors.sort((a, b) => b.amount - a.amount);
-  debtors.sort((a, b) => b.amount - a.amount);
-
-  const consolidated = [];
-  let i = 0, j = 0;
-
-  while (i < debtors.length && j < creditors.length) {
-    const debtor = debtors[i];
-    const creditor = creditors[j];
-    const amount = Math.min(debtor.amount, creditor.amount);
-
-    if (amount > 0.01) {
-      consolidated.push({
-        from: debtor.mailId,
-        to: creditor.mailId,
-        amount: Math.round(amount * 100) / 100,
-        resolved: false
-      });
-    }
-
-    debtor.amount -= amount;
-    creditor.amount -= amount;
-
-    if (debtor.amount < 0.01) i++;
-    if (creditor.amount < 0.01) j++;
-  }
-
-  for (const payment of resolvedPayments) {
-    consolidated.push({
-      from: payment.from,
-      to: payment.to,
-      amount: payment.amount,
-      resolved: true
-    });
-  }
-
-  details.consolidatedExpenses = consolidated;
-  this.compressedDetails = compressData(details);
-};
-
-GroupSchema.methods.markEdgeResolved = function(from, to) {
-  const details = this.getDetails();
-  let found = false;
-  
-  if (details.consolidatedExpenses) {
-    details.consolidatedExpenses = details.consolidatedExpenses.map(edge => {
-      if (edge.from === from && edge.to === to) {
-        found = true;
-        return { ...edge, resolved: true };
-      }
-      return edge;
-    });
-  }
-  
-  if (found) {
-    this.compressedDetails = compressData(details);
-    this.updatedAt = new Date();
-  }
-  
-  return found;
-};
-
-GroupSchema.methods.areAllEdgesResolved = function() {
-  const details = this.getDetails();
-  if (!details.consolidatedExpenses || details.consolidatedExpenses.length === 0) {
-    return true;
-  }
-  const unresolvedEdges = details.consolidatedExpenses.filter(edge => !edge.resolved);
-  return unresolvedEdges.length === 0;
-};
-
-GroupSchema.methods.getSettlements = function() {
-  const details = this.getDetails();
-  return details.consolidatedExpenses;
+GroupSchema.methods.setTTL = function(days = 7) {
+  const expiryDate = new Date();
+  expiryDate.setDate(expiryDate.getDate() + days);
+  this.expiresAt = expiryDate;
+  this.updatedAt = new Date();
 };
 
 GroupSchema.methods.toJSON = function() {
@@ -199,7 +116,7 @@ GroupSchema.methods.toJSON = function() {
     name: this.name,
     status: this.status,
     expenses: details.expenses,
-    consolidatedExpenses: details.consolidatedExpenses,
+    expiresAt: this.expiresAt,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
   };

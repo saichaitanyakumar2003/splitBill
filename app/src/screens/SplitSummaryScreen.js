@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: Platform.OS === 'ios' ? 85 : 65,
+    paddingTop: Platform.OS === 'ios' ? 85 : (Platform.OS === 'web' ? 20 : 65),
     paddingHorizontal: 20,
     paddingBottom: 40,
     alignItems: 'center',

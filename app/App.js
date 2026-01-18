@@ -1300,7 +1300,7 @@ const styles = StyleSheet.create({
   // Header Bar with Profile Icon
   headerBar: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 50,
+    top: Platform.OS === 'ios' ? 60 : (Platform.OS === 'web' ? 20 : 50),
     left: 0,
     right: 0,
     flexDirection: 'row',
