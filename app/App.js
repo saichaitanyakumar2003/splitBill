@@ -87,216 +87,6 @@ const getLinkedScreens = (isAuthenticated) => ({
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Animated Rolling Receipt on Left Side
-function RollingBill() {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Floating animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Subtle rotation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 4000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 4000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const translateY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -20],
-  });
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-12deg', '-8deg'],
-  });
-
-  return (
-    <Animated.View style={[styles.billContainer, { transform: [{ translateY }, { rotate }] }]}>
-      <View style={styles.bill}>
-        <View style={styles.billHeader}>
-          <Text style={styles.billRestaurant}>🍽️ RESTAURANT</Text>
-          <Text style={styles.billDate}>Dec 29, 2024</Text>
-        </View>
-        
-        <Text style={styles.dottedLine}>- - - - - - - - - - - - -</Text>
-        
-        <View style={styles.billItem}>
-          <Text style={styles.billItemName}>Pizza</Text>
-          <Text style={styles.billItemPrice}>$18.99</Text>
-        </View>
-        <View style={styles.billItem}>
-          <Text style={styles.billItemName}>Pasta</Text>
-          <Text style={styles.billItemPrice}>$14.50</Text>
-        </View>
-        <View style={styles.billItem}>
-          <Text style={styles.billItemName}>Drinks x2</Text>
-          <Text style={styles.billItemPrice}>$8.00</Text>
-        </View>
-        <View style={styles.billItem}>
-          <Text style={styles.billItemName}>Dessert</Text>
-          <Text style={styles.billItemPrice}>$9.99</Text>
-        </View>
-        
-        <Text style={styles.dottedLine}>- - - - - - - - - - - - -</Text>
-        
-        <View style={styles.billItem}>
-          <Text style={styles.billSubtotal}>Subtotal</Text>
-          <Text style={styles.billSubtotal}>$51.48</Text>
-        </View>
-        <View style={styles.billItem}>
-          <Text style={styles.billTax}>Tax</Text>
-          <Text style={styles.billTax}>$4.63</Text>
-        </View>
-        
-        <View style={styles.billTotalRow}>
-          <Text style={styles.billTotal}>TOTAL</Text>
-          <Text style={styles.billTotalAmount}>$56.11</Text>
-        </View>
-        
-        <View style={styles.receiptTear}>
-          <Text style={styles.tearPattern}>▼ ▼ ▼ ▼ ▼ ▼ ▼</Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-// Animated UPI Payment Success Phone on Right Side
-function UPISuccess() {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    // Floating animation (opposite phase)
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 2500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 2500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Subtle rotation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 3500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 3500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Pulse animation for success
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const translateY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 15],
-  });
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['12deg', '8deg'],
-  });
-
-  return (
-    <Animated.View style={[styles.phoneContainer, { transform: [{ translateY }, { rotate }] }]}>
-      <View style={styles.phone}>
-        <View style={styles.phoneNotch} />
-        
-        <View style={styles.phoneScreen}>
-          <Animated.View style={[styles.successCircle, { transform: [{ scale: pulseAnim }] }]}>
-            <Text style={styles.successCheck}>✓</Text>
-          </Animated.View>
-          
-          <Text style={styles.successText}>Payment</Text>
-          <Text style={styles.successText}>Successful!</Text>
-          
-          <Text style={styles.successAmount}>₹ 1,400.00</Text>
-          
-          <View style={styles.upiLogo}>
-            <Text style={styles.upiText}>UPI</Text>
-          </View>
-          
-          <View style={styles.transactionDetails}>
-            <Text style={styles.transactionText}>To: Restaurant</Text>
-            <Text style={styles.transactionId}>ID: UPI123456</Text>
-          </View>
-          
-          <Text style={styles.confetti1}>🎉</Text>
-          <Text style={styles.confetti2}>✨</Text>
-          <Text style={styles.confetti3}>🎊</Text>
-        </View>
-        
-        <View style={styles.phoneHomeButton} />
-      </View>
-    </Animated.View>
-  );
-}
 
 // Animated floating emojis
 function FloatingEmojis() {
@@ -778,7 +568,20 @@ function HomeScreen({ navigation, route }) {
   const [processingError, setProcessingError] = useState(null);
   
   const { user, logout, token, isAuthenticated } = useAuth();
-  const isMobile = Platform.OS === 'ios' || Platform.OS === 'android';
+  const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
+  
+  // Track screen width for responsive layout (especially for mobile web)
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+  
+  // Use mobile layout for native mobile OR small web screens (< 768px)
+  const isMobileLayout = isNativeMobile || screenWidth < 768;
 
   // Redirect to Login if not authenticated (handles logout)
   useEffect(() => {
@@ -792,7 +595,7 @@ function HomeScreen({ navigation, route }) {
 
   // Check if we should open the side panel (when coming back from a screen)
   useEffect(() => {
-    if (route.params?.openSidePanel && !isMobile) {
+    if (route.params?.openSidePanel && !isNativeMobile) {
       setShowSidePanel(true);
       // Clear the param so it doesn't re-trigger
       navigation.setParams({ openSidePanel: undefined });
@@ -990,8 +793,8 @@ function HomeScreen({ navigation, route }) {
         
         {/* Header Bar - Menu on Left (Web only), Profile/Settings on Right */}
         <View style={styles.headerBar}>
-          {/* Hamburger Menu - Left (Web only) */}
-          {!isMobile ? (
+          {/* Hamburger Menu - Left (Web including mobile web) */}
+          {!isNativeMobile ? (
             <TouchableOpacity
               style={styles.menuIconButton}
               onPress={() => setShowSidePanel(true)}
@@ -1009,8 +812,8 @@ function HomeScreen({ navigation, route }) {
             <View style={styles.headerPlaceholder} />
           )}
           
-          {/* Right Icon - Profile with initials (Mobile) or Profile (Web) */}
-          {isMobile ? (
+          {/* Right Icon - Profile with initials (Native Mobile) or Profile dropdown (Web) */}
+          {isNativeMobile ? (
             <TouchableOpacity
               style={styles.profileIconButton}
               onPress={() => setShowSettingsPanel(true)}
@@ -1034,8 +837,8 @@ function HomeScreen({ navigation, route }) {
         </View>
 
 
-        {/* Mobile: Settings Panel (Right) - Contains Profile, Help Center, Logout */}
-        {isMobile && (
+        {/* Native Mobile: Settings Panel (Right) - Contains Profile, Help Center, Logout */}
+        {isNativeMobile && (
           <MobileSettingsPanel
             visible={showSettingsPanel}
             onClose={() => setShowSettingsPanel(false)}
@@ -1089,8 +892,8 @@ function HomeScreen({ navigation, route }) {
           </View>
         </Modal>
 
-        {/* Web: Side Panel with all tabs */}
-        {!isMobile && (
+        {/* Web: Side Panel with all tabs (including mobile web) */}
+        {!isNativeMobile && (
           <WebSidePanel
             visible={showSidePanel}
             onClose={() => setShowSidePanel(false)}
@@ -1113,8 +916,8 @@ function HomeScreen({ navigation, route }) {
           />
         )}
 
-        {/* Web: Profile Dropdown Menu */}
-        {!isMobile && (
+        {/* Web: Profile Dropdown Menu (including mobile web) */}
+        {!isNativeMobile && (
           <WebProfileMenu
             visible={showProfileMenu}
             onClose={() => setShowProfileMenu(false)}
@@ -1128,56 +931,50 @@ function HomeScreen({ navigation, route }) {
         <DecorativeCircles />
         <FloatingEmojis />
         
-        {/* Animated Rolling Bill on Left - Web only */}
-        {!isMobile && <RollingBill />}
-        
-        {/* Animated UPI Success on Right - Web only */}
-        {!isMobile && <UPISuccess />}
-        
         {/* Main content */}
-        <View style={[styles.content, isMobile && styles.contentMobile]}>
-          <Logo isMobile={isMobile} />
+        <View style={[styles.content, isMobileLayout && styles.contentMobile]}>
+          <Logo isMobile={isMobileLayout} />
           
-          <View style={[styles.optionsContainer, isMobile && styles.optionsContainerMobile]}>
+          <View style={[styles.optionsContainer, isMobileLayout && styles.optionsContainerMobile]}>
             <TouchableOpacity 
-              style={[styles.optionCard, isMobile && styles.optionCardMobile]} 
+              style={[styles.optionCard, isMobileLayout && styles.optionCardMobile]} 
               onPress={handleCustomSplit}
               activeOpacity={0.9}
             >
-              <View style={[styles.optionIcon, isMobile && styles.optionIconMobile]}>
-                <Text style={[styles.iconText, isMobile && styles.iconTextMobile]}>🧮</Text>
+              <View style={[styles.optionIcon, isMobileLayout && styles.optionIconMobile]}>
+                <Text style={[styles.iconText, isMobileLayout && styles.iconTextMobile]}>🧮</Text>
               </View>
-              <Text style={[styles.optionTitle, isMobile && styles.optionTitleMobile]}>Add Custom Split</Text>
-              <Text style={[styles.optionDesc, isMobile && styles.optionDescMobile]} numberOfLines={1}>Enter expense amount manually</Text>
-              <View style={[styles.cardArrow, isMobile && styles.cardArrowMobile]}>
+              <Text style={[styles.optionTitle, isMobileLayout && styles.optionTitleMobile]}>Add Custom Split</Text>
+              <Text style={[styles.optionDesc, isMobileLayout && styles.optionDescMobile]} numberOfLines={1}>Enter expense amount manually</Text>
+              <View style={[styles.cardArrow, isMobileLayout && styles.cardArrowMobile]}>
                 <Text style={styles.arrowText}>›</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.optionCard, isMobile && styles.optionCardMobile]} 
+              style={[styles.optionCard, isMobileLayout && styles.optionCardMobile]} 
               onPress={handleUploadImage}
               activeOpacity={0.9}
             >
-              <View style={[styles.optionIcon, isMobile && styles.optionIconMobile]}>
-                <Text style={[styles.iconText, isMobile && styles.iconTextMobile]}>📷</Text>
+              <View style={[styles.optionIcon, isMobileLayout && styles.optionIconMobile]}>
+                <Text style={[styles.iconText, isMobileLayout && styles.iconTextMobile]}>📷</Text>
               </View>
-              <Text style={[styles.optionTitle, isMobile && styles.optionTitleMobile]}>Upload Image</Text>
-              <Text style={[styles.optionDesc, isMobile && styles.optionDescMobile]} numberOfLines={1}>Import a bill photo</Text>
-              <View style={[styles.cardArrow, isMobile && styles.cardArrowMobile]}>
+              <Text style={[styles.optionTitle, isMobileLayout && styles.optionTitleMobile]}>Upload Image</Text>
+              <Text style={[styles.optionDesc, isMobileLayout && styles.optionDescMobile]} numberOfLines={1}>Import a bill photo</Text>
+              <View style={[styles.cardArrow, isMobileLayout && styles.cardArrowMobile]}>
                 <Text style={styles.arrowText}>›</Text>
               </View>
             </TouchableOpacity>
           </View>
           
           {/* Bottom tagline */}
-          <View style={[styles.bottomTagline, isMobile && styles.bottomTaglineMobile]}>
-            <Text style={[styles.bottomText, isMobile && styles.bottomTextMobile]}>No more awkward calculations 🎉</Text>
+          <View style={[styles.bottomTagline, isMobileLayout && styles.bottomTaglineMobile]}>
+            <Text style={[styles.bottomText, isMobileLayout && styles.bottomTextMobile]}>No more awkward calculations 🎉</Text>
           </View>
         </View>
 
-        {/* Mobile: Bottom Tab Bar - rendered last to be on top */}
-        {isMobile && (
+        {/* Native Mobile: Bottom Tab Bar - rendered last to be on top */}
+        {isNativeMobile && (
           <MobileBottomTabBar 
             navigation={navigation}
             onScanImage={handleScanImage}
@@ -2004,213 +1801,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   
-  // Rolling Bill Styles (Left side - moved down to avoid hamburger menu)
-  billContainer: {
-    position: 'absolute',
-    left: Platform.OS === 'web' ? 40 : 10,
-    top: '18%',
-    zIndex: 2,
-  },
-  bill: {
-    width: 180,
-    backgroundColor: '#FFFEF7',
-    borderRadius: 4,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 4, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
-    opacity: 0.95,
-  },
-  billHeader: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  billRestaurant: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#333',
-    letterSpacing: 1,
-  },
-  billDate: {
-    fontSize: 8,
-    color: '#666',
-    marginTop: 2,
-  },
-  dottedLine: {
-    fontSize: 8,
-    color: '#CCC',
-    textAlign: 'center',
-    marginVertical: 6,
-    letterSpacing: 2,
-  },
-  billItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 2,
-  },
-  billItemName: {
-    fontSize: 10,
-    color: '#444',
-  },
-  billItemPrice: {
-    fontSize: 10,
-    color: '#444',
-    fontWeight: '600',
-  },
-  billSubtotal: {
-    fontSize: 9,
-    color: '#666',
-  },
-  billTax: {
-    fontSize: 9,
-    color: '#888',
-  },
-  billTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#DDD',
-  },
-  billTotal: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#222',
-  },
-  billTotalAmount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FF6B35',
-  },
-  receiptTear: {
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  tearPattern: {
-    fontSize: 8,
-    color: '#DDD',
-    letterSpacing: 2,
-  },
-  
-  // UPI Phone Styles (Right side)
-  phoneContainer: {
-    position: 'absolute',
-    right: Platform.OS === 'web' ? 20 : -10,
-    bottom: '15%',
-    zIndex: 2,
-  },
-  phone: {
-    width: 140,
-    height: 280,
-    backgroundColor: '#1A1A1A',
-    borderRadius: 24,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: -4, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 15,
-    opacity: 0.95,
-  },
-  phoneNotch: {
-    width: 50,
-    height: 6,
-    backgroundColor: '#000',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginTop: 4,
-  },
-  phoneScreen: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginTop: 8,
-    marginBottom: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  successCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  successCheck: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  successText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#333',
-  },
-  successAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#4CAF50',
-    marginTop: 8,
-  },
-  upiLogo: {
-    marginTop: 8,
-    backgroundColor: '#5F259F',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  upiText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  transactionDetails: {
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  transactionText: {
-    fontSize: 8,
-    color: '#666',
-  },
-  transactionId: {
-    fontSize: 7,
-    color: '#999',
-    marginTop: 2,
-  },
-  confetti1: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    fontSize: 12,
-  },
-  confetti2: {
-    position: 'absolute',
-    top: 15,
-    right: 15,
-    fontSize: 10,
-  },
-  confetti3: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    fontSize: 11,
-  },
-  phoneHomeButton: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#444',
-    borderRadius: 2,
-    alignSelf: 'center',
-  },
   
   // Background circles
   circlesContainer: {
@@ -2355,6 +1945,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   optionsContainerMobile: {
+    flexDirection: 'column',
     gap: 12,
     maxWidth: '100%',
     paddingHorizontal: 16,
@@ -2374,6 +1965,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   optionCardMobile: {
+    width: '100%',
     padding: 16,
     borderRadius: 20,
     marginBottom: 0,
