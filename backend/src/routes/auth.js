@@ -112,6 +112,7 @@ router.put('/profile', authenticate, async (req, res) => {
     if (req.body.name) d.name = req.body.name;
     const phoneValue = req.body.phone_number ?? req.body.phone;
     if (phoneValue !== undefined) d.phone = phoneValue;
+    if (req.body.upiId !== undefined) d.upiId = req.body.upiId;
     user.setDetails(d);
     await user.save();
 
