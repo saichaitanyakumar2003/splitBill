@@ -36,6 +36,7 @@ export default function GroupsScreen({ route }) {
   const [groupDetails, setGroupDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [memberNames, setMemberNames] = useState({});
+  const [oldToCurrentEmail, setOldToCurrentEmail] = useState({}); // Map old emails to current emails
   
   // Handle incoming navigation params from History screen
   const selectedGroupId = route?.params?.selectedGroupId;
@@ -101,20 +102,26 @@ export default function GroupsScreen({ route }) {
   };
 
   // Fetch member names from emails
+  // Returns { names: { email: name }, oldToCurrentEmail: { oldEmail: currentEmail } }
   const fetchMemberNames = async (emails) => {
     try {
       const response = await authPost('/auth/friends/details', { emails: Array.from(emails) });
       const data = await response.json();
       if (data.success && data.data) {
         const names = {};
+        const oldToCurrentEmail = {}; // Map old emails to current emails
         data.data.forEach(member => {
           names[member.mailId] = member.name;
+          // If this is an old email, track the mapping to current email
+          if (member.currentMailId && member.currentMailId !== member.mailId) {
+            oldToCurrentEmail[member.mailId] = member.currentMailId;
+          }
         });
         // Add current user's name
         if (user) {
           names[user.mailId] = user.name || user.mailId.split('@')[0];
         }
-        return names;
+        return { names, oldToCurrentEmail };
       }
     } catch (e) {
       console.error('Error fetching member names:', e);
@@ -128,7 +135,7 @@ export default function GroupsScreen({ route }) {
     if (user) {
       names[user.mailId] = user.name || user.mailId.split('@')[0];
     }
-    return names;
+    return { names, oldToCurrentEmail: {} };
   };
 
   // Fetch group details when a group is selected
@@ -170,8 +177,9 @@ export default function GroupsScreen({ route }) {
       }
       
       // Fetch member names
-      const names = await fetchMemberNames(memberEmails);
+      const { names, oldToCurrentEmail: emailMapping } = await fetchMemberNames(memberEmails);
       setMemberNames(names);
+      setOldToCurrentEmail(emailMapping);
       setGroupDetails(data);
       
     } catch (error) {
@@ -393,7 +401,7 @@ export default function GroupsScreen({ route }) {
     setEditExpenseAmount(String(expense.totalAmount || expense.amount || ''));
     
     // Initialize payees with their amounts
-    const payeesList = (expense.payees || []).map(p => {
+    const rawPayeesList = (expense.payees || []).map(p => {
       if (typeof p === 'object') {
         return {
           mailId: p.mailId,
@@ -410,6 +418,43 @@ export default function GroupsScreen({ route }) {
           amount: String(splitAmount.toFixed(2)),
           isPayer: p === expense.payer
         };
+      }
+    });
+    
+    // Deduplicate payees: if both old and new email exist, keep only the current one
+    const seenCurrentEmails = new Set();
+    const payeesList = [];
+    
+    // First pass: identify which current emails are present
+    rawPayeesList.forEach(p => {
+      const currentEmail = oldToCurrentEmail[p.mailId] || p.mailId;
+      seenCurrentEmails.add(currentEmail.toLowerCase());
+    });
+    
+    // Second pass: filter out old emails if current email is also present
+    const addedEmails = new Set();
+    rawPayeesList.forEach(p => {
+      const currentEmail = oldToCurrentEmail[p.mailId];
+      const emailToUse = p.mailId.toLowerCase();
+      
+      if (currentEmail) {
+        // This is an old email
+        if (!addedEmails.has(currentEmail.toLowerCase())) {
+          // Current email not yet added, use current email instead
+          payeesList.push({
+            ...p,
+            mailId: currentEmail,
+            name: getMemberName(currentEmail)
+          });
+          addedEmails.add(currentEmail.toLowerCase());
+        }
+        // Skip if current email already added
+      } else {
+        // This is a current email
+        if (!addedEmails.has(emailToUse)) {
+          payeesList.push(p);
+          addedEmails.add(emailToUse);
+        }
       }
     });
     
@@ -438,6 +483,18 @@ export default function GroupsScreen({ route }) {
       if (edge.from) allMembers.add(edge.from);
       if (edge.to) allMembers.add(edge.to);
     });
+    
+    // Deduplicate: Remove old emails if their current email is also in the set
+    // oldToCurrentEmail maps oldEmail -> currentEmail
+    const membersToRemove = new Set();
+    allMembers.forEach(email => {
+      const currentEmail = oldToCurrentEmail[email];
+      if (currentEmail && allMembers.has(currentEmail)) {
+        // This is an old email and the current email is also present, remove the old one
+        membersToRemove.add(email);
+      }
+    });
+    membersToRemove.forEach(email => allMembers.delete(email));
     
     // Convert to array with names
     const membersList = Array.from(allMembers).map(mailId => ({
