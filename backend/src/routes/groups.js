@@ -628,7 +628,7 @@ router.get('/awaiting', async (req, res) => {
   }
 });
 
-// Get history for user (from History table and deleted/completed groups)
+// Get history for user (from History table, EditHistory table, and deleted/completed groups)
 router.get('/history', async (req, res) => {
   try {
     const userMailId = req.user.mailId;
@@ -651,6 +651,10 @@ router.get('/history', async (req, res) => {
       historyByGroupId[record.groupId] = record;
     });
     
+    // Get edit history to check which groups have any activity
+    const editHistoryGroups = await EditHistory.distinct('groupId', { groupId: { $in: allGroupIds } });
+    const groupsWithEditHistory = new Set(editHistoryGroups);
+    
     // Collect all member emails for name lookup
     const allMemberEmails = new Set();
     historyRecords.forEach(record => {
@@ -664,12 +668,13 @@ router.get('/history', async (req, res) => {
     
     const emailToName = await getEmailToNameMap(Array.from(allMemberEmails));
     
-    // Build history list - include groups that are deleted/completed OR have settlements
+    // Build history list - include groups that have settlements, edit history, or are deleted/completed
     const historyWithNames = [];
     
     for (const group of allGroups) {
       const historyRecord = historyByGroupId[group._id];
       const isDeletedOrCompleted = group.status === 'deleted' || group.status === 'completed';
+      const hasEditHistory = groupsWithEditHistory.has(group._id);
       
       // Get settled edges for this user
       let userSettledEdges = [];
@@ -683,14 +688,15 @@ router.get('/history', async (req, res) => {
           }));
       }
       
-      // Include in history if: has settlements OR is deleted/completed
-      if (userSettledEdges.length > 0 || isDeletedOrCompleted) {
+      // Include in history if: has settlements OR has edit history OR is deleted/completed
+      if (userSettledEdges.length > 0 || hasEditHistory || isDeletedOrCompleted) {
         historyWithNames.push({
           id: historyRecord?._id || group._id,
           groupId: group._id,
           groupName: group.name,
           groupStatus: group.status,
           settledEdges: userSettledEdges,
+          hasEditHistory: hasEditHistory,
           expiresAt: historyRecord?.expiresAt || null,
           createdAt: historyRecord?.createdAt || group.updatedAt,
           updatedAt: group.updatedAt
