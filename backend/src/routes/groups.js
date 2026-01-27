@@ -5,6 +5,7 @@ const Group = require('../models/Group');
 const User = require('../models/User');
 const ConsolidatedEdges = require('../models/ConsolidatedEdges');
 const History = require('../models/History');
+const EditHistory = require('../models/EditHistory');
 const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitBill');
 const { sendExpenseNotifications, sendPushNotification, sendPushNotifications } = require('../utils/pushNotifications');
 
@@ -761,6 +762,21 @@ router.post('/:id/expenses', async (req, res) => {
       sendExpenseNotifications(payeesToNotify, name, group.name).catch(() => {});
     }
     
+    // Record edit history
+    const actorUser = await User.findById(actorMailId);
+    EditHistory.addEntry({
+      groupId: group._id,
+      groupName: group.name,
+      action: 'add_expense',
+      actionBy: actorMailId,
+      actionByName: actorUser?.name || actorMailId.split('@')[0],
+      details: {
+        expenseName: name,
+        newAmount: parseFloat(amount),
+        changes: `Added expense "${name}" for ₹${parseFloat(amount).toFixed(2)}`
+      }
+    }).catch(err => console.error('Failed to record edit history:', err));
+    
     console.log(`➕ Expense "${name}" added to group "${group.name}"`);
     console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
     
@@ -814,6 +830,21 @@ router.delete('/:id/expenses/:expenseId', async (req, res) => {
     const actorMailId = req.user?.mailId;
     if (actorMailId) {
       sendGroupNotification(group, actorMailId, 'expense_deleted', { expenseName }).catch(() => {});
+      
+      // Record edit history
+      const actorUser = await User.findById(actorMailId);
+      EditHistory.addEntry({
+        groupId: group._id,
+        groupName: group.name,
+        action: 'delete_expense',
+        actionBy: actorMailId,
+        actionByName: actorUser?.name || actorMailId.split('@')[0],
+        details: {
+          expenseName,
+          expenseId,
+          changes: `Deleted expense "${expenseName}"`
+        }
+      }).catch(err => console.error('Failed to record edit history:', err));
     }
     
     console.log(`🗑️ Expense "${expenseName}" deleted from group "${group.name}"`);
@@ -846,6 +877,11 @@ router.put('/:id/expenses/:expenseId', async (req, res) => {
     // Get raw details for updating
     const details = group.getDetails();
     
+    // Store old values for history
+    const oldExpense = { ...details.expenses[expenseIndex] };
+    const oldAmount = oldExpense.totalAmount || oldExpense.amount;
+    const oldName = oldExpense.name;
+    
     // Store expense name for notification
     const expenseName = name || details.expenses[expenseIndex].name;
     
@@ -859,6 +895,9 @@ router.put('/:id/expenses/:expenseId', async (req, res) => {
     }
     if (amount !== undefined) details.expenses[expenseIndex].amount = parseFloat(amount);
     if (totalAmount !== undefined) details.expenses[expenseIndex].totalAmount = parseFloat(totalAmount);
+    
+    // Calculate new amount for history
+    const newAmount = totalAmount !== undefined ? parseFloat(totalAmount) : (amount !== undefined ? parseFloat(amount) : oldAmount);
     
     // Save updated expenses
     group.setDetails(details);
@@ -888,6 +927,28 @@ router.put('/:id/expenses/:expenseId', async (req, res) => {
     const actorMailId = req.user?.mailId;
     if (actorMailId) {
       sendGroupNotification(group, actorMailId, 'expense_edited', { expenseName }).catch(() => {});
+      
+      // Record edit history
+      const actorUser = await User.findById(actorMailId);
+      const changes = [];
+      if (name && name !== oldName) changes.push(`renamed to "${name}"`);
+      if (newAmount !== oldAmount) changes.push(`amount changed from ₹${oldAmount?.toFixed(2) || '0'} to ₹${newAmount?.toFixed(2) || '0'}`);
+      if (payees) changes.push('members updated');
+      
+      EditHistory.addEntry({
+        groupId: group._id,
+        groupName: group.name,
+        action: 'edit_expense',
+        actionBy: actorMailId,
+        actionByName: actorUser?.name || actorMailId.split('@')[0],
+        details: {
+          expenseName,
+          expenseId,
+          oldAmount,
+          newAmount,
+          changes: changes.length > 0 ? `Updated "${expenseName}": ${changes.join(', ')}` : `Updated "${expenseName}"`
+        }
+      }).catch(err => console.error('Failed to record edit history:', err));
     }
     
     console.log(`✏️ Expense "${expenseName}" updated in group "${group.name}"`);
@@ -1071,6 +1132,19 @@ router.delete('/:id', async (req, res) => {
     const actorMailId = req.user?.mailId;
     if (actorMailId) {
       await sendGroupNotification(group, actorMailId, 'group_deleted', {});
+      
+      // Record edit history
+      const actorUser = await User.findById(actorMailId);
+      EditHistory.addEntry({
+        groupId: group._id,
+        groupName: group.name,
+        action: 'delete_group',
+        actionBy: actorMailId,
+        actionByName: actorUser?.name || actorMailId.split('@')[0],
+        details: {
+          changes: `Deleted group "${group.name}"`
+        }
+      }).catch(err => console.error('Failed to record edit history:', err));
     }
     
     // Mark group as deleted with 7-day TTL
@@ -1186,6 +1260,45 @@ router.post('/send-reminder', async (req, res) => {
   } catch (e) {
     console.error('Error sending payment reminder:', e);
     res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Get edit history for a specific group
+router.get('/:id/edit-history', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const history = await EditHistory.getGroupHistory(id, limit);
+    
+    res.json({ success: true, data: history });
+  } catch (e) {
+    console.error('Error fetching edit history:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Get edit history for all user's groups
+router.get('/edit-history/all', async (req, res) => {
+  try {
+    const userMailId = req.user.mailId;
+    const limit = parseInt(req.query.limit) || 100;
+    
+    // Get user's groups
+    const user = await User.findById(userMailId);
+    if (!user) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    const groupIds = user.getGroupIds();
+    
+    // Get history for all user's groups
+    const history = await EditHistory.getHistoryForGroups(groupIds, limit);
+    
+    res.json({ success: true, data: history });
+  } catch (e) {
+    console.error('Error fetching user edit history:', e);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

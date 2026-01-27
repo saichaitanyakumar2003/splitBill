@@ -26,9 +26,20 @@ export default function HistoryScreen({ route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [historyRecords, setHistoryRecords] = useState([]);
+  
+  // Payment History Modal
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const slideAnim = useState(new Animated.Value(SCREEN_HEIGHT))[0];
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const paymentSlideAnim = useState(new Animated.Value(SCREEN_HEIGHT))[0];
+  
+  // Edit History Modal
+  const [editHistory, setEditHistory] = useState([]);
+  const [loadingEditHistory, setLoadingEditHistory] = useState(false);
+  const [editHistoryModalVisible, setEditHistoryModalVisible] = useState(false);
+  const editSlideAnim = useState(new Animated.Value(SCREEN_HEIGHT))[0];
+  
+  // Dropdown menu state
+  const [menuVisible, setMenuVisible] = useState(null); // groupId of open menu
 
   const fetchHistory = async () => {
     try {
@@ -41,6 +52,21 @@ export default function HistoryScreen({ route }) {
       console.error('Error fetching history:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEditHistory = async (groupId) => {
+    setLoadingEditHistory(true);
+    try {
+      const response = await authGet(`/groups/${groupId}/edit-history`);
+      const data = await response.json();
+      if (data.success) {
+        setEditHistory(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching edit history:', error);
+    } finally {
+      setLoadingEditHistory(false);
     }
   };
 
@@ -66,8 +92,16 @@ export default function HistoryScreen({ route }) {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const backAction = () => {
-      if (modalVisible) {
-        closeModal();
+      if (paymentModalVisible) {
+        closePaymentModal();
+        return true;
+      }
+      if (editHistoryModalVisible) {
+        closeEditHistoryModal();
+        return true;
+      }
+      if (menuVisible) {
+        setMenuVisible(null);
         return true;
       }
       if (navigation.canGoBack()) {
@@ -79,7 +113,7 @@ export default function HistoryScreen({ route }) {
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => subscription.remove();
-  }, [navigation, modalVisible]);
+  }, [navigation, paymentModalVisible, editHistoryModalVisible, menuVisible]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -97,20 +131,21 @@ export default function HistoryScreen({ route }) {
     return settledEdges.reduce((sum, edge) => sum + (edge.amount || 0), 0);
   };
 
-  const openModal = (record) => {
-    // For completed or deleted groups, navigate to the group screen
-    if (record.groupStatus === 'completed' || record.groupStatus === 'deleted') {
-      navigation.navigate('Groups', { 
-        selectedGroupId: record.groupId,
-        groupName: record.groupName
-      });
-      return;
-    }
-    
-    // For active groups, show the modal
+  // Navigate to group screen
+  const handleGroupPress = (record) => {
+    setMenuVisible(null);
+    navigation.navigate('Groups', { 
+      selectedGroupId: record.groupId,
+      groupName: record.groupName
+    });
+  };
+
+  // Open Payment History Modal
+  const openPaymentModal = (record) => {
+    setMenuVisible(null);
     setSelectedRecord(record);
-    setModalVisible(true);
-    Animated.spring(slideAnim, {
+    setPaymentModalVisible(true);
+    Animated.spring(paymentSlideAnim, {
       toValue: 0,
       useNativeDriver: true,
       tension: 65,
@@ -118,15 +153,67 @@ export default function HistoryScreen({ route }) {
     }).start();
   };
 
-  const closeModal = () => {
-    Animated.timing(slideAnim, {
+  const closePaymentModal = () => {
+    Animated.timing(paymentSlideAnim, {
       toValue: SCREEN_HEIGHT,
       duration: 250,
       useNativeDriver: true,
     }).start(() => {
-      setModalVisible(false);
+      setPaymentModalVisible(false);
       setSelectedRecord(null);
     });
+  };
+
+  // Open Edit History Modal
+  const openEditHistoryModal = async (record) => {
+    setMenuVisible(null);
+    setSelectedRecord(record);
+    await fetchEditHistory(record.groupId);
+    setEditHistoryModalVisible(true);
+    Animated.spring(editSlideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  };
+
+  const closeEditHistoryModal = () => {
+    Animated.timing(editSlideAnim, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setEditHistoryModalVisible(false);
+      setSelectedRecord(null);
+      setEditHistory([]);
+    });
+  };
+
+  // Get action icon and color for edit history
+  const getActionStyle = (action) => {
+    switch (action) {
+      case 'add_expense':
+        return { icon: 'add-circle', color: '#28A745', bgColor: '#E8F5E9' };
+      case 'edit_expense':
+        return { icon: 'create', color: '#FF6B35', bgColor: '#FFF5F0' };
+      case 'delete_expense':
+        return { icon: 'trash', color: '#DC3545', bgColor: '#FFEBEE' };
+      case 'delete_group':
+        return { icon: 'close-circle', color: '#DC3545', bgColor: '#FFEBEE' };
+      default:
+        return { icon: 'ellipse', color: '#888', bgColor: '#F5F5F5' };
+    }
+  };
+
+  const getActionLabel = (action) => {
+    switch (action) {
+      case 'add_expense': return 'Added Expense';
+      case 'edit_expense': return 'Edited Expense';
+      case 'delete_expense': return 'Deleted Expense';
+      case 'delete_group': return 'Deleted Group';
+      default: return 'Action';
+    }
   };
 
   return (
@@ -152,7 +239,7 @@ export default function HistoryScreen({ route }) {
           <View style={styles.card}>
             {/* Card Header with Refresh - Always visible */}
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Settlement History</Text>
+              <Text style={styles.cardTitle}>Groups History</Text>
               <TouchableOpacity 
                 onPress={handleRefresh} 
                 style={styles.cardRefreshButton}
@@ -176,7 +263,7 @@ export default function HistoryScreen({ route }) {
                 <Text style={styles.emptyIcon}>📜</Text>
                 <Text style={styles.emptyTitle}>No History Yet</Text>
                 <Text style={styles.emptySubtext}>
-                  Settled payments will appear here once you complete transactions
+                  Your groups and their history will appear here
                 </Text>
               </View>
             ) : (
@@ -195,8 +282,12 @@ export default function HistoryScreen({ route }) {
                   showsVerticalScrollIndicator={true}
                 >
                 {historyRecords.map((record) => (
-                  <View key={record.id} style={styles.historyItem}>
-                    <View style={styles.historyItemLeft}>
+                  <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
+                    <TouchableOpacity 
+                      style={styles.historyItemLeft}
+                      onPress={() => handleGroupPress(record)}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.groupIcon}>
                         <Text style={styles.groupIconText}>
                           {record.groupName.substring(0, 2).toUpperCase()}
@@ -228,13 +319,15 @@ export default function HistoryScreen({ route }) {
                           {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
+                    
+                    {/* Three-dot menu */}
                     <TouchableOpacity 
-                      style={styles.viewButton}
-                      onPress={() => openModal(record)}
+                      style={styles.menuButton}
+                      onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.viewButtonText}>View settlements</Text>
+                      <Ionicons name="ellipsis-vertical" size={20} color="#888" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -245,28 +338,87 @@ export default function HistoryScreen({ route }) {
         </View>
       </LinearGradient>
 
-      {/* Bottom Sheet Modal */}
+      {/* Dropdown Menu Modal */}
       <Modal
-        visible={modalVisible}
+        visible={menuVisible !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(null)}
+      >
+        <Pressable 
+          style={styles.menuOverlay} 
+          onPress={() => setMenuVisible(null)} 
+        >
+          <View style={styles.dropdownMenuContainer}>
+            <View style={styles.dropdownMenu}>
+              {/* Group Name Header with Close Button */}
+              {menuVisible && (
+                <View style={styles.dropdownHeader}>
+                  <Text style={styles.dropdownHeaderText} numberOfLines={1}>
+                    {historyRecords.find(r => r.id === menuVisible)?.groupName || 'Group'}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.dropdownCloseButton}
+                    onPress={() => setMenuVisible(null)}
+                  >
+                    <Ionicons name="close" size={20} color="#888" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.dropdownItem}
+                onPress={() => {
+                  const record = historyRecords.find(r => r.id === menuVisible);
+                  if (record) openPaymentModal(record);
+                }}
+              >
+                <View style={[styles.dropdownItemIcon, { backgroundColor: '#E8F5E9' }]}>
+                  <Ionicons name="wallet-outline" size={18} color="#28A745" />
+                </View>
+                <Text style={styles.dropdownItemText}>View Payment History</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.dropdownItem}
+                onPress={() => {
+                  const record = historyRecords.find(r => r.id === menuVisible);
+                  if (record) openEditHistoryModal(record);
+                }}
+              >
+                <View style={[styles.dropdownItemIcon, { backgroundColor: '#FFF5F0' }]}>
+                  <Ionicons name="time-outline" size={18} color="#FF6B35" />
+                </View>
+                <Text style={styles.dropdownItemText}>View Edit History</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Payment History Modal */}
+      <Modal
+        visible={paymentModalVisible}
         transparent={true}
         animationType="none"
-        onRequestClose={closeModal}
+        onRequestClose={closePaymentModal}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={closeModal} />
+          <Pressable style={styles.modalBackdrop} onPress={closePaymentModal} />
           <Animated.View 
             style={[
               styles.modalContent,
-              { transform: [{ translateY: slideAnim }] }
+              { transform: [{ translateY: paymentSlideAnim }] }
             ]}
           >
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={styles.modalHandle} />
               <Text style={styles.modalTitle}>
-                {selectedRecord?.groupName || 'Settlements'}
+                Payment History
               </Text>
-              <TouchableOpacity onPress={closeModal} style={styles.modalCloseButton}>
+              <Text style={styles.modalSubtitle}>
+                {selectedRecord?.groupName}
+              </Text>
+              <TouchableOpacity onPress={closePaymentModal} style={styles.modalCloseButton}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -334,7 +486,87 @@ export default function HistoryScreen({ route }) {
               
               {(!selectedRecord?.settledEdges || selectedRecord.settledEdges.length === 0) && (
                 <View style={styles.noSettlements}>
-                  <Text style={styles.noSettlementsText}>No settlements yet</Text>
+                  <Text style={styles.noSettlementsIcon}>💰</Text>
+                  <Text style={styles.noSettlementsText}>No payments yet</Text>
+                  <Text style={styles.noSettlementsSubtext}>Completed payments will appear here</Text>
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Edit History Modal */}
+      <Modal
+        visible={editHistoryModalVisible}
+        transparent={true}
+        animationType="none"
+        onRequestClose={closeEditHistoryModal}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={closeEditHistoryModal} />
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              { transform: [{ translateY: editSlideAnim }] }
+            ]}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>
+                Edit History
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                {selectedRecord?.groupName}
+              </Text>
+              <TouchableOpacity onPress={closeEditHistoryModal} style={styles.modalCloseButton}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Edit History List */}
+            <ScrollView 
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              {loadingEditHistory ? (
+                <View style={styles.loadingHistoryState}>
+                  <ActivityIndicator size="large" color="#FF6B35" />
+                  <Text style={styles.loadingText}>Loading history...</Text>
+                </View>
+              ) : editHistory.length > 0 ? (
+                editHistory.map((item, index) => {
+                  const actionStyle = getActionStyle(item.action);
+                  return (
+                    <View key={item._id || index} style={styles.editHistoryItem}>
+                      <View style={[styles.editHistoryIcon, { backgroundColor: actionStyle.bgColor }]}>
+                        <Ionicons name={actionStyle.icon} size={18} color={actionStyle.color} />
+                      </View>
+                      <View style={styles.editHistoryContent}>
+                        <View style={styles.editHistoryHeader}>
+                          <Text style={[styles.editHistoryAction, { color: actionStyle.color }]}>
+                            {getActionLabel(item.action)}
+                          </Text>
+                          <Text style={styles.editHistoryTime}>
+                            {formatDate(item.createdAt)}
+                          </Text>
+                        </View>
+                        <Text style={styles.editHistoryDescription} numberOfLines={2}>
+                          {item.details?.changes || item.details?.expenseName || 'No details'}
+                        </Text>
+                        <Text style={styles.editHistoryUser}>
+                          by {item.actionByName || item.actionBy?.split('@')[0] || 'Unknown'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
+              ) : (
+                <View style={styles.noSettlements}>
+                  <Text style={styles.noSettlementsIcon}>📋</Text>
+                  <Text style={styles.noSettlementsText}>No edit history</Text>
+                  <Text style={styles.noSettlementsSubtext}>Actions will be recorded here</Text>
                 </View>
               )}
             </ScrollView>
@@ -480,6 +712,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
   groupIcon: {
     width: Platform.OS === 'web' ? 44 : 40,
@@ -499,7 +732,7 @@ const styles = StyleSheet.create({
   groupInfo: {
     flex: 1,
     marginRight: Platform.OS === 'web' ? 12 : 8,
-    minWidth: 0, // Allow text truncation
+    minWidth: 0,
   },
   groupNameRow: {
     flexDirection: 'row',
@@ -547,18 +780,88 @@ const styles = StyleSheet.create({
     fontSize: Platform.OS === 'web' ? 13 : 12,
     color: '#888',
   },
-  viewButton: {
-    flexDirection: 'row',
+  
+  // Menu styles
+  historyItemActive: {
+    backgroundColor: '#F8F8F8',
+  },
+  menuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 2,
-    flexShrink: 0,
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
-  viewButtonText: {
-    fontSize: Platform.OS === 'web' ? 14 : 12,
-    fontWeight: '600',
-    color: '#FF6B35',
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownMenuContainer: {
+    width: '80%',
+    maxWidth: 300,
+  },
+  dropdownMenu: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 8,
+  },
+  dropdownHeaderText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    textAlign: 'center',
+    flex: 1,
+    paddingHorizontal: 32,
+  },
+  dropdownCloseButton: {
+    position: 'absolute',
+    right: 12,
+    top: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  dropdownItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#333',
+    marginLeft: 12,
   },
   
   // Modal Styles
@@ -578,9 +881,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   modalHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 16,
@@ -588,22 +889,21 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
   },
   modalHandle: {
-    position: 'absolute',
-    top: 8,
-    left: '50%',
-    marginLeft: -20,
     width: 40,
     height: 4,
     backgroundColor: '#DDD',
     borderRadius: 2,
+    marginBottom: 12,
   },
   modalTitle: {
-    flex: 1,
     fontSize: 18,
     fontWeight: '700',
     color: '#333',
-    textAlign: 'center',
-    marginTop: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 4,
   },
   modalCloseButton: {
     position: 'absolute',
@@ -733,8 +1033,68 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     alignItems: 'center',
   },
+  noSettlementsIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
   noSettlementsText: {
     fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  noSettlementsSubtext: {
+    fontSize: 14,
     color: '#888',
+    marginTop: 4,
+  },
+  
+  // Edit History Modal styles
+  loadingHistoryState: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  editHistoryItem: {
+    flexDirection: 'row',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  editHistoryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  editHistoryContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  editHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  editHistoryAction: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  editHistoryTime: {
+    fontSize: 11,
+    color: '#888',
+  },
+  editHistoryDescription: {
+    fontSize: 13,
+    color: '#333',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  editHistoryUser: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
   },
 });

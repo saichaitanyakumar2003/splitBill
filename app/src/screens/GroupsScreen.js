@@ -45,7 +45,11 @@ export default function GroupsScreen({ route }) {
   const [deleting, setDeleting] = useState(false);
   
   // Tab state for group details view
-  const [activeTab, setActiveTab] = useState('expenses'); // 'expenses' or 'settlements'
+  const [activeTab, setActiveTab] = useState('expenses'); // 'expenses', 'settlements', or 'activity'
+  
+  // Edit history state
+  const [editHistory, setEditHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Expense actions state
   const [expandedExpenseIndex, setExpandedExpenseIndex] = useState(null);
@@ -164,6 +168,23 @@ export default function GroupsScreen({ route }) {
       console.error('Error fetching group details:', error);
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  // Fetch edit history for a group
+  const fetchEditHistory = async (groupId) => {
+    setLoadingHistory(true);
+    try {
+      const response = await authGet(`/groups/${groupId}/edit-history`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setEditHistory(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching edit history:', error);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -938,6 +959,81 @@ export default function GroupsScreen({ route }) {
     );
   };
 
+  // Get action icon and color
+  const getActionStyle = (action) => {
+    switch (action) {
+      case 'add_expense':
+        return { icon: 'add-circle', color: '#28A745', bgColor: '#E8F5E9' };
+      case 'edit_expense':
+        return { icon: 'create', color: '#FF6B35', bgColor: '#FFF5F0' };
+      case 'delete_expense':
+        return { icon: 'trash', color: '#DC3545', bgColor: '#FFEBEE' };
+      case 'delete_group':
+        return { icon: 'close-circle', color: '#DC3545', bgColor: '#FFEBEE' };
+      default:
+        return { icon: 'ellipse', color: '#888', bgColor: '#F5F5F5' };
+    }
+  };
+
+  // Get action label
+  const getActionLabel = (action) => {
+    switch (action) {
+      case 'add_expense': return 'Added Expense';
+      case 'edit_expense': return 'Edited Expense';
+      case 'delete_expense': return 'Deleted Expense';
+      case 'delete_group': return 'Deleted Group';
+      default: return 'Action';
+    }
+  };
+
+  // Render Activity Tab Content
+  const renderActivityTab = () => {
+    return (
+      <View style={styles.tabContent}>
+        {editHistory.length > 0 ? (
+          <ScrollView 
+            style={styles.activityScrollFull}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={styles.activityScrollContent}
+          >
+            {editHistory.map((item, index) => {
+              const actionStyle = getActionStyle(item.action);
+              return (
+                <View key={item._id || index} style={styles.activityRow}>
+                  <View style={[styles.activityIconContainer, { backgroundColor: actionStyle.bgColor }]}>
+                    <Ionicons name={actionStyle.icon} size={18} color={actionStyle.color} />
+                  </View>
+                  <View style={styles.activityContent}>
+                    <View style={styles.activityHeader}>
+                      <Text style={[styles.activityAction, { color: actionStyle.color }]}>
+                        {getActionLabel(item.action)}
+                      </Text>
+                      <Text style={styles.activityTime}>
+                        {formatTimestamp(item.createdAt)}
+                      </Text>
+                    </View>
+                    <Text style={styles.activityDescription} numberOfLines={2}>
+                      {item.details?.changes || item.details?.expenseName || 'No details'}
+                    </Text>
+                    <Text style={styles.activityUser}>
+                      by {item.actionByName || item.actionBy?.split('@')[0] || 'Unknown'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <View style={styles.noActivityFull}>
+            <Text style={styles.noExpensesIcon}>📋</Text>
+            <Text style={styles.noExpensesTitle}>No Activity</Text>
+            <Text style={styles.noExpensesText}>Actions like adding, editing, or deleting expenses will appear here</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // Format timestamp for display
   const formatTimestamp = (dateString) => {
     if (!dateString) return '';
@@ -1025,7 +1121,7 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="receipt-outline" 
-                size={18} 
+                size={16} 
                 color={activeTab === 'expenses' ? '#FF6B35' : '#888'} 
               />
               <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>
@@ -1038,23 +1134,42 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="swap-horizontal-outline" 
-                size={18} 
+                size={16} 
                 color={activeTab === 'settlements' ? '#FF6B35' : '#888'} 
               />
               <Text style={[styles.tabText, activeTab === 'settlements' && styles.tabTextActive]}>
                 Settlements ({consolidatedEdges.length})
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'activity' && styles.tabActive]}
+              onPress={() => {
+                setActiveTab('activity');
+                const groupId = selectedGroup?._id || selectedGroup?.id;
+                if (groupId) fetchEditHistory(groupId);
+              }}
+            >
+              <Ionicons 
+                name="time-outline" 
+                size={16} 
+                color={activeTab === 'activity' ? '#FF6B35' : '#888'} 
+              />
+              <Text style={[styles.tabText, activeTab === 'activity' && styles.tabTextActive]}>
+                Activity
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {loadingDetails ? (
+          {loadingDetails || (activeTab === 'activity' && loadingHistory) ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color="#FF6B35" />
               <Text style={styles.loadingText}>Loading...</Text>
             </View>
           ) : (
             <View style={styles.detailsContent}>
-              {activeTab === 'expenses' ? renderExpensesTab() : renderSettlementsTab()}
+              {activeTab === 'expenses' && renderExpensesTab()}
+              {activeTab === 'settlements' && renderSettlementsTab()}
+              {activeTab === 'activity' && renderActivityTab()}
             </View>
           )}
         </View>
@@ -2054,6 +2169,68 @@ const styles = StyleSheet.create({
     color: '#28A745',
   },
   noSettlementsFull: {
+    flex: 1,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 30,
+  },
+  // Activity Tab Styles
+  activityScrollFull: {
+    flex: 1,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 16,
+  },
+  activityScrollContent: {
+    paddingVertical: 8,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    padding: Platform.OS === 'web' ? 14 : 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFEFEF',
+    backgroundColor: '#FFF',
+  },
+  activityIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  activityContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  activityAction: {
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    fontWeight: '700',
+  },
+  activityTime: {
+    fontSize: Platform.OS === 'web' ? 11 : 10,
+    color: '#888',
+  },
+  activityDescription: {
+    fontSize: Platform.OS === 'web' ? 13 : 12,
+    color: '#333',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  activityUser: {
+    fontSize: Platform.OS === 'web' ? 12 : 11,
+    color: '#888',
+    fontStyle: 'italic',
+  },
+  noActivityFull: {
     flex: 1,
     backgroundColor: '#F8F8F8',
     borderRadius: 16,
