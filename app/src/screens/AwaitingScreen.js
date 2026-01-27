@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
-  RefreshControl,
   ActivityIndicator,
   BackHandler,
   Alert,
@@ -99,8 +98,8 @@ function CollapsibleGroup({ group, onNotify, notifyingUser }) {
 export default function AwaitingScreen({ route }) {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [awaitingPayments, setAwaitingPayments] = useState([]);
   const [notifyingUser, setNotifyingUser] = useState(null);
 
@@ -122,11 +121,11 @@ export default function AwaitingScreen({ route }) {
     fetchAwaitingPayments();
   }, []);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await fetchAwaitingPayments();
     setRefreshing(false);
-  }, []);
+  };
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -222,6 +221,22 @@ export default function AwaitingScreen({ route }) {
         {/* White Background Card */}
         <View style={styles.content}>
           <View style={styles.card}>
+            {/* Card Header with Refresh - Always visible */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Awaiting Payments</Text>
+              <TouchableOpacity 
+                onPress={handleRefresh} 
+                style={styles.cardRefreshButton}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : (
+                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                )}
+              </TouchableOpacity>
+            </View>
+
             {loading ? (
               <View style={styles.loadingState}>
                 <ActivityIndicator size="large" color="#FF6B35" />
@@ -239,7 +254,7 @@ export default function AwaitingScreen({ route }) {
               <View style={styles.cardContent}>
                 {/* Summary Header */}
                 <View style={styles.summaryHeader}>
-                  <View>
+                  <View style={styles.summaryLeft}>
                     <Text style={styles.summaryTitle}>You'll Receive</Text>
                     <Text style={styles.summaryAmount}>₹{totalAmount.toFixed(2)}</Text>
                   </View>
@@ -258,16 +273,6 @@ export default function AwaitingScreen({ route }) {
                   bounces={true}
                   nestedScrollEnabled={true}
                   keyboardShouldPersistTaps="handled"
-                  refreshControl={
-                    Platform.OS !== 'web' ? (
-                      <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor="#FF6B35"
-                        colors={['#FF6B35']}
-                      />
-                    ) : undefined
-                  }
                 >
                   {awaitingPayments.map((group) => (
                     <CollapsibleGroup
@@ -383,6 +388,32 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+  },
+  summaryLeft: {
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  cardRefreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
   summaryTitle: {
     fontSize: 14,

@@ -16,7 +16,7 @@ const GroupSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['active', 'completed'],
+    enum: ['active', 'completed', 'deleted'],
     default: 'active'
   },
 
@@ -107,6 +107,12 @@ GroupSchema.methods.setTTL = function(days = 7) {
   expiryDate.setDate(expiryDate.getDate() + days);
   this.expiresAt = expiryDate;
   this.updatedAt = new Date();
+};
+
+// Mark group as deleted with 7-day TTL
+GroupSchema.methods.markDeleted = function() {
+  this.status = 'deleted';
+  this.setTTL(7);
 };
 
 GroupSchema.methods.toJSON = function() {

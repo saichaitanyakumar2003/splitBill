@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
-  RefreshControl,
   ActivityIndicator,
   Alert,
   Modal,
@@ -15,14 +14,15 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { authGet, authPost } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
 
 export default function PendingExpensesScreen({ route }) {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [pendingExpenses, setPendingExpenses] = useState([]);
   const [resolvingEdge, setResolvingEdge] = useState(null);
   const [confirmModal, setConfirmModal] = useState({
@@ -66,11 +66,11 @@ export default function PendingExpensesScreen({ route }) {
     fetchPendingExpenses();
   }, []);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await fetchPendingExpenses();
     setRefreshing(false);
-  }, []);
+  };
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -223,6 +223,22 @@ export default function PendingExpensesScreen({ route }) {
         {/* White Background Card */}
         <View style={styles.content}>
           <View style={styles.card}>
+            {/* Card Header with Refresh - Always visible */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Pending Payments</Text>
+              <TouchableOpacity 
+                onPress={handleRefresh} 
+                style={styles.cardRefreshButton}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : (
+                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                )}
+              </TouchableOpacity>
+            </View>
+
             {loading ? (
               <View style={styles.loadingState}>
                 <ActivityIndicator size="large" color="#FF6B35" />
@@ -240,7 +256,7 @@ export default function PendingExpensesScreen({ route }) {
               <>
                 {/* Summary Header */}
                 <View style={styles.summaryHeader}>
-                  <View>
+                  <View style={styles.summaryLeft}>
                     <Text style={styles.summaryTitle}>You Owe</Text>
                     <Text style={styles.summaryAmount}>₹{totalAmount.toFixed(2)}</Text>
                   </View>
@@ -258,16 +274,6 @@ export default function PendingExpensesScreen({ route }) {
                   showsVerticalScrollIndicator={true}
                   bounces={true}
                   nestedScrollEnabled={true}
-                  refreshControl={
-                    Platform.OS !== 'web' ? (
-                      <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor="#FF6B35"
-                        colors={['#FF6B35']}
-                      />
-                    ) : undefined
-                  }
                 >
                   {pendingExpenses.map((group) => (
                     <View key={group.groupId} style={styles.groupSection}>
@@ -565,6 +571,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
     marginBottom: 8,
+  },
+  summaryLeft: {
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  cardRefreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
   summaryTitle: {
     fontSize: 14,

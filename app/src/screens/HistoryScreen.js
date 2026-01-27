@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
-  RefreshControl,
   ActivityIndicator,
   BackHandler,
   Modal,
@@ -17,14 +16,15 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { authGet } from '../utils/apiHelper';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function HistoryScreen({ route }) {
   const navigation = useNavigation();
-  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [historyRecords, setHistoryRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -48,11 +48,11 @@ export default function HistoryScreen({ route }) {
     fetchHistory();
   }, []);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await fetchHistory();
     setRefreshing(false);
-  }, []);
+  };
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -137,15 +137,29 @@ export default function HistoryScreen({ route }) {
 
         {/* Content */}
         <View style={styles.content}>
-          {loading ? (
-            <View style={styles.card}>
+          <View style={styles.card}>
+            {/* Card Header with Refresh - Always visible */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Settlement History</Text>
+              <TouchableOpacity 
+                onPress={handleRefresh} 
+                style={styles.cardRefreshButton}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : (
+                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
               <View style={styles.loadingState}>
                 <ActivityIndicator size="large" color="#FF6B35" />
                 <Text style={styles.loadingText}>Loading history...</Text>
               </View>
-            </View>
-          ) : historyRecords.length === 0 ? (
-            <View style={styles.card}>
+            ) : historyRecords.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>📜</Text>
                 <Text style={styles.emptyTitle}>No History Yet</Text>
@@ -153,33 +167,21 @@ export default function HistoryScreen({ route }) {
                   Settled payments will appear here once you complete transactions
                 </Text>
               </View>
-            </View>
-          ) : (
-            <View style={styles.card}>
-              {/* Summary Header */}
-              <View style={styles.summaryHeader}>
-                <Text style={styles.summaryTitle}>Settlement History</Text>
-                <Text style={styles.summaryCount}>
-                  {historyRecords.length} group{historyRecords.length !== 1 ? 's' : ''}
-                </Text>
-              </View>
+            ) : (
+              <>
+                {/* Summary Info */}
+                <View style={styles.summaryInfo}>
+                  <Text style={styles.summaryCount}>
+                    {historyRecords.length} group{historyRecords.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
 
-              {/* Scrollable History List */}
-              <ScrollView 
-                style={styles.groupsList}
-                contentContainerStyle={styles.groupsListContent}
-                showsVerticalScrollIndicator={true}
-                refreshControl={
-                  Platform.OS !== 'web' ? (
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={onRefresh}
-                      tintColor="#FF6B35"
-                      colors={['#FF6B35']}
-                    />
-                  ) : undefined
-                }
-              >
+                {/* Scrollable History List */}
+                <ScrollView 
+                  style={styles.groupsList}
+                  contentContainerStyle={styles.groupsListContent}
+                  showsVerticalScrollIndicator={true}
+                >
                 {historyRecords.map((record) => (
                   <View key={record.id} style={styles.historyItem}>
                     <View style={styles.historyItemLeft}>
@@ -205,8 +207,9 @@ export default function HistoryScreen({ route }) {
                   </View>
                 ))}
               </ScrollView>
-            </View>
-          )}
+              </>
+            )}
+          </View>
         </View>
       </LinearGradient>
 
@@ -396,19 +399,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 20,
   },
-  summaryHeader: {
+  cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-    marginBottom: 8,
   },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  cardRefreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  summaryInfo: {
+    marginBottom: 12,
   },
   summaryCount: {
     fontSize: 16,

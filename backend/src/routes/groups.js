@@ -123,11 +123,14 @@ async function cleanupDeletedGroups(user) {
   
   if (groupIds.length === 0) return { cleaned: false, validGroupIds: [] };
   
-  // Find which groups still exist
-  const existingGroups = await Group.find({ _id: { $in: groupIds } }).select('_id');
+  // Find which groups still exist and are not deleted
+  const existingGroups = await Group.find({ 
+    _id: { $in: groupIds },
+    status: { $ne: 'deleted' } // Exclude deleted groups
+  }).select('_id');
   const existingGroupIds = new Set(existingGroups.map(g => g._id));
   
-  // Filter to only valid group IDs
+  // Filter to only valid group IDs (exist and not deleted)
   const validGroupIds = groupIds.filter(id => existingGroupIds.has(id));
   
   // If some were removed, update the user
@@ -404,7 +407,7 @@ router.get('/', async (req, res) => {
 // Get pending expenses for user
 router.get('/pending', async (req, res) => {
   try {
-    const userMailId = req.user.mailId;
+    const userMailId = req.user.mailId.toLowerCase().trim();
     const user = await User.findById(userMailId);
     if (!user) return res.json({ success: true, data: [] });
     
@@ -422,8 +425,9 @@ router.get('/pending', async (req, res) => {
       const edgesDoc = await ConsolidatedEdges.findOne({ groupId: group._id });
       if (!edgesDoc) continue;
       
+      // Edges are stored with lowercase emails, so normalize userMailId for comparison
       const userPendingEdges = edgesDoc.edges.filter(
-        edge => edge.from === userMailId && !edge.resolved
+        edge => edge.from.toLowerCase() === userMailId && !edge.resolved
       );
       
       if (userPendingEdges.length > 0) {
@@ -438,7 +442,7 @@ router.get('/pending', async (req, res) => {
           groupStatus: group.status,
           pendingEdges: userPendingEdges,
           resolvedEdges: edgesDoc.edges.filter(
-            edge => edge.from === userMailId && edge.resolved
+            edge => edge.from.toLowerCase() === userMailId && edge.resolved
           )
         });
       }
@@ -470,7 +474,7 @@ router.get('/pending', async (req, res) => {
 // Get awaiting payments for user (money owed TO the user)
 router.get('/awaiting', async (req, res) => {
   try {
-    const userMailId = req.user.mailId;
+    const userMailId = req.user.mailId.toLowerCase().trim();
     const user = await User.findById(userMailId);
     if (!user) return res.json({ success: true, data: [] });
     
@@ -489,8 +493,9 @@ router.get('/awaiting', async (req, res) => {
       if (!edgesDoc) continue;
       
       // Get edges where user is the recipient (to) and not resolved
+      // Edges are stored with lowercase emails, so normalize userMailId for comparison
       const userAwaitingEdges = edgesDoc.edges.filter(
-        edge => edge.to === userMailId && !edge.resolved
+        edge => edge.to.toLowerCase() === userMailId && !edge.resolved
       );
       
       if (userAwaitingEdges.length > 0) {
@@ -621,6 +626,115 @@ router.post('/:id/expenses', async (req, res) => {
     
     res.json(json);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete expense from group
+router.delete('/:id/expenses/:expenseId', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) return res.status(404).json({ success: false, error: 'Group not found' });
+    
+    const { expenseId } = req.params;
+    
+    // Check if expense exists
+    const expenses = group.getExpenses();
+    const expenseExists = expenses.some(e => e.id === expenseId);
+    if (!expenseExists) {
+      return res.status(404).json({ success: false, error: 'Expense not found' });
+    }
+    
+    // Remove the expense
+    group.removeExpense(expenseId);
+    await group.save();
+    
+    // Recalculate consolidated edges
+    const allExpenses = group.getExpenses();
+    let edgesDoc = await ConsolidatedEdges.findOne({ groupId: group._id });
+    if (!edgesDoc) {
+      edgesDoc = await ConsolidatedEdges.findOrCreateByGroupId(group._id);
+    }
+    
+    const resolvedPayments = edgesDoc.getResolvedEdges();
+    const newEdges = calculateConsolidatedEdges(allExpenses, resolvedPayments);
+    const allEdges = [
+      ...newEdges,
+      ...resolvedPayments.map(e => ({ ...e, resolved: true }))
+    ];
+    
+    edgesDoc.setEdges(allEdges);
+    await edgesDoc.save();
+    
+    const json = group.toJSON();
+    json.consolidatedExpenses = edgesDoc.edges;
+    
+    console.log(`🗑️ Expense deleted from group "${group.name}", recalculated edges`);
+    
+    res.json({ success: true, data: json });
+  } catch (e) { 
+    console.error('Error deleting expense:', e);
+    res.status(500).json({ success: false, error: e.message }); 
+  }
+});
+
+// Update expense in group
+router.put('/:id/expenses/:expenseId', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) return res.status(404).json({ success: false, error: 'Group not found' });
+    
+    const { expenseId } = req.params;
+    const { name, payer, payees, amount, totalAmount } = req.body;
+    
+    // Get current expenses
+    const details = group.getDetails();
+    const expenseIndex = details.expenses.findIndex(e => e.id === expenseId);
+    
+    if (expenseIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Expense not found' });
+    }
+    
+    // Update expense fields
+    if (name) details.expenses[expenseIndex].name = name;
+    if (payer) details.expenses[expenseIndex].payer = payer.toLowerCase().trim();
+    if (payees) {
+      details.expenses[expenseIndex].payees = payees.map(p => 
+        typeof p === 'object' ? p : p.toLowerCase().trim()
+      );
+    }
+    if (amount !== undefined) details.expenses[expenseIndex].amount = parseFloat(amount);
+    if (totalAmount !== undefined) details.expenses[expenseIndex].totalAmount = parseFloat(totalAmount);
+    
+    // Save updated expenses
+    group.setDetails(details);
+    await group.save();
+    
+    // Recalculate consolidated edges
+    const allExpenses = group.getExpenses();
+    let edgesDoc = await ConsolidatedEdges.findOne({ groupId: group._id });
+    if (!edgesDoc) {
+      edgesDoc = await ConsolidatedEdges.findOrCreateByGroupId(group._id);
+    }
+    
+    const resolvedPayments = edgesDoc.getResolvedEdges();
+    const newEdges = calculateConsolidatedEdges(allExpenses, resolvedPayments);
+    const allEdges = [
+      ...newEdges,
+      ...resolvedPayments.map(e => ({ ...e, resolved: true }))
+    ];
+    
+    edgesDoc.setEdges(allEdges);
+    await edgesDoc.save();
+    
+    const json = group.toJSON();
+    json.consolidatedExpenses = edgesDoc.edges;
+    
+    console.log(`✏️ Expense updated in group "${group.name}", recalculated edges`);
+    
+    res.json({ success: true, data: json });
+  } catch (e) { 
+    console.error('Error updating expense:', e);
+    res.status(500).json({ success: false, error: e.message }); 
+  }
 });
 
 // Get settlements for group
@@ -782,14 +896,39 @@ router.post('/:id/complete', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Delete group
+// Delete group (soft delete - marks as deleted with 7-day TTL)
 router.delete('/:id', async (req, res) => {
   try {
-    await Group.findByIdAndDelete(req.params.id);
-    await ConsolidatedEdges.deleteOne({ groupId: req.params.id });
-    await History.deleteOne({ groupId: req.params.id });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    
+    // Mark group as deleted with 7-day TTL
+    group.markDeleted();
+    await group.save();
+    
+    // Also set TTL on consolidated edges
+    const edgesDoc = await ConsolidatedEdges.findOne({ groupId: req.params.id });
+    if (edgesDoc) {
+      edgesDoc.setTTL(7);
+      await edgesDoc.save();
+    }
+    
+    // Also set TTL on history
+    const historyDoc = await History.findOne({ groupId: req.params.id });
+    if (historyDoc && historyDoc.setTTL) {
+      historyDoc.setTTL(7);
+      await historyDoc.save();
+    }
+    
+    console.log(`🗑️ Group "${group.name}" marked as deleted, will be removed in 7 days`);
+    
+    res.json({ success: true, message: 'Group marked for deletion. Will be permanently removed in 7 days.' });
+  } catch (e) { 
+    console.error('Error deleting group:', e);
+    res.status(500).json({ success: false, error: e.message }); 
+  }
 });
 
 // Notify recipient that their UPI ID is not set
