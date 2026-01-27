@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   groupsList: {
-    flex: 1,
+    // No flex properties - let content determine natural height for proper scrolling
   },
   groupItem: {
     flexDirection: 'row',

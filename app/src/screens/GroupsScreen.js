@@ -646,12 +646,6 @@ export default function GroupsScreen({ route }) {
         setSelectedExpense(null);
         // Refresh group details to get updated data
         await fetchGroupDetails(groupId);
-        
-        if (Platform.OS === 'web') {
-          alert('Expense deleted successfully.');
-        } else {
-          Alert.alert('Success', 'Expense deleted successfully.');
-        }
       } else {
         throw new Error(data.error || 'Failed to delete expense');
       }
@@ -1831,7 +1825,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     paddingTop: 0,
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   card: {
     flex: 1,
@@ -1843,7 +1836,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   loadingState: {
     flex: 1,
@@ -2008,13 +2000,11 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     flex: 1,
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   detailsContent: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   expensesSectionFull: {
     flex: 1,
@@ -2023,11 +2013,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F8F8',
     borderRadius: 16,
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   expensesScrollContent: {
     paddingBottom: 10,
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   noExpensesFull: {
     flex: 1,
@@ -2262,7 +2250,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#EFEFEF',
     position: 'relative',
     backgroundColor: '#F8F8F8',
-    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   expenseMainContent: {
     flex: 1,

@@ -169,11 +169,18 @@ export default function GroupPreviewScreen() {
       const data = await response.json();
 
       if (data.success) {
-        // Navigate to Split Summary with consolidated expenses
+        // Navigate to Split Summary with expenses and consolidated settlements
         navigation.navigate('SplitSummary', {
           groupId: data.data.groupId,
           groupName: data.data.groupName,
           consolidatedExpenses: data.data.consolidatedExpenses,
+          // Pass the expenses with readable names for display
+          expenses: expenses.map(exp => ({
+            title: exp.title,
+            totalAmount: exp.totalAmount,
+            paidByName: exp.paidByName,
+            memberCount: exp.members?.length || Object.keys(exp.splits || {}).length,
+          })),
         });
       } else {
         setError(data.message || 'Failed to create group');

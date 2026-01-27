@@ -288,8 +288,9 @@ export default function SplitSummaryScreen() {
   const route = useRoute();
   const [copied, setCopied] = useState(false);
   const [isAnimating, setIsAnimating] = useState(true);
+  const [showSettlements, setShowSettlements] = useState(false);
   
-  const { groupName, consolidatedExpenses = [], groupId } = route.params || {};
+  const { groupName, consolidatedExpenses = [], groupId, expenses = [] } = route.params || {};
   
   // Animation for success checkmark
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -442,31 +443,81 @@ export default function SplitSummaryScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.cardTitle}>Who Owes Whom</Text>
-            
-            {consolidatedExpenses.length > 0 ? (
-              <ScrollView 
-                style={styles.expensesScrollView}
-                contentContainerStyle={styles.expensesScrollContent}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
-                {consolidatedExpenses.map((exp, index) => (
-                  <View key={index} style={styles.expenseRow}>
-                    <View style={styles.expenseNames}>
-                      <Text style={styles.fromName} numberOfLines={1}>{exp.fromName}</Text>
-                      <Text style={styles.arrow}>→</Text>
-                      <Text style={styles.toName} numberOfLines={1}>{exp.toName}</Text>
-                    </View>
-                    <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
+            {!showSettlements ? (
+              <>
+                <Text style={styles.cardTitle}>Expenses Added ({expenses.length})</Text>
+                
+                {expenses.length > 0 ? (
+                  <ScrollView 
+                    style={styles.expensesScrollView}
+                    contentContainerStyle={styles.expensesScrollContent}
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                  >
+                    {expenses.map((exp, index) => (
+                      <View key={index} style={styles.addedExpenseRow}>
+                        <View style={styles.addedExpenseInfo}>
+                          <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
+                          <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
+                            Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={styles.settledContainer}>
+                    <Text style={styles.settledEmoji}>📝</Text>
+                    <Text style={styles.settledText}>No expenses added</Text>
                   </View>
-                ))}
-              </ScrollView>
+                )}
+
+                {/* Link to view settlements */}
+                <TouchableOpacity 
+                  style={styles.viewSettlementsLink}
+                  onPress={() => setShowSettlements(true)}
+                >
+                  <Text style={styles.viewSettlementsText}>View Final Settlements →</Text>
+                </TouchableOpacity>
+              </>
             ) : (
-              <View style={styles.settledContainer}>
-                <Text style={styles.settledEmoji}>✅</Text>
-                <Text style={styles.settledText}>Everyone is settled up!</Text>
-              </View>
+              <>
+                <Text style={styles.cardTitle}>Who Owes Whom</Text>
+                
+                {consolidatedExpenses.length > 0 ? (
+                  <ScrollView 
+                    style={styles.expensesScrollView}
+                    contentContainerStyle={styles.expensesScrollContent}
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                  >
+                    {consolidatedExpenses.map((exp, index) => (
+                      <View key={index} style={styles.expenseRow}>
+                        <View style={styles.expenseNames}>
+                          <Text style={styles.fromName} numberOfLines={1}>{exp.fromName}</Text>
+                          <Text style={styles.arrow}>→</Text>
+                          <Text style={styles.toName} numberOfLines={1}>{exp.toName}</Text>
+                        </View>
+                        <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={styles.settledContainer}>
+                    <Text style={styles.settledEmoji}>✅</Text>
+                    <Text style={styles.settledText}>Everyone is settled up!</Text>
+                  </View>
+                )}
+
+                {/* Link to go back to expenses */}
+                <TouchableOpacity 
+                  style={styles.viewSettlementsLink}
+                  onPress={() => setShowSettlements(false)}
+                >
+                  <Text style={styles.viewSettlementsText}>← View Expenses Added</Text>
+                </TouchableOpacity>
+              </>
             )}
           </Animated.View>
 
@@ -737,6 +788,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#28A745',
+  },
+  // Added expense styles
+  addedExpenseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  addedExpenseInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  addedExpenseTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  addedExpensePaidBy: {
+    fontSize: 13,
+    color: '#666',
+  },
+  addedExpenseAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FF6B35',
+    flexShrink: 0,
+  },
+  viewSettlementsLink: {
+    marginTop: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  viewSettlementsText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FF6B35',
   },
   homeButton: {
     backgroundColor: '#FFF',

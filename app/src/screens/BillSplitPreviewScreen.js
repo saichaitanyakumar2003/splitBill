@@ -261,6 +261,13 @@ export default function BillSplitPreviewScreen() {
           groupId: data.data.groupId,
           groupName: data.data.groupName,
           consolidatedExpenses: data.data.consolidatedExpenses,
+          // Pass the expense that was added
+          expenses: [{
+            title: expenseTitle,
+            totalAmount: billData.total,
+            paidByName: paidBy.name,
+            memberCount: allMembers.length,
+          }],
         });
       } else {
         setError(data.message || 'Failed to create group');
