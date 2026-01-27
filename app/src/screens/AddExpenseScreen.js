@@ -29,7 +29,7 @@ export default function AddExpenseScreen() {
   
   // Form state - group name is fixed
   const [expenseTitle, setExpenseTitle] = useState(isFromBillScan ? billData?.merchantName || '' : '');
-  const [amount, setAmount] = useState(isFromBillScan ? billData?.total?.toString() || '' : '');
+  const [amount, setAmount] = useState(isFromBillScan ? (billData?.total?.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') || '') : '');
   
   // Group members state
   const [groupMembers, setGroupMembers] = useState([]);
@@ -246,7 +246,7 @@ export default function AddExpenseScreen() {
     const errors = {
       expenseTitle: !expenseTitle.trim(),
       paidBy: !paidBy,
-      amount: !amount || parseFloat(amount) <= 0,
+      amount: !amount || parseFloat(amount.replace(/,/g, '')) <= 0,
       selectedMembers: selectedMembers.length === 0,
     };
     
@@ -269,7 +269,7 @@ export default function AddExpenseScreen() {
         groupId: selectedGroup.id, // Pass group ID for existing group
         groupName: selectedGroup.name,
         expenseTitle: expenseTitle.trim(),
-        amount: parseFloat(amount),
+        amount: parseFloat(amount.replace(/,/g, '')),
         paidBy: paidBy,
         selectedMembers: selectedMembers,
         billData: billData,
@@ -280,7 +280,7 @@ export default function AddExpenseScreen() {
         groupId: selectedGroup.id, // Pass group ID for existing group
         groupName: selectedGroup.name,
         expenseTitle: expenseTitle.trim(),
-        amount: parseFloat(amount),
+        amount: parseFloat(amount.replace(/,/g, '')),
         paidBy: paidBy,
         selectedMembers: selectedMembers,
         sourceScreen: 'AddExpense',
@@ -295,9 +295,19 @@ export default function AddExpenseScreen() {
     }
   };
   
+  const formatAmountWithCommas = (value) => {
+    if (!value) return '';
+    const parts = value.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  };
+
   const handleAmountChange = (text) => {
+    // Remove all non-numeric characters except decimal point
     const cleanedText = text.replace(/[^0-9.]/g, '');
-    setAmount(cleanedText);
+    // Format with commas for display
+    const formattedText = formatAmountWithCommas(cleanedText);
+    setAmount(formattedText);
     if (validationErrors.amount && cleanedText && parseFloat(cleanedText) > 0) {
       setValidationErrors(prev => ({ ...prev, amount: false }));
     }

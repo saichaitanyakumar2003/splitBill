@@ -136,42 +136,27 @@ export default function SelectGroupScreen() {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputWrapper}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search active groups..."
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Text style={styles.clearIcon}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Groups List */}
-        <ScrollView 
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            Platform.OS !== 'web' ? (
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#FFF"
-                colors={['#FF6B35']}
-              />
-            ) : undefined
-          }
-        >
+        {/* Content */}
+        <View style={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.cardSubtitle}>Select an active group to add expense</Text>
+            {/* Card Header with Search */}
+            <View style={styles.cardHeader}>
+              <View style={styles.searchInputWrapper}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search active groups..."
+                  placeholderTextColor="#999"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Text style={styles.clearIcon}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
             
             {loading ? (
               <View style={styles.loadingState}>
@@ -200,32 +185,48 @@ export default function SelectGroupScreen() {
                 )}
               </View>
             ) : (
-              <View style={styles.groupsList}>
-                {filteredGroups.map((group, index) => (
-                  <TouchableOpacity
-                    key={group._id || group.id}
-                    style={[
-                      styles.groupItem,
-                      index < filteredGroups.length - 1 && styles.groupItemBorder
-                    ]}
-                    onPress={() => handleSelectGroup(group)}
-                  >
-                    <View style={styles.groupIcon}>
-                      <Text style={styles.groupIconText}>
-                        {group.name.substring(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.groupInfo}>
-                      <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
-                      <Text style={styles.groupStatus}>● Active</Text>
-                    </View>
-                    <Text style={styles.groupArrow}>›</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView 
+                style={styles.groupsScrollView}
+                contentContainerStyle={styles.groupsScrollContent}
+                showsVerticalScrollIndicator={true}
+                refreshControl={
+                  Platform.OS !== 'web' ? (
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#FF6B35"
+                      colors={['#FF6B35']}
+                    />
+                  ) : undefined
+                }
+              >
+                <View style={styles.groupsList}>
+                  {filteredGroups.map((group, index) => (
+                    <TouchableOpacity
+                      key={group._id || group.id}
+                      style={[
+                        styles.groupItem,
+                        index < filteredGroups.length - 1 && styles.groupItemBorder
+                      ]}
+                      onPress={() => handleSelectGroup(group)}
+                    >
+                      <View style={styles.groupIcon}>
+                        <Text style={styles.groupIconText}>
+                          {group.name.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
+                        <Text style={styles.groupStatus}>● Active</Text>
+                      </View>
+                      <Text style={styles.groupArrow}>›</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
             )}
           </View>
-        </ScrollView>
+        </View>
       </LinearGradient>
     </View>
   );
@@ -268,25 +269,43 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 10,
+  content: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 0,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cardHeader: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 50,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
   },
   searchIcon: {
-    fontSize: 18,
-    marginRight: 10,
+    fontSize: 16,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#333',
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
   },
@@ -295,31 +314,11 @@ const styles = StyleSheet.create({
     color: '#999',
     padding: 5,
   },
-  content: {
+  groupsScrollView: {
     flex: 1,
   },
-  contentContainer: {
-    padding: 20,
-    paddingTop: 10,
-    flexGrow: 1,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-    minHeight: 300,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
+  groupsScrollContent: {
+    paddingBottom: 10,
   },
   loadingState: {
     flex: 1,

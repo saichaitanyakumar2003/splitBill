@@ -209,10 +209,7 @@ export default function GroupPreviewScreen() {
           <View style={styles.headerRight} />
         </View>
 
-        <ScrollView 
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.content}>
           <View style={styles.card}>
             {/* Group Name */}
             <View style={styles.groupNameSection}>
@@ -225,11 +222,9 @@ export default function GroupPreviewScreen() {
               <Text style={styles.sectionTitle}>Expenses ({expenses.length})</Text>
               
               <ScrollView 
-                style={[
-                  styles.expensesScroll,
-                  expenses.length > 3 && styles.expensesScrollLimited
-                ]}
-                showsVerticalScrollIndicator={expenses.length > 3}
+                style={styles.expensesScroll}
+                contentContainerStyle={styles.expensesScrollContent}
+                showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
               >
                 {expenses.map((expense, index) => (
@@ -244,7 +239,7 @@ export default function GroupPreviewScreen() {
                         style={styles.viewMembersLink}
                         onPress={() => openMemberModal(index)}
                       >
-                        <Text style={styles.viewMembersText}>View member list</Text>
+                        <Text style={styles.viewMembersText}>View expense</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -272,7 +267,7 @@ export default function GroupPreviewScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
       </LinearGradient>
 
       {/* Member Split Modal */}
@@ -390,21 +385,21 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  scrollView: {
+  content: {
     flex: 1,
     padding: 20,
     paddingTop: 0,
   },
   card: {
+    flex: 1,
     backgroundColor: '#FFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
-    marginBottom: 40,
   },
   groupNameSection: {
     marginBottom: 24,
@@ -426,6 +421,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   expensesSection: {
+    flex: 1,
     marginBottom: 24,
   },
   sectionTitle: {
@@ -437,11 +433,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   expensesScroll: {
+    flex: 1,
     backgroundColor: '#F8F8F8',
     borderRadius: 16,
   },
-  expensesScrollLimited: {
-    maxHeight: 270, // ~3 rows (90px per row)
+  expensesScrollContent: {
+    paddingBottom: 10,
   },
   expenseRow: {
     paddingVertical: 14,
