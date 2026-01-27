@@ -12,6 +12,7 @@ import {
   Pressable,
   Animated,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -281,22 +282,37 @@ export default function HistoryScreen({ route }) {
                   style={styles.groupsList}
                   contentContainerStyle={styles.groupsListContent}
                   showsVerticalScrollIndicator={true}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      tintColor="#FF6B35"
+                      colors={['#FF6B35']}
+                    />
+                  }
                 >
-                {historyRecords.map((record) => (
+                {historyRecords.map((record) => {
+                  const isDeleted = record.groupStatus === 'deleted';
+                  const ItemWrapper = isDeleted ? View : TouchableOpacity;
+                  const itemWrapperProps = isDeleted 
+                    ? { style: styles.historyItemLeft }
+                    : { 
+                        style: styles.historyItemLeft,
+                        onPress: () => handleGroupPress(record),
+                        activeOpacity: 0.7
+                      };
+                  
+                  return (
                   <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
-                    <TouchableOpacity 
-                      style={styles.historyItemLeft}
-                      onPress={() => handleGroupPress(record)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.groupIcon}>
+                    <ItemWrapper {...itemWrapperProps}>
+                      <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
                         <Text style={styles.groupIconText}>
                           {record.groupName.substring(0, 2).toUpperCase()}
                         </Text>
                       </View>
                       <View style={styles.groupInfo}>
                         <View style={styles.groupNameRow}>
-                          <Text style={styles.groupName} numberOfLines={1}>{record.groupName}</Text>
+                          <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
                           {record.groupStatus && (
                             <View style={[
                               styles.statusBadge,
@@ -325,7 +341,7 @@ export default function HistoryScreen({ route }) {
                           </Text>
                         )}
                       </View>
-                    </TouchableOpacity>
+                    </ItemWrapper>
                     
                     {/* Three-dot menu */}
                     <TouchableOpacity 
@@ -336,7 +352,8 @@ export default function HistoryScreen({ route }) {
                       <Ionicons name="ellipsis-vertical" size={20} color="#888" />
                     </TouchableOpacity>
                   </View>
-                ))}
+                  );
+                })}
               </ScrollView>
               </>
             )}
@@ -752,6 +769,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     flexShrink: 1,
+  },
+  groupNameDeleted: {
+    color: '#888',
+  },
+  groupIconDeleted: {
+    backgroundColor: '#999',
   },
   statusBadge: {
     paddingHorizontal: 6,

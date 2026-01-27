@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Image,
   PixelRatio,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -44,7 +46,17 @@ export default function MainScreen({ navigation }) {
   const [capturedImage, setCapturedImage] = useState(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [permissionChecked, setPermissionChecked] = useState(isWeb);
+  const [refreshing, setRefreshing] = useState(false);
   const cameraRef = useRef(null);
+
+  // Pull to refresh handler for web
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Brief delay to show refresh indicator
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 500);
+  }, []);
 
   // Only use camera permissions on native
   const [permission, requestPermission] = !isWeb && useCameraPermissions ? useCameraPermissions() : [null, null];
@@ -156,27 +168,40 @@ export default function MainScreen({ navigation }) {
         colors={[theme.colors.backgroundGradientStart, theme.colors.backgroundGradientEnd]}
         style={styles.container}
       >
-        <View style={styles.webContent}>
-          <Logo size="large" />
-          
-          <View style={styles.webOptions}>
-            <TouchableOpacity style={styles.webOptionCard} onPress={handleCustomSplit}>
-              <View style={styles.webOptionIcon}>
-                <Ionicons name="calculator" size={32} color={theme.colors.background} />
-              </View>
-              <Text style={styles.webOptionTitle}>Add Custom Split</Text>
-              <Text style={styles.webOptionDesc}>Enter items manually</Text>
-            </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={styles.webScrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#FF6B35"
+              colors={['#FF6B35']}
+            />
+          }
+        >
+          <View style={styles.webContent}>
+            <Logo size="large" />
+            
+            <View style={styles.webOptions}>
+              <TouchableOpacity style={styles.webOptionCard} onPress={handleCustomSplit}>
+                <View style={styles.webOptionIcon}>
+                  <Ionicons name="calculator" size={32} color={theme.colors.background} />
+                </View>
+                <Text style={styles.webOptionTitle}>Add Custom Split</Text>
+                <Text style={styles.webOptionDesc}>Enter items manually</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity style={styles.webOptionCard} onPress={pickImage}>
-              <View style={styles.webOptionIcon}>
-                <Ionicons name="image" size={32} color={theme.colors.background} />
-              </View>
-              <Text style={styles.webOptionTitle}>Upload Image</Text>
-              <Text style={styles.webOptionDesc}>Import a bill photo</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.webOptionCard} onPress={pickImage}>
+                <View style={styles.webOptionIcon}>
+                  <Ionicons name="image" size={32} color={theme.colors.background} />
+                </View>
+                <Text style={styles.webOptionTitle}>Upload Image</Text>
+                <Text style={styles.webOptionDesc}>Import a bill photo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </LinearGradient>
     );
   }
@@ -335,6 +360,10 @@ const styles = StyleSheet.create({
   },
   
   // Web styles
+  webScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   webContent: {
     flex: 1,
     justifyContent: 'center',

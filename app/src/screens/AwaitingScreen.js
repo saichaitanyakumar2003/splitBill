@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   BackHandler,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -252,6 +253,14 @@ export default function AwaitingScreen({ route }) {
                   bounces={true}
                   nestedScrollEnabled={true}
                   keyboardShouldPersistTaps="handled"
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={handleRefresh}
+                      tintColor="#FF6B35"
+                      colors={['#FF6B35']}
+                    />
+                  }
                 >
                   {awaitingPayments.map((group) => (
                     <CollapsibleGroup

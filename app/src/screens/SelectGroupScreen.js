@@ -190,14 +190,12 @@ export default function SelectGroupScreen() {
                 contentContainerStyle={styles.groupsScrollContent}
                 showsVerticalScrollIndicator={true}
                 refreshControl={
-                  Platform.OS !== 'web' ? (
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={onRefresh}
-                      tintColor="#FF6B35"
-                      colors={['#FF6B35']}
-                    />
-                  ) : undefined
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#FF6B35"
+                    colors={['#FF6B35']}
+                  />
                 }
               >
                 <View style={styles.groupsList}>
