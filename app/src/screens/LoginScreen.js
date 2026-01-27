@@ -996,22 +996,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#EEE',
+    overflow: 'hidden',
   },
   inputIcon: {
     fontSize: 16,
     marginRight: 10,
+    flexShrink: 0,
   },
   input: {
     flex: 1,
     paddingVertical: 12,
     fontSize: 15,
     color: '#333',
+    minWidth: 0,
     ...(Platform.OS === 'web' && {
       outlineStyle: 'none',
     }),
   },
   eyeButton: {
     padding: 8,
+    flexShrink: 0,
     ...(Platform.OS === 'web' && {
       cursor: 'pointer',
     }),
@@ -1155,7 +1159,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#38A169',
     fontWeight: '700',
-    marginRight: 8,
+    marginLeft: 4,
+    flexShrink: 0,
   },
   requiredNote: {
     marginBottom: 12,

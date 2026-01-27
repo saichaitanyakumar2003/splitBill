@@ -12,6 +12,7 @@ import {
   Modal,
   BackHandler,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -23,6 +24,10 @@ import { useAuth } from '../context/AuthContext';
 export default function GroupsScreen({ route }) {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { width: screenWidth } = useWindowDimensions();
+  
+  // Detect mobile web (web platform with narrow screen)
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [groups, setGroups] = useState([]);
@@ -1132,39 +1137,82 @@ export default function GroupsScreen({ route }) {
           {/* Tab Bar */}
           <View style={styles.tabBar}>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'expenses' && styles.tabActive]}
+              style={[
+                styles.tab, 
+                activeTab === 'expenses' && styles.tabActive,
+                { 
+                  flexDirection: (Platform.OS === 'web' && !isMobileWeb) ? 'row' : 'column',
+                  paddingVertical: (Platform.OS === 'web' && !isMobileWeb) ? 8 : 10,
+                  paddingHorizontal: (Platform.OS === 'web' && !isMobileWeb) ? 6 : 4,
+                  gap: (Platform.OS === 'web' && !isMobileWeb) ? 4 : 2,
+                }
+              ]}
               onPress={() => setActiveTab('expenses')}
             >
               <Ionicons 
                 name="receipt-outline" 
-                size={Platform.OS === 'web' ? 16 : 18} 
+                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 18} 
                 color={activeTab === 'expenses' ? '#FF6B35' : '#888'} 
               />
-              <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>
+              <Text style={[
+                styles.tabText, 
+                activeTab === 'expenses' && styles.tabTextActive,
+                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 11 }
+              ]}>
                 Expenses
               </Text>
-              <Text style={[styles.tabCount, activeTab === 'expenses' && styles.tabCountActive]}>
+              <Text style={[
+                styles.tabCount, 
+                activeTab === 'expenses' && styles.tabCountActive,
+                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 10 }
+              ]}>
                 ({expenses.length})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'settlements' && styles.tabActive]}
+              style={[
+                styles.tab, 
+                activeTab === 'settlements' && styles.tabActive,
+                { 
+                  flexDirection: (Platform.OS === 'web' && !isMobileWeb) ? 'row' : 'column',
+                  paddingVertical: (Platform.OS === 'web' && !isMobileWeb) ? 8 : 10,
+                  paddingHorizontal: (Platform.OS === 'web' && !isMobileWeb) ? 6 : 4,
+                  gap: (Platform.OS === 'web' && !isMobileWeb) ? 4 : 2,
+                }
+              ]}
               onPress={() => setActiveTab('settlements')}
             >
               <Ionicons 
                 name="swap-horizontal-outline" 
-                size={Platform.OS === 'web' ? 16 : 18} 
+                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 18} 
                 color={activeTab === 'settlements' ? '#FF6B35' : '#888'} 
               />
-              <Text style={[styles.tabText, activeTab === 'settlements' && styles.tabTextActive]}>
+              <Text style={[
+                styles.tabText, 
+                activeTab === 'settlements' && styles.tabTextActive,
+                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 11 }
+              ]}>
                 Settlements
               </Text>
-              <Text style={[styles.tabCount, activeTab === 'settlements' && styles.tabCountActive]}>
+              <Text style={[
+                styles.tabCount, 
+                activeTab === 'settlements' && styles.tabCountActive,
+                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 10 }
+              ]}>
                 ({consolidatedEdges.length})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'activity' && styles.tabActive]}
+              style={[
+                styles.tab, 
+                activeTab === 'activity' && styles.tabActive,
+                { 
+                  flexDirection: (Platform.OS === 'web' && !isMobileWeb) ? 'row' : 'column',
+                  paddingVertical: (Platform.OS === 'web' && !isMobileWeb) ? 8 : 10,
+                  paddingHorizontal: (Platform.OS === 'web' && !isMobileWeb) ? 6 : 4,
+                  gap: (Platform.OS === 'web' && !isMobileWeb) ? 4 : 2,
+                }
+              ]}
               onPress={() => {
                 setActiveTab('activity');
                 const groupId = selectedGroup?._id || selectedGroup?.id;
@@ -1173,10 +1221,14 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="time-outline" 
-                size={Platform.OS === 'web' ? 16 : 18} 
+                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 18} 
                 color={activeTab === 'activity' ? '#FF6B35' : '#888'} 
               />
-              <Text style={[styles.tabText, activeTab === 'activity' && styles.tabTextActive]}>
+              <Text style={[
+                styles.tabText, 
+                activeTab === 'activity' && styles.tabTextActive,
+                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 11 }
+              ]}>
                 Activity
               </Text>
             </TouchableOpacity>
@@ -2002,13 +2054,9 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    flexDirection: Platform.OS === 'web' ? 'row' : 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Platform.OS === 'web' ? 8 : 10,
-    paddingHorizontal: Platform.OS === 'web' ? 6 : 4,
     borderRadius: 10,
-    gap: Platform.OS === 'web' ? 4 : 2,
   },
   tabActive: {
     backgroundColor: '#FFF',
@@ -2019,7 +2067,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabText: {
-    fontSize: Platform.OS === 'web' ? 12 : 11,
     fontWeight: '600',
     color: '#888',
     textAlign: 'center',
@@ -2028,7 +2075,6 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
   },
   tabCount: {
-    fontSize: Platform.OS === 'web' ? 12 : 10,
     fontWeight: '600',
     color: '#888',
   },
