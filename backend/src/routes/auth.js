@@ -197,14 +197,57 @@ router.post('/friends/details', authenticate, async (req, res) => {
 
 router.get('/search', authenticate, async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, forPayer } = req.query;
     if (!q || q.trim().length < 2) return res.json({ success: true, data: [] });
-    const results = await User.searchUsers(q.trim(), req.user.mailId, 20);
+    // forPayer=true will filter out users whose previous_mails match the query
+    const filterPreviousMails = forPayer === 'true';
+    const results = await User.searchUsers(q.trim(), req.user.mailId, 20, filterPreviousMails);
     res.json({ success: true, data: results });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 router.post('/logout', authenticate, (req, res) => res.json({ success: true }));
+
+// Add a previous mail to user's list
+router.post('/previous-mails', authenticate, async (req, res) => {
+  try {
+    const { mailId } = req.body;
+    if (!mailId) return res.status(400).json({ success: false, message: 'mailId is required' });
+    
+    const user = await User.findById(req.user.mailId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    const added = user.addPreviousMail(mailId);
+    await user.save();
+    
+    res.json({ success: true, added, data: user.getDetails().previous_mails });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Remove a previous mail from user's list
+router.delete('/previous-mails/:mailId', authenticate, async (req, res) => {
+  try {
+    const { mailId } = req.params;
+    
+    const user = await User.findById(req.user.mailId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    const removed = user.removePreviousMail(decodeURIComponent(mailId));
+    await user.save();
+    
+    res.json({ success: true, removed, data: user.getDetails().previous_mails });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Get user's previous mails
+router.get('/previous-mails', authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.mailId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    res.json({ success: true, data: user.getDetails().previous_mails });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
 
 router.post('/refresh', authenticate, async (req, res) => {
   try {

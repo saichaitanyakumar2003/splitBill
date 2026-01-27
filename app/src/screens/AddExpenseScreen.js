@@ -31,6 +31,9 @@ export default function AddExpenseScreen() {
   const [expenseTitle, setExpenseTitle] = useState(isFromBillScan ? billData?.merchantName || '' : '');
   const [amount, setAmount] = useState(isFromBillScan ? billData?.total?.toString() || '' : '');
   
+  // Group members state
+  const [groupMembers, setGroupMembers] = useState([]);
+  
   // Payer state
   const [paidBy, setPaidBy] = useState(null);
   const [isPayerDropdownOpen, setIsPayerDropdownOpen] = useState(false);
@@ -77,7 +80,57 @@ export default function AddExpenseScreen() {
     }
   }, [user]);
   
-  // Search users for payer
+  // Fetch group members when group is selected
+  useEffect(() => {
+    const fetchGroupMembers = async () => {
+      if (!selectedGroup?.id) return;
+      
+      try {
+        const response = await authGet(`/groups/${selectedGroup.id}`);
+        const data = await response.json();
+        
+        if (data && data.expenses) {
+          // Extract unique members from expenses
+          const membersSet = new Map();
+          
+          data.expenses.forEach(expense => {
+            // Add payer
+            if (expense.payer) {
+              const payerEmail = expense.payer.toLowerCase();
+              if (!membersSet.has(payerEmail)) {
+                membersSet.set(payerEmail, { 
+                  mailId: payerEmail, 
+                  name: payerEmail.split('@')[0] 
+                });
+              }
+            }
+            
+            // Add payees
+            if (expense.payees) {
+              expense.payees.forEach(payee => {
+                const payeeEmail = typeof payee === 'object' ? payee.mailId : payee;
+                const payeeName = typeof payee === 'object' ? payee.name : payeeEmail?.split('@')[0];
+                if (payeeEmail && !membersSet.has(payeeEmail.toLowerCase())) {
+                  membersSet.set(payeeEmail.toLowerCase(), { 
+                    mailId: payeeEmail.toLowerCase(), 
+                    name: payeeName || payeeEmail.split('@')[0] 
+                  });
+                }
+              });
+            }
+          });
+          
+          setGroupMembers(Array.from(membersSet.values()));
+        }
+      } catch (error) {
+        console.error('Error fetching group members:', error);
+      }
+    };
+    
+    fetchGroupMembers();
+  }, [selectedGroup?.id]);
+  
+  // Search users for payer (with previous_mails filter)
   useEffect(() => {
     const searchPayerUsers = async () => {
       if (payerSearchQuery.trim().length < 2) {
@@ -87,7 +140,8 @@ export default function AddExpenseScreen() {
 
       setIsPayerSearching(true);
       try {
-        const response = await authGet(`/auth/search?q=${encodeURIComponent(payerSearchQuery.trim())}`);
+        // Use forPayer=true to filter out users whose previous_mails match
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(payerSearchQuery.trim())}&forPayer=true`);
         const data = await response.json();
         
         if (data.success) {
@@ -272,8 +326,8 @@ export default function AddExpenseScreen() {
   };
 
   const showCurrentUserInSplit = user && 
-    paidBy?.mailId !== user.mailId && 
-    !selectedMembers.some(m => m.mailId === user.mailId);
+    paidBy?.mailId?.toLowerCase() !== user.mailId?.toLowerCase() && 
+    !selectedMembers.some(m => m.mailId?.toLowerCase() === user.mailId?.toLowerCase());
   
   const currentUserOption = showCurrentUserInSplit ? {
     mailId: user.mailId,
@@ -399,6 +453,46 @@ export default function AddExpenseScreen() {
                       nestedScrollEnabled={true}
                       keyboardShouldPersistTaps="handled"
                     >
+                      {/* Current User */}
+                      {paidBy?.mailId !== user?.mailId && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>You</Text>
+                          <TouchableOpacity
+                            style={styles.listItem}
+                            onPress={() => selectPayer({ mailId: user?.mailId, name: user?.name || 'You' })}
+                          >
+                            <View style={styles.userInfo}>
+                              <Text style={styles.userName} numberOfLines={1}>{user?.name || 'You'}</Text>
+                              <Text style={styles.userEmail}>{user?.mailId}</Text>
+                            </View>
+                            <Text style={styles.selectIcon}>○</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Group Members */}
+                      {groupMembers.length > 0 && payerSearchQuery.length < 2 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Group Members</Text>
+                          {groupMembers
+                            .filter(m => m.mailId !== paidBy?.mailId && m.mailId !== user?.mailId)
+                            .map(member => (
+                              <TouchableOpacity
+                                key={member.mailId}
+                                style={styles.listItem}
+                                onPress={() => selectPayer(member)}
+                              >
+                                <View style={styles.userInfo}>
+                                  <Text style={styles.userName} numberOfLines={1}>{member.name}</Text>
+                                  <Text style={styles.userEmail}>{member.mailId}</Text>
+                                </View>
+                                <Text style={styles.selectIcon}>○</Text>
+                              </TouchableOpacity>
+                            ))}
+                        </View>
+                      )}
+
+                      {/* API Search Results */}
                       {payerSearchResults.length > 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Search Results</Text>
@@ -418,20 +512,8 @@ export default function AddExpenseScreen() {
                         </View>
                       )}
 
-                      {payerSearchResults.length === 0 && paidBy?.mailId !== user?.mailId && (
-                        <View style={styles.listSection}>
-                          <Text style={styles.listSectionTitle}>You</Text>
-                          <TouchableOpacity
-                            style={styles.listItem}
-                            onPress={() => selectPayer({ mailId: user?.mailId, name: user?.name || 'You' })}
-                          >
-                            <View style={styles.userInfo}>
-                              <Text style={styles.userName} numberOfLines={1}>{user?.name || 'You'}</Text>
-                              <Text style={styles.userEmail}>{user?.mailId}</Text>
-                            </View>
-                            <Text style={styles.selectIcon}>○</Text>
-                          </TouchableOpacity>
-                        </View>
+                      {payerSearchQuery.length >= 2 && payerSearchResults.length === 0 && !isPayerSearching && (
+                        <Text style={styles.emptyText}>No users found</Text>
                       )}
                     </ScrollView>
                   </View>
@@ -547,6 +629,55 @@ export default function AddExpenseScreen() {
                       nestedScrollEnabled={true}
                       keyboardShouldPersistTaps="handled"
                     >
+                      {/* Add Yourself Option */}
+                      {currentUserOption && searchQuery.length < 2 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Add Yourself</Text>
+                          <TouchableOpacity
+                            style={styles.listItem}
+                            onPress={handleAddCurrentUser}
+                          >
+                            <View style={styles.userInfo}>
+                              <Text style={styles.userName} numberOfLines={1}>{user.name || 'You'} (You)</Text>
+                              <Text style={styles.userEmail}>{user.mailId}</Text>
+                            </View>
+                            <Text style={styles.addIcon}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Group Members (excluding the payer) */}
+                      {groupMembers.length > 0 && searchQuery.length < 2 && (
+                        <View style={styles.listSection}>
+                          <Text style={styles.listSectionTitle}>Group Members</Text>
+                          {groupMembers
+                            .filter(m => 
+                              !selectedMembers.some(sm => sm.mailId?.toLowerCase() === m.mailId?.toLowerCase()) && 
+                              m.mailId?.toLowerCase() !== paidBy?.mailId?.toLowerCase()
+                            )
+                            .map(member => (
+                              <TouchableOpacity
+                                key={member.mailId}
+                                style={styles.listItem}
+                                onPress={() => handleSelectMember(member)}
+                              >
+                                <View style={styles.userInfo}>
+                                  <Text style={styles.userName} numberOfLines={1}>{member.name}</Text>
+                                  <Text style={styles.userEmail}>{member.mailId}</Text>
+                                </View>
+                                <Text style={styles.addIcon}>+</Text>
+                              </TouchableOpacity>
+                            ))}
+                          {groupMembers.filter(m => 
+                            !selectedMembers.some(sm => sm.mailId?.toLowerCase() === m.mailId?.toLowerCase()) && 
+                            m.mailId?.toLowerCase() !== paidBy?.mailId?.toLowerCase()
+                          ).length === 0 && (
+                            <Text style={styles.emptyTextSmall}>All group members already added</Text>
+                          )}
+                        </View>
+                      )}
+
+                      {/* API Search Results */}
                       {searchResults.length > 0 && (
                         <View style={styles.listSection}>
                           <Text style={styles.listSectionTitle}>Search Results</Text>
@@ -566,32 +697,8 @@ export default function AddExpenseScreen() {
                         </View>
                       )}
 
-                      {currentUserOption && searchResults.length === 0 && (
-                        <View style={styles.listSection}>
-                          <Text style={styles.listSectionTitle}>Add Yourself</Text>
-                          <TouchableOpacity
-                            style={styles.listItem}
-                            onPress={handleAddCurrentUser}
-                          >
-                            <View style={styles.userInfo}>
-                              <Text style={styles.userName} numberOfLines={1}>{user.name || 'You'} (You)</Text>
-                              <Text style={styles.userEmail}>{user.mailId}</Text>
-                            </View>
-                            <Text style={styles.addIcon}>+</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-
-                      {!currentUserOption && searchResults.length === 0 && searchQuery.length < 2 && (
-                        <Text style={styles.emptyText}>
-                          Type to search for users
-                        </Text>
-                      )}
-
                       {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-                        <Text style={styles.emptyText}>
-                          No users found
-                        </Text>
+                        <Text style={styles.emptyText}>No users found</Text>
                       )}
                     </ScrollView>
                   </View>
@@ -999,6 +1106,13 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
     paddingVertical: 24,
+    fontStyle: 'italic',
+  },
+  emptyTextSmall: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    paddingVertical: 12,
     fontStyle: 'italic',
   },
   errorContainer: {

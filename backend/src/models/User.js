@@ -73,7 +73,7 @@ UserSchema.statics.findByMailIdWithPassword = function(mailId) {
   return this.findById(mailId.toLowerCase().trim()).select('+pswd');
 };
 
-UserSchema.statics.searchUsers = async function(query, excludeMailId = null, limit = 20) {
+UserSchema.statics.searchUsers = async function(query, excludeMailId = null, limit = 20, filterPreviousMails = false) {
   const regex = new RegExp(query, 'i');
   
   const filter = {
@@ -87,12 +87,28 @@ UserSchema.statics.searchUsers = async function(query, excludeMailId = null, lim
     filter._id = { ...filter._id, $ne: excludeMailId };
   }
 
-  const users = await this.find(filter).limit(limit);
+  const users = await this.find(filter).limit(limit * 2); // Fetch more to account for filtering
   
-  return users.map(user => ({
-    mailId: user._id,
-    name: user.name
-  }));
+  let results = users.map(user => {
+    const details = user.getDetails();
+    return {
+      mailId: user._id,
+      name: user.name,
+      previous_mails: details.previous_mails || []
+    };
+  });
+  
+  // Filter out users whose previous_mails contains the search query (for payer search)
+  if (filterPreviousMails) {
+    const queryLower = query.toLowerCase();
+    results = results.filter(user => {
+      // Keep user if none of their previous_mails match the query
+      return !user.previous_mails.some(pm => pm.toLowerCase().includes(queryLower));
+    });
+  }
+  
+  // Remove previous_mails from response and limit results
+  return results.slice(0, limit).map(({ mailId, name }) => ({ mailId, name }));
 };
 
 UserSchema.methods.verifyPassword = async function(password) {
@@ -107,8 +123,14 @@ UserSchema.methods.getDetails = function() {
     upiId: compressed.upiId || '',
     groupIds: compressed.groupIds || [],
     friends: compressed.friends || [],
-    expoPushToken: compressed.expoPushToken || null
+    expoPushToken: compressed.expoPushToken || null,
+    previous_mails: compressed.previous_mails || []
   };
+};
+
+UserSchema.methods.getGroupIds = function() {
+  const details = this.getDetails();
+  return details.groupIds || [];
 };
 
 UserSchema.methods.setExpoPushToken = function(token) {
@@ -146,8 +168,44 @@ UserSchema.methods.setDetails = function(details) {
     current.friends = details.friends;
   }
   
+  if (details.previous_mails !== undefined) {
+    current.previous_mails = details.previous_mails;
+  }
+  
   this.compressedDetails = compressData(current);
   this.updatedAt = new Date();
+};
+
+UserSchema.methods.addPreviousMail = function(mailId) {
+  const details = this.getDetails();
+  const normalizedEmail = mailId.toLowerCase().trim();
+  
+  if (!details.previous_mails.includes(normalizedEmail)) {
+    details.previous_mails.push(normalizedEmail);
+    const current = this.compressedDetails ? decompressData(this.compressedDetails) : {};
+    current.previous_mails = details.previous_mails;
+    this.compressedDetails = compressData(current);
+    this.updatedAt = new Date();
+    return true;
+  }
+  return false;
+};
+
+UserSchema.methods.removePreviousMail = function(mailId) {
+  const details = this.getDetails();
+  const normalizedEmail = mailId.toLowerCase().trim();
+  const originalLength = details.previous_mails.length;
+  
+  details.previous_mails = details.previous_mails.filter(m => m !== normalizedEmail);
+  
+  if (details.previous_mails.length !== originalLength) {
+    const current = this.compressedDetails ? decompressData(this.compressedDetails) : {};
+    current.previous_mails = details.previous_mails;
+    this.compressedDetails = compressData(current);
+    this.updatedAt = new Date();
+    return true;
+  }
+  return false;
 };
 
 UserSchema.methods.addGroupId = function(groupId) {
@@ -237,6 +295,7 @@ UserSchema.methods.toJSON = function() {
     upiId: details.upiId,
     groupIds: details.groupIds,
     friends: details.friends,
+    previous_mails: details.previous_mails,
     sessionExpiresAt: this.sessionExpiresAt,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
