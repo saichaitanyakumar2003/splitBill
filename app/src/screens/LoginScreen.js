@@ -11,12 +11,14 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import Svg, { Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -29,7 +31,7 @@ const GOOGLE_WEB_CLIENT_ID = '543880175096-lftcjh1p2nv2k66ver4ch7pq5qdee40v.apps
 
 export default function LoginScreen() {
   const navigation = useNavigation();
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register, loginWithGoogle, forgotPassword } = useAuth();
   
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -40,6 +42,11 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
+  
+  // Forgot password state
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   
   // Track touched fields for validation display
   const [touchedFields, setTouchedFields] = useState({
@@ -379,6 +386,42 @@ export default function LoginScreen() {
     outputRange: ['0deg', '720deg'],
   });
 
+  // Forgot password handler - directly sends to the email in login form
+  const handleForgotPassword = async () => {
+    // Validate email from login form
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setApiError('Please enter your email address first');
+      return;
+    }
+    if (!emailRegex.test(email)) {
+      setApiError('Please enter a valid email address');
+      return;
+    }
+
+    setIsSendingReset(true);
+    setApiError(null);
+
+    try {
+      const result = await forgotPassword(email);
+      if (result.success) {
+        setResetEmailSent(true);
+        setShowForgotPasswordModal(true);
+      } else {
+        setApiError(result.message || 'Failed to send reset email. Please try again.');
+      }
+    } catch (error) {
+      setApiError('Network error. Please try again.');
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+  const closeForgotPasswordModal = () => {
+    setShowForgotPasswordModal(false);
+    setResetEmailSent(false);
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -458,11 +501,11 @@ export default function LoginScreen() {
               ]}
             >
               {/* Tab Toggle */}
-              <View style={[styles.tabContainer, (isLoading || isGoogleLoading) && styles.tabContainerDisabled]}>
+              <View style={[styles.tabContainer, (isLoading || isGoogleLoading || isSendingReset) && styles.tabContainerDisabled]}>
                 <Pressable
                   style={[styles.tab, isLogin && styles.activeTab]}
                   onPress={() => { 
-                    if (isLoading || isGoogleLoading) return;
+                    if (isLoading || isGoogleLoading || isSendingReset) return;
                     setIsLogin(true); 
                     setApiError(null);
                     setEmail('');
@@ -472,14 +515,14 @@ export default function LoginScreen() {
                     setShowPassword(false);
                     setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
                   }}
-                  disabled={isLoading || isGoogleLoading}
+                  disabled={isLoading || isGoogleLoading || isSendingReset}
                 >
                   <Text style={[styles.tabText, isLogin && styles.activeTabText]}>Login</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.tab, !isLogin && styles.activeTab]}
                   onPress={() => { 
-                    if (isLoading || isGoogleLoading) return;
+                    if (isLoading || isGoogleLoading || isSendingReset) return;
                     setIsLogin(false); 
                     setApiError(null);
                     setEmail('');
@@ -489,7 +532,7 @@ export default function LoginScreen() {
                     setShowPassword(false);
                     setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
                   }}
-                  disabled={isLoading || isGoogleLoading}
+                  disabled={isLoading || isGoogleLoading || isSendingReset}
                 >
                   <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>Sign Up</Text>
                 </Pressable>
@@ -669,16 +712,34 @@ export default function LoginScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.primaryButton,
-                  pressed && !isLoading && !isGoogleLoading && styles.primaryButtonPressed,
-                  (isLoading || isGoogleLoading) && styles.buttonDisabled,
+                  pressed && !isLoading && !isGoogleLoading && !isSendingReset && styles.primaryButtonPressed,
+                  (isLoading || isGoogleLoading || isSendingReset) && styles.buttonDisabled,
                 ]}
                 onPress={handleEmailLogin}
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading || isGoogleLoading || isSendingReset}
               >
                 <Text style={styles.primaryButtonText}>
                   {isLoading ? 'Please wait...' : (isLogin ? 'Login' : 'Create Account')}
                 </Text>
               </Pressable>
+
+              {/* Forgot Password Link - Only show on Login */}
+              {isLogin && (
+                <Pressable
+                  style={styles.forgotPasswordLink}
+                  onPress={handleForgotPassword}
+                  disabled={isLoading || isGoogleLoading || isSendingReset}
+                >
+                  {isSendingReset ? (
+                    <View style={styles.forgotPasswordLoading}>
+                      <ActivityIndicator size="small" color="#FF6B35" />
+                      <Text style={styles.forgotPasswordText}>Sending...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                  )}
+                </Pressable>
+              )}
 
               {/* Divider */}
               {/* Google SSO - Web only */}
@@ -693,11 +754,11 @@ export default function LoginScreen() {
                   <Pressable
                     style={({ pressed }) => [
                       styles.googleSSOButton,
-                      pressed && !isLoading && !isGoogleLoading && styles.googleSSOButtonPressed,
-                      (isGoogleLoading || isLoading) && styles.googleSSOButtonDisabled,
+                      pressed && !isLoading && !isGoogleLoading && !isSendingReset && styles.googleSSOButtonPressed,
+                      (isGoogleLoading || isLoading || isSendingReset) && styles.googleSSOButtonDisabled,
                     ]}
                     onPress={handleGoogleLogin}
-                    disabled={isGoogleLoading || isLoading || !request}
+                    disabled={isGoogleLoading || isLoading || isSendingReset || !request}
                   >
                     {isGoogleLoading ? (
                       <>
@@ -738,6 +799,51 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
+
+      {/* Forgot Password Success Modal */}
+      <Modal
+        visible={showForgotPasswordModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeForgotPasswordModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeForgotPasswordModal}>
+          <Pressable style={styles.forgotPasswordModal} onPress={(e) => e.stopPropagation()}>
+            {/* Close button */}
+            <Pressable style={styles.modalCloseButton} onPress={closeForgotPasswordModal}>
+              <Ionicons name="close" size={24} color="#666" />
+            </Pressable>
+
+            {/* Success state */}
+            <View style={styles.forgotPasswordHeader}>
+              <View style={[styles.forgotPasswordIconCircle, styles.successIconCircle]}>
+                <Ionicons name="checkmark-circle" size={40} color="#38A169" />
+              </View>
+              <Text style={styles.forgotPasswordTitle}>Check Your Email!</Text>
+              <Text style={styles.forgotPasswordSubtitle}>
+                If an account exists for {email}, we've sent a temporary password. Please check your inbox (and spam folder).
+              </Text>
+            </View>
+
+            <View style={styles.forgotPasswordInstructions}>
+              <Text style={styles.instructionsTitle}>Next Steps:</Text>
+              <Text style={styles.instructionsText}>1. Check your email for the temporary password</Text>
+              <Text style={styles.instructionsText}>2. Login with the temporary password</Text>
+              <Text style={styles.instructionsText}>3. Go to View Profile to change password</Text>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.forgotPasswordButton,
+                pressed && styles.forgotPasswordButtonPressed,
+              ]}
+              onPress={closeForgotPasswordModal}
+            >
+              <Text style={styles.forgotPasswordButtonText}>Back to Login</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1064,5 +1170,122 @@ const styles = StyleSheet.create({
     color: '#E53E3E',
     fontWeight: '700',
     fontStyle: 'normal',
+  },
+  // Forgot Password Link
+  forgotPasswordLink: {
+    alignSelf: 'center',
+    marginTop: -8,
+    marginBottom: 16,
+    paddingVertical: 8,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: '#FF6B35',
+    fontWeight: '600',
+  },
+  forgotPasswordLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // Forgot Password Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  forgotPasswordModal: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 10,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
+  },
+  forgotPasswordHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  forgotPasswordIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  successIconCircle: {
+    backgroundColor: '#F0FFF4',
+  },
+  forgotPasswordTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  forgotPasswordSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 10,
+  },
+  forgotPasswordButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+    }),
+  },
+  forgotPasswordButtonPressed: {
+    backgroundColor: '#E65100',
+    transform: [{ scale: 0.98 }],
+  },
+  forgotPasswordButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  forgotPasswordInstructions: {
+    backgroundColor: '#F0FFF4',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  instructionsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#38A169',
+    marginBottom: 10,
+  },
+  instructionsText: {
+    fontSize: 13,
+    color: '#276749',
+    lineHeight: 22,
   },
 });

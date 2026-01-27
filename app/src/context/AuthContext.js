@@ -483,6 +483,33 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Forgot password - sends temporary password to email
+   */
+  const forgotPassword = async (email) => {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      reportNetworkError(error);
+      return { success: false, message: 'Network error. Please try again.' };
+    }
+  };
+
+  /**
    * Skip login (guest mode)
    */
   const skipLogin = async () => {
@@ -506,6 +533,7 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     changePassword,
     changeEmail,
+    forgotPassword,
     skipLogin,
     initializeAuth,
     setNotificationNavigationCallback,

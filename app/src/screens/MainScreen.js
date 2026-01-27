@@ -10,6 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Image,
+  PixelRatio,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,6 +29,14 @@ if (Platform.OS !== 'web') {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
+
+// Normalize size based on screen dimensions for consistent spacing across devices
+// Base design is for 375 width (iPhone) - scales proportionally
+const scale = SCREEN_WIDTH / 375;
+const normalize = (size) => Math.round(PixelRatio.roundToNearestPixel(size * scale));
+
+// Calculate bottom padding based on screen height percentage (more consistent across devices)
+const BOTTOM_BAR_PADDING = Math.max(normalize(40), SCREEN_HEIGHT * 0.06);
 
 export default function MainScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -443,7 +452,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : normalize(50),
     paddingHorizontal: theme.spacing.lg,
     position: 'absolute',
     top: 0,
@@ -514,7 +523,7 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     alignItems: 'center',
-    paddingBottom: 50,
+    paddingBottom: BOTTOM_BAR_PADDING,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -550,7 +559,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
-    paddingTop: 110,
+    paddingTop: Platform.OS === 'ios' ? 110 : normalize(100),
     paddingRight: theme.spacing.lg,
   },
   menuContainer: {

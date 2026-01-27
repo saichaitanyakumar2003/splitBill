@@ -7,6 +7,7 @@ const Group = require('../models/Group');
 const ConsolidatedEdges = require('../models/ConsolidatedEdges');
 const EditHistory = require('../models/EditHistory');
 const { authenticate } = require('../middleware/auth');
+const { sendPasswordResetEmail, generateTemporaryPassword } = require('../utils/email');
 
 const GOOGLE_WEB_CLIENT_ID = process.env.SPLITBILL_GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
@@ -49,6 +50,60 @@ router.post('/login', async (req, res) => {
     const d = user.getDetails();
     res.json({ success: true, data: { token: genToken(user._id, d.name), user: user.toJSON() } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Forgot password - sends temporary password via email
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+    
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find the user
+    const user = await User.findByMailIdWithPassword(normalizedEmail);
+    if (!user) {
+      // Don't reveal if email exists or not for security
+      // But return success to prevent email enumeration attacks
+      return res.json({ 
+        success: true, 
+        message: 'If an account exists with this email, a password reset email will be sent.' 
+      });
+    }
+    
+    // Generate temporary password
+    const temporaryPassword = generateTemporaryPassword(8);
+    
+    // Hash and save the temporary password
+    user.pswd = await User.hashPassword(temporaryPassword);
+    await user.save();
+    
+    // Get user's name for email personalization
+    const userName = user.name || user.getDetails()?.name || '';
+    
+    // Send email with temporary password
+    try {
+      await sendPasswordResetEmail(normalizedEmail, temporaryPassword, userName);
+      console.log(`Password reset email sent to ${normalizedEmail}`);
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to send reset email. Please try again later.' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'If an account exists with this email, a password reset email will be sent.' 
+    });
+  } catch (e) {
+    console.error('Forgot password error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 router.post('/google', async (req, res) => {
