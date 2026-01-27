@@ -54,7 +54,7 @@ const EyeIcon = ({ visible }) => (
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { user, updateProfile, changePassword, isLoading: authLoading } = useAuth();
+  const { user, updateProfile, changePassword, changeEmail, isLoading: authLoading } = useAuth();
   
   // Check if user signed up with OAuth (no password)
   const isOAuthUser = user?.oauth_provider === 'google' || user?.oauth_provider === 'apple';
@@ -62,17 +62,21 @@ export default function ProfileScreen() {
   // State from user context or defaults
   const [userName, setUserName] = useState(user?.name || 'User');
   const [email, setEmail] = useState(user?.mailId || '');
+  const [newEmail, setNewEmail] = useState('');
   const [mobile, setMobile] = useState(user?.phone || '');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isSettingPassword, setIsSettingPassword] = useState(false); // For OAuth users setting password first time
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [emailError, setEmailError] = useState(null);
+  const [emailSuccess, setEmailSuccess] = useState(null);
 
   // Update state when user data changes
   useEffect(() => {
@@ -146,39 +150,66 @@ export default function ProfileScreen() {
 
   // Check if password form is valid for enabling save button
   const isPasswordFormValid = () => {
-    // OAuth users setting password for first time don't need current password
-    if (isOAuthUser && isSettingPassword) {
-      return (
-        newPassword.length >= 6 &&
-        confirmNewPassword.length > 0 &&
-        newPassword === confirmNewPassword
-      );
-    }
-    // Regular users changing password
     return (
-      currentPassword.length > 0 &&
       newPassword.length >= 6 &&
       confirmNewPassword.length > 0 &&
-      newPassword === confirmNewPassword &&
-      currentPassword !== newPassword
+      newPassword === confirmNewPassword
     );
+  };
+
+  // Check if email is valid
+  const isValidEmail = (emailStr) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
+  };
+
+  // Handle email save
+  const handleSaveEmail = async () => {
+    setEmailError(null);
+    setEmailSuccess(null);
+    
+    if (!newEmail.trim()) {
+      setEmailError('Email is required');
+      return;
+    }
+    
+    if (!isValidEmail(newEmail.trim())) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    
+    if (newEmail.toLowerCase().trim() === email.toLowerCase()) {
+      setEmailError('New email must be different from current email');
+      return;
+    }
+    
+    setIsSavingEmail(true);
+    try {
+      const result = await changeEmail(newEmail.trim());
+      
+      if (result.success) {
+        setEmail(newEmail.trim().toLowerCase());
+        setIsEditingEmail(false);
+        setNewEmail('');
+        setEmailSuccess('Email updated successfully!');
+        setTimeout(() => setEmailSuccess(null), 3000);
+      } else {
+        setEmailError(result.message || 'Failed to update email');
+      }
+    } catch (error) {
+      setEmailError('Something went wrong');
+    } finally {
+      setIsSavingEmail(false);
+    }
   };
 
   const resetPasswordForm = () => {
     setIsChangingPassword(false);
     setIsSettingPassword(false);
-    setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
     setShowPassword(false);
     setApiError(null);
     setSuccessMessage(null);
-  };
-
-  // Clear error when user starts typing
-  const handleCurrentPasswordChange = (text) => {
-    setCurrentPassword(text);
-    if (apiError) setApiError(null);
   };
 
   const handleChangePassword = async () => {
@@ -192,9 +223,7 @@ export default function ProfileScreen() {
     setSuccessMessage(null);
     
     try {
-      // For OAuth users setting password first time, pass null as current password
-      const currentPwd = (isOAuthUser && isSettingPassword) ? null : currentPassword;
-      const result = await changePassword(currentPwd, newPassword);
+      const result = await changePassword(null, newPassword);
       
       if (result.success) {
         const message = isSettingPassword 
@@ -345,14 +374,91 @@ export default function ProfileScreen() {
 
             <View style={styles.fieldDivider} />
 
-            {/* Email Field (Read-only) */}
+            {/* Email Field */}
             <View style={styles.fieldContainer}>
-              <View style={styles.fieldHeader}>
-                <Text style={styles.fieldIcon}>📧</Text>
-                <Text style={styles.fieldLabel}>Email Address</Text>
+              {/* Email Error/Success Messages */}
+              {emailError && (
+                <View style={styles.apiErrorContainer}>
+                  <Text style={styles.apiErrorEmoji}>😅</Text>
+                  <Text style={styles.apiErrorMessage}>{emailError}</Text>
+                </View>
+              )}
+              {emailSuccess && (
+                <View style={styles.successContainer}>
+                  <Text style={styles.successEmoji}>✓</Text>
+                  <Text style={styles.successMessageText}>{emailSuccess}</Text>
+                </View>
+              )}
+              
+              <View style={styles.fieldHeaderWithEdit}>
+                <View style={styles.fieldHeader}>
+                  <Text style={styles.fieldIcon}>📧</Text>
+                  <Text style={styles.fieldLabel}>Email Address</Text>
+                </View>
+                {!isEditingEmail ? (
+                  <TouchableOpacity
+                    style={styles.editButtonInline}
+                    onPress={() => {
+                      setIsEditingEmail(true);
+                      setNewEmail(email);
+                      setEmailError(null);
+                    }}
+                  >
+                    <Text style={styles.editButtonInlineText}>Edit</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-              <Text style={styles.fieldValue}>{email || 'Not set'}</Text>
-              <Text style={styles.fieldHint}>Email cannot be changed</Text>
+              
+              {isEditingEmail ? (
+                <View>
+                  <TextInput
+                    style={[styles.fieldInput, emailError && styles.fieldInputError]}
+                    value={newEmail}
+                    onChangeText={(text) => {
+                      setNewEmail(text);
+                      if (emailError) setEmailError(null);
+                    }}
+                    placeholder="Enter new email address"
+                    placeholderTextColor="#999"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={styles.fieldHint}>Your old email will be stored for reference</Text>
+                  
+                  <View style={styles.passwordActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setIsEditingEmail(false);
+                        setNewEmail('');
+                        setEmailError(null);
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.savePasswordButton,
+                        (isSavingEmail || !newEmail.trim() || !isValidEmail(newEmail.trim())) && styles.savePasswordButtonDisabled
+                      ]}
+                      onPress={handleSaveEmail}
+                      disabled={isSavingEmail || !newEmail.trim() || !isValidEmail(newEmail.trim())}
+                    >
+                      {isSavingEmail ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={[
+                          styles.savePasswordButtonText,
+                          (!newEmail.trim() || !isValidEmail(newEmail.trim())) && styles.savePasswordButtonTextDisabled
+                        ]}>Save Email</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.fieldValue}>{email || 'Not set'}</Text>
+              )}
             </View>
 
             <View style={styles.fieldDivider} />
@@ -449,30 +555,12 @@ export default function ProfileScreen() {
                     </View>
                   )}
                   
-                  {/* Current Password - Only show for non-OAuth users */}
-                  {!isSettingPassword && (
-                    <View style={styles.passwordInputWrapper}>
-                      <TextInput
-                        style={[
-                          styles.fieldInput,
-                          apiError && styles.fieldInputError
-                        ]}
-                        value={currentPassword}
-                        onChangeText={handleCurrentPasswordChange}
-                        placeholder="Current password"
-                        placeholderTextColor="#999"
-                        secureTextEntry={!showPassword}
-                      />
-                    </View>
-                  )}
-                  
                   {/* New Password */}
-                  <View style={[styles.passwordInputWrapper, { marginTop: isSettingPassword ? 0 : 12 }]}>
+                  <View style={styles.passwordInputWrapper}>
                     <TextInput
                       style={[
                         styles.fieldInput,
-                        newPassword && newPassword.length < 6 && styles.fieldInputError,
-                        !isSettingPassword && newPassword && currentPassword && newPassword === currentPassword && styles.fieldInputError
+                        newPassword && newPassword.length < 6 && styles.fieldInputError
                       ]}
                       value={newPassword}
                       onChangeText={setNewPassword}
@@ -482,9 +570,6 @@ export default function ProfileScreen() {
                     />
                     {newPassword && newPassword.length < 6 && (
                       <Text style={styles.errorText}>Password must be at least 6 characters</Text>
-                    )}
-                    {!isSettingPassword && newPassword && currentPassword && newPassword === currentPassword && (
-                      <Text style={styles.errorText}>New password must be different from current password</Text>
                     )}
                   </View>
                   

@@ -431,7 +431,7 @@ export const AuthProvider = ({ children }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ newPassword }),
       });
 
       const data = await response.json();
@@ -443,6 +443,40 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Password change error:', error);
+      reportNetworkError(error);
+      return { success: false, message: 'Network error. Please try again.' };
+    }
+  };
+
+  /**
+   * Change user email
+   */
+  const changeEmail = async (newEmail) => {
+    try {
+      if (!token) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      const response = await apiFetch(`${API_BASE_URL}/auth/change-email`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ newEmail }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local storage and state with new token and user data
+        await saveAuth(data.data.token, data.data.user);
+        return { success: true };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (error) {
+      console.error('Email change error:', error);
       reportNetworkError(error);
       return { success: false, message: 'Network error. Please try again.' };
     }
@@ -471,6 +505,7 @@ export const AuthProvider = ({ children }) => {
     refreshSession,
     updateProfile,
     changePassword,
+    changeEmail,
     skipLogin,
     initializeAuth,
     setNotificationNavigationCallback,

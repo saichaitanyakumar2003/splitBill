@@ -12,7 +12,8 @@
     "init:db": "node src/scripts/initDb.js",
     "reset:db": "node src/scripts/resetDb.js",
     "migrate:name": "node src/scripts/migrateName.js",
-    "migrate:schema": "node src/scripts/migrateToNewSchema.js"
+    "migrate:schema": "node src/scripts/migrateToNewSchema.js",
+    "migrate:editHistory": "node src/scripts/migrateEditHistory.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
