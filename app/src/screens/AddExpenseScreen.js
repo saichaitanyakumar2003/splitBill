@@ -16,14 +16,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { useStore } from '../context/StoreContext';
 import { authGet } from '../utils/apiHelper';
 
 export default function AddExpenseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { user, token } = useAuth();
-  const { favorites, loadFavorites } = useStore();
   
   // Get selected group and billData from navigation params
   const { selectedGroup, billData } = route.params || {};
@@ -109,13 +107,6 @@ export default function AddExpenseScreen() {
     return () => clearTimeout(debounce);
   }, [payerSearchQuery, token, paidBy?.mailId, user?.mailId]);
 
-  // Load favorites on mount
-  useEffect(() => {
-    if (user?.friends) {
-      loadFavorites(token, user.friends);
-    }
-  }, [user?.friends, token, loadFavorites]);
-
   // Search users for split
   useEffect(() => {
     const searchUsers = async () => {
@@ -188,9 +179,9 @@ export default function AddExpenseScreen() {
     }
   };
 
-  const handleSelectFromFavorites = (fav) => {
-    if (!selectedMembers.some(m => m.mailId === fav.mailId)) {
-      setSelectedMembers([...selectedMembers, fav]);
+  const handleAddCurrentUser = () => {
+    if (user && !selectedMembers.some(m => m.mailId === user.mailId)) {
+      setSelectedMembers([...selectedMembers, { mailId: user.mailId, name: user.name || 'You' }]);
       if (validationErrors.selectedMembers) {
         setValidationErrors(prev => ({ ...prev, selectedMembers: false }));
       }
@@ -279,15 +270,6 @@ export default function AddExpenseScreen() {
       setSelectedMembers(selectedMembers.filter(m => m.mailId !== payer.mailId));
     }
   };
-
-  const availablePayerFavorites = favorites.filter(
-    fav => fav.mailId !== paidBy?.mailId && fav.mailId !== user?.mailId
-  );
-
-  const availableFavorites = favorites.filter(
-    fav => !selectedMembers.some(m => m.mailId === fav.mailId) && 
-           fav.mailId !== paidBy?.mailId
-  );
 
   const showCurrentUserInSplit = user && 
     paidBy?.mailId !== user.mailId && 
@@ -451,25 +433,6 @@ export default function AddExpenseScreen() {
                           </TouchableOpacity>
                         </View>
                       )}
-
-                      {availablePayerFavorites.length > 0 && payerSearchResults.length === 0 && (
-                        <View style={styles.listSection}>
-                          <Text style={styles.listSectionTitle}>Favorites</Text>
-                          {availablePayerFavorites.map(fav => (
-                            <TouchableOpacity
-                              key={fav.mailId}
-                              style={styles.listItem}
-                              onPress={() => selectPayer(fav)}
-                            >
-                              <View style={styles.userInfo}>
-                                <Text style={styles.userName} numberOfLines={1}>{fav.name}</Text>
-                                <Text style={styles.userEmail}>{fav.mailId}</Text>
-                              </View>
-                              <Text style={styles.selectIcon}>○</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
                     </ScrollView>
                   </View>
                 )}
@@ -608,7 +571,7 @@ export default function AddExpenseScreen() {
                           <Text style={styles.listSectionTitle}>Add Yourself</Text>
                           <TouchableOpacity
                             style={styles.listItem}
-                            onPress={() => handleSelectFromFavorites({ mailId: user.mailId, name: user.name || 'You' })}
+                            onPress={handleAddCurrentUser}
                           >
                             <View style={styles.userInfo}>
                               <Text style={styles.userName} numberOfLines={1}>{user.name || 'You'} (You)</Text>
@@ -619,26 +582,7 @@ export default function AddExpenseScreen() {
                         </View>
                       )}
 
-                      {availableFavorites.length > 0 && searchResults.length === 0 && (
-                        <View style={styles.listSection}>
-                          <Text style={styles.listSectionTitle}>Favorites</Text>
-                          {availableFavorites.map(fav => (
-                            <TouchableOpacity
-                              key={fav.mailId}
-                              style={styles.listItem}
-                              onPress={() => handleSelectFromFavorites(fav)}
-                            >
-                              <View style={styles.userInfo}>
-                                <Text style={styles.userName} numberOfLines={1}>{fav.name}</Text>
-                                <Text style={styles.userEmail}>{fav.mailId}</Text>
-                              </View>
-                              <Text style={styles.addIcon}>+</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-
-                      {!currentUserOption && availableFavorites.length === 0 && searchResults.length === 0 && searchQuery.length < 2 && (
+                      {!currentUserOption && searchResults.length === 0 && searchQuery.length < 2 && (
                         <Text style={styles.emptyText}>
                           Type to search for users
                         </Text>

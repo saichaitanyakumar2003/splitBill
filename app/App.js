@@ -29,7 +29,6 @@ import { api } from './src/api/client';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
-import FriendsScreen from './src/screens/FriendsScreen';
 import GroupsScreen from './src/screens/GroupsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
@@ -59,7 +58,6 @@ const getLinkedScreens = (isAuthenticated) => ({
       Profile: 'profile',
       Settings: 'settings',
       HelpCenter: 'help',
-      Friends: 'friends',
       Groups: 'groups',
       PendingExpenses: 'pending-expenses',
       History: 'history',
@@ -275,8 +273,8 @@ function Logo({ isMobile = false }) {
 }
 
 
-// Web Side Panel Component - Has all tabs (Favorites, Groups, Pending, History)
-function WebSidePanel({ visible, onClose, onFavorites, onGroups, onPendingExpenses, onHistory }) {
+// Web Side Panel Component - Has all tabs (Groups, Pending, History)
+function WebSidePanel({ visible, onClose, onGroups, onPendingExpenses, onHistory }) {
   if (!visible) return null;
 
   return (
@@ -290,16 +288,6 @@ function WebSidePanel({ visible, onClose, onFavorites, onGroups, onPendingExpens
           </TouchableOpacity>
         </View>
         <View style={styles.sidePanelMenu}>
-          <TouchableOpacity 
-            style={styles.sidePanelMenuItem}
-            onPress={onFavorites}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.sidePanelMenuIcon}>🫂</Text>
-            <Text style={styles.sidePanelMenuText}>Favorites</Text>
-            <Text style={styles.sidePanelMenuArrow}>›</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity 
             style={styles.sidePanelMenuItem}
             onPress={onGroups}
@@ -510,18 +498,18 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
     <View style={styles.bottomTabBar}>
       <TouchableOpacity 
         style={styles.bottomTab}
-        onPress={() => navigation.navigate('Friends')}
-      >
-        <Ionicons name="heart" size={24} color="#FF6B35" />
-        <Text style={styles.bottomTabTextOrange}>Favorites</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={styles.bottomTab}
         onPress={() => navigation.navigate('Groups')}
       >
         <Ionicons name="people" size={24} color="#FF6B35" />
         <Text style={styles.bottomTabTextOrange}>Groups</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.bottomTab}
+        onPress={() => navigation.navigate('PendingExpenses')}
+      >
+        <Ionicons name="time" size={24} color="#FF6B35" />
+        <Text style={styles.bottomTabTextOrange}>Pending</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
@@ -532,14 +520,6 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
           <Ionicons name="qr-code" size={28} color="#FFF" />
         </View>
         <Text style={styles.bottomTabCenterText}>Scan</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={styles.bottomTab}
-        onPress={() => navigation.navigate('PendingExpenses')}
-      >
-        <Ionicons name="time" size={24} color="#FF6B35" />
-        <Text style={styles.bottomTabTextOrange}>Pending</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
@@ -897,10 +877,6 @@ function HomeScreen({ navigation, route }) {
           <WebSidePanel
             visible={showSidePanel}
             onClose={() => setShowSidePanel(false)}
-            onFavorites={() => {
-              setShowSidePanel(false);
-              navigation.navigate('Friends', { fromSidePanel: true });
-            }}
             onGroups={() => {
               setShowSidePanel(false);
               navigation.navigate('Groups', { fromSidePanel: true });
@@ -1183,7 +1159,6 @@ function AppNavigator() {
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
-        <Stack.Screen name="Friends" component={FriendsScreen} />
         <Stack.Screen name="Groups" component={GroupsScreen} />
         <Stack.Screen name="PendingExpenses" component={PendingExpensesScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
