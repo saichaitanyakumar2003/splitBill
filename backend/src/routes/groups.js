@@ -467,6 +467,64 @@ router.get('/pending', async (req, res) => {
   }
 });
 
+// Get awaiting payments for user (money owed TO the user)
+router.get('/awaiting', async (req, res) => {
+  try {
+    const userMailId = req.user.mailId;
+    const user = await User.findById(userMailId);
+    if (!user) return res.json({ success: true, data: [] });
+    
+    // Clean up deleted groups
+    const { validGroupIds } = await cleanupDeletedGroups(user);
+    
+    if (validGroupIds.length === 0) return res.json({ success: true, data: [] });
+    
+    const groups = await Group.find({ _id: { $in: validGroupIds } });
+    
+    const allMemberEmails = new Set();
+    const awaitingPayments = [];
+    
+    for (const group of groups) {
+      const edgesDoc = await ConsolidatedEdges.findOne({ groupId: group._id });
+      if (!edgesDoc) continue;
+      
+      // Get edges where user is the recipient (to) and not resolved
+      const userAwaitingEdges = edgesDoc.edges.filter(
+        edge => edge.to === userMailId && !edge.resolved
+      );
+      
+      if (userAwaitingEdges.length > 0) {
+        userAwaitingEdges.forEach(edge => {
+          allMemberEmails.add(edge.from);
+          allMemberEmails.add(edge.to);
+        });
+        
+        awaitingPayments.push({
+          groupId: group._id,
+          groupName: group.name,
+          groupStatus: group.status,
+          awaitingEdges: userAwaitingEdges
+        });
+      }
+    }
+    
+    const emailToDetails = await getEmailToUserDetailsMap(Array.from(allMemberEmails));
+    
+    const awaitingWithNames = awaitingPayments.map(item => ({
+      ...item,
+      awaitingEdges: item.awaitingEdges.map(edge => ({
+        ...edge,
+        fromName: emailToDetails[edge.from]?.name || edge.from.split('@')[0],
+        toName: emailToDetails[edge.to]?.name || edge.to.split('@')[0]
+      }))
+    }));
+    
+    res.json({ success: true, data: awaitingWithNames });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Get history for user (from History table)
 router.get('/history', async (req, res) => {
   try {
@@ -774,6 +832,51 @@ router.post('/notify-upi-missing', async (req, res) => {
     res.json({ success: true, notified: true });
   } catch (e) {
     console.error('Error sending UPI missing notification:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Send payment reminder notification
+router.post('/send-reminder', async (req, res) => {
+  try {
+    const { debtorEmail, amount, groupName } = req.body;
+    const creditorMailId = req.user.mailId;
+    
+    if (!debtorEmail || !amount || !groupName) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+    
+    // Get creditor's name
+    const creditor = await User.findById(creditorMailId);
+    const creditorName = creditor?.name || creditorMailId.split('@')[0];
+    
+    // Get debtor's push token
+    const debtor = await User.findById(debtorEmail);
+    if (!debtor) {
+      return res.json({ success: true, notified: false, reason: 'User not found' });
+    }
+    
+    const debtorDetails = debtor.getDetails();
+    if (!debtorDetails.expoPushToken) {
+      return res.json({ success: true, notified: false, reason: 'No push token' });
+    }
+    
+    // Send reminder notification
+    await sendPushNotification(debtorDetails.expoPushToken, {
+      title: '🔔 Payment Reminder',
+      body: `${creditorName} is reminding you about ₹${parseFloat(amount).toFixed(2)} you owe in "${groupName}"`,
+      data: {
+        type: 'payment_reminder',
+        screen: 'PendingExpenses',
+        creditorName,
+        amount: parseFloat(amount),
+        groupName,
+      },
+    });
+    
+    res.json({ success: true, notified: true });
+  } catch (e) {
+    console.error('Error sending payment reminder:', e);
     res.status(500).json({ success: false, message: e.message });
   }
 });

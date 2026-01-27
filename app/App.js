@@ -30,6 +30,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
 import GroupsScreen from './src/screens/GroupsScreen';
+import AwaitingScreen from './src/screens/AwaitingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import NetworkErrorScreen from './src/screens/NetworkErrorScreen';
 import SplitOptionsScreen from './src/screens/SplitOptionsScreen';
@@ -59,6 +60,7 @@ const getLinkedScreens = (isAuthenticated) => ({
       Settings: 'settings',
       HelpCenter: 'help',
       Groups: 'groups',
+      Awaiting: 'awaiting',
       PendingExpenses: 'pending-expenses',
       History: 'history',
       SplitOptions: 'split-options',
@@ -273,8 +275,8 @@ function Logo({ isMobile = false }) {
 }
 
 
-// Web Side Panel Component - Has all tabs (Groups, Pending, History)
-function WebSidePanel({ visible, onClose, onGroups, onPendingExpenses, onHistory }) {
+// Web Side Panel Component - Has all tabs (Groups, Awaiting, Settle Up, History)
+function WebSidePanel({ visible, onClose, onGroups, onAwaiting, onPendingExpenses, onHistory }) {
   if (!visible) return null;
 
   return (
@@ -300,11 +302,21 @@ function WebSidePanel({ visible, onClose, onGroups, onPendingExpenses, onHistory
 
           <TouchableOpacity 
             style={styles.sidePanelMenuItem}
-            onPress={onPendingExpenses}
+            onPress={onAwaiting}
             activeOpacity={0.7}
           >
             <Text style={styles.sidePanelMenuIcon}>⏳</Text>
-            <Text style={styles.sidePanelMenuText}>Pending Expenses</Text>
+            <Text style={styles.sidePanelMenuText}>Awaiting</Text>
+            <Text style={styles.sidePanelMenuArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.sidePanelMenuItem}
+            onPress={onPendingExpenses}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.sidePanelMenuIcon}>✅</Text>
+            <Text style={styles.sidePanelMenuText}>Settle Up</Text>
             <Text style={styles.sidePanelMenuArrow}>›</Text>
           </TouchableOpacity>
 
@@ -506,10 +518,10 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
 
       <TouchableOpacity 
         style={styles.bottomTab}
-        onPress={() => navigation.navigate('PendingExpenses')}
+        onPress={() => navigation.navigate('Awaiting')}
       >
         <Ionicons name="time" size={24} color="#FF6B35" />
-        <Text style={styles.bottomTabTextOrange}>Pending</Text>
+        <Text style={styles.bottomTabTextOrange}>Awaiting</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
@@ -520,6 +532,14 @@ function MobileBottomTabBar({ navigation, onScanImage }) {
           <Ionicons name="qr-code" size={28} color="#FFF" />
         </View>
         <Text style={styles.bottomTabCenterText}>Scan</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.bottomTab}
+        onPress={() => navigation.navigate('PendingExpenses')}
+      >
+        <Ionicons name="checkmark-circle" size={24} color="#FF6B35" />
+        <Text style={styles.bottomTabTextOrange}>Settle Up</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
@@ -881,6 +901,10 @@ function HomeScreen({ navigation, route }) {
               setShowSidePanel(false);
               navigation.navigate('Groups', { fromSidePanel: true });
             }}
+            onAwaiting={() => {
+              setShowSidePanel(false);
+              navigation.navigate('Awaiting', { fromSidePanel: true });
+            }}
             onPendingExpenses={() => {
               setShowSidePanel(false);
               navigation.navigate('PendingExpenses', { fromSidePanel: true });
@@ -1160,6 +1184,7 @@ function AppNavigator() {
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
         <Stack.Screen name="Groups" component={GroupsScreen} />
+        <Stack.Screen name="Awaiting" component={AwaitingScreen} />
         <Stack.Screen name="PendingExpenses" component={PendingExpensesScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
         <Stack.Screen name="BillScan" component={BillScanScreen} />

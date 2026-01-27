@@ -216,7 +216,7 @@ export default function PendingExpensesScreen({ route }) {
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>‹</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Pending Expenses</Text>
+          <Text style={styles.headerTitle}>Pending Payments</Text>
           <View style={styles.headerRight} />
         </View>
 
