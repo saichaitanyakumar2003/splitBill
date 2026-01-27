@@ -69,6 +69,10 @@ export default function GroupsScreen({ route }) {
   const [editExpenseAmount, setEditExpenseAmount] = useState('');
   const [savingExpense, setSavingExpense] = useState(false);
   
+  // Original expense values for change detection
+  const [originalExpenseName, setOriginalExpenseName] = useState('');
+  const [originalPayees, setOriginalPayees] = useState([]);
+  
   // Edit expense payees state
   const [editPayees, setEditPayees] = useState([]); // Current payees with amounts
   const [removedPayees, setRemovedPayees] = useState([]); // Removed payees (can be added back)
@@ -383,7 +387,9 @@ export default function GroupsScreen({ route }) {
   const handleEditExpense = (expense) => {
     setExpandedExpenseIndex(null);
     setSelectedExpense(expense);
-    setEditExpenseName(expense.name || expense.title || '');
+    const expenseName = expense.name || expense.title || '';
+    setEditExpenseName(expenseName);
+    setOriginalExpenseName(expenseName); // Store original name
     setEditExpenseAmount(String(expense.totalAmount || expense.amount || ''));
     
     // Initialize payees with their amounts
@@ -406,6 +412,9 @@ export default function GroupsScreen({ route }) {
         };
       }
     });
+    
+    // Store original payees for change detection
+    setOriginalPayees(payeesList.map(p => ({ mailId: p.mailId, amount: p.amount })));
     
     // Collect all unique members from all expenses in the group for search suggestions
     const allMembers = new Set();
@@ -447,6 +456,47 @@ export default function GroupsScreen({ route }) {
   // Show save confirmation modal
   const handleShowSaveConfirm = () => {
     setShowSaveConfirmModal(true);
+  };
+  
+  // Check if there are any changes to the expense
+  const hasExpenseChanges = () => {
+    // Check if name changed
+    if (editExpenseName.trim() !== originalExpenseName.trim()) {
+      return true;
+    }
+    
+    // Get valid current payees (with amount > 0)
+    const currentValidPayees = editPayees
+      .filter(p => {
+        const amount = parseFloat(p.amount);
+        return !isNaN(amount) && amount > 0;
+      })
+      .map(p => ({ mailId: p.mailId.toLowerCase(), amount: parseFloat(p.amount).toFixed(2) }))
+      .sort((a, b) => a.mailId.localeCompare(b.mailId));
+    
+    // Get original valid payees
+    const originalValidPayees = originalPayees
+      .filter(p => {
+        const amount = parseFloat(p.amount);
+        return !isNaN(amount) && amount > 0;
+      })
+      .map(p => ({ mailId: p.mailId.toLowerCase(), amount: parseFloat(p.amount).toFixed(2) }))
+      .sort((a, b) => a.mailId.localeCompare(b.mailId));
+    
+    // Check if number of payees changed
+    if (currentValidPayees.length !== originalValidPayees.length) {
+      return true;
+    }
+    
+    // Check if any payee or amount changed
+    for (let i = 0; i < currentValidPayees.length; i++) {
+      if (currentValidPayees[i].mailId !== originalValidPayees[i].mailId ||
+          currentValidPayees[i].amount !== originalValidPayees[i].amount) {
+        return true;
+      }
+    }
+    
+    return false;
   };
   
   // Confirm and save changes
@@ -1140,31 +1190,26 @@ export default function GroupsScreen({ route }) {
               style={[
                 styles.tab, 
                 activeTab === 'expenses' && styles.tabActive,
-                { 
-                  flexDirection: (Platform.OS === 'web' && !isMobileWeb) ? 'row' : 'column',
-                  paddingVertical: (Platform.OS === 'web' && !isMobileWeb) ? 8 : 10,
-                  paddingHorizontal: (Platform.OS === 'web' && !isMobileWeb) ? 6 : 4,
-                  gap: (Platform.OS === 'web' && !isMobileWeb) ? 4 : 2,
-                }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile
               ]}
               onPress={() => setActiveTab('expenses')}
             >
               <Ionicons 
                 name="receipt-outline" 
-                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 18} 
+                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 20} 
                 color={activeTab === 'expenses' ? '#FF6B35' : '#888'} 
               />
               <Text style={[
                 styles.tabText, 
                 activeTab === 'expenses' && styles.tabTextActive,
-                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 11 }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile
               ]}>
                 Expenses
               </Text>
               <Text style={[
                 styles.tabCount, 
                 activeTab === 'expenses' && styles.tabCountActive,
-                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 10 }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabCountDesktop : styles.tabCountMobile
               ]}>
                 ({expenses.length})
               </Text>
@@ -1173,31 +1218,26 @@ export default function GroupsScreen({ route }) {
               style={[
                 styles.tab, 
                 activeTab === 'settlements' && styles.tabActive,
-                { 
-                  flexDirection: (Platform.OS === 'web' && !isMobileWeb) ? 'row' : 'column',
-                  paddingVertical: (Platform.OS === 'web' && !isMobileWeb) ? 8 : 10,
-                  paddingHorizontal: (Platform.OS === 'web' && !isMobileWeb) ? 6 : 4,
-                  gap: (Platform.OS === 'web' && !isMobileWeb) ? 4 : 2,
-                }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile
               ]}
               onPress={() => setActiveTab('settlements')}
             >
               <Ionicons 
                 name="swap-horizontal-outline" 
-                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 18} 
+                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 20} 
                 color={activeTab === 'settlements' ? '#FF6B35' : '#888'} 
               />
               <Text style={[
                 styles.tabText, 
                 activeTab === 'settlements' && styles.tabTextActive,
-                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 11 }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile
               ]}>
-                Settlements
+                Settle
               </Text>
               <Text style={[
                 styles.tabCount, 
                 activeTab === 'settlements' && styles.tabCountActive,
-                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 10 }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabCountDesktop : styles.tabCountMobile
               ]}>
                 ({consolidatedEdges.length})
               </Text>
@@ -1206,12 +1246,7 @@ export default function GroupsScreen({ route }) {
               style={[
                 styles.tab, 
                 activeTab === 'activity' && styles.tabActive,
-                { 
-                  flexDirection: (Platform.OS === 'web' && !isMobileWeb) ? 'row' : 'column',
-                  paddingVertical: (Platform.OS === 'web' && !isMobileWeb) ? 8 : 10,
-                  paddingHorizontal: (Platform.OS === 'web' && !isMobileWeb) ? 6 : 4,
-                  gap: (Platform.OS === 'web' && !isMobileWeb) ? 4 : 2,
-                }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile
               ]}
               onPress={() => {
                 setActiveTab('activity');
@@ -1221,13 +1256,13 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="time-outline" 
-                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 18} 
+                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 20} 
                 color={activeTab === 'activity' ? '#FF6B35' : '#888'} 
               />
               <Text style={[
                 styles.tabText, 
                 activeTab === 'activity' && styles.tabTextActive,
-                { fontSize: (Platform.OS === 'web' && !isMobileWeb) ? 12 : 11 }
+                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile
               ]}>
                 Activity
               </Text>
@@ -1629,10 +1664,10 @@ export default function GroupsScreen({ route }) {
               <TouchableOpacity
                 style={[
                   styles.editExpenseSaveButton,
-                  (!editExpenseName.trim() || editPayees.length === 0) && styles.editExpenseSaveButtonDisabled
+                  (!editExpenseName.trim() || editPayees.length === 0 || !hasExpenseChanges()) && styles.editExpenseSaveButtonDisabled
                 ]}
                 onPress={handleShowSaveConfirm}
-                disabled={savingExpense || !editExpenseName.trim() || editPayees.length === 0}
+                disabled={savingExpense || !editExpenseName.trim() || editPayees.length === 0 || !hasExpenseChanges()}
               >
                 {savingExpense ? (
                   <ActivityIndicator size="small" color="#FFF" />
@@ -2058,6 +2093,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 10,
   },
+  tabDesktop: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    gap: 4,
+  },
+  tabMobile: {
+    flexDirection: 'column',
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    gap: 2,
+    minHeight: 60,
+  },
   tabActive: {
     backgroundColor: '#FFF',
     shadowColor: '#000',
@@ -2071,12 +2119,24 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
   },
+  tabTextDesktop: {
+    fontSize: 12,
+  },
+  tabTextMobile: {
+    fontSize: 10,
+  },
   tabTextActive: {
     color: '#FF6B35',
   },
   tabCount: {
     fontWeight: '600',
     color: '#888',
+  },
+  tabCountDesktop: {
+    fontSize: 12,
+  },
+  tabCountMobile: {
+    fontSize: 9,
   },
   tabCountActive: {
     color: '#FF6B35',
