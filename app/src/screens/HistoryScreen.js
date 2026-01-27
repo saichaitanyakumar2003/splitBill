@@ -318,6 +318,11 @@ export default function HistoryScreen({ route }) {
                         <Text style={styles.settledCount}>
                           {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
                         </Text>
+                        {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
+                          <Text style={styles.groupTimestamp}>
+                            {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
+                          </Text>
+                        )}
                       </View>
                     </TouchableOpacity>
                     
@@ -365,6 +370,18 @@ export default function HistoryScreen({ route }) {
                   </TouchableOpacity>
                 </View>
               )}
+              <TouchableOpacity 
+                style={styles.dropdownItem}
+                onPress={() => {
+                  const record = historyRecords.find(r => r.id === menuVisible);
+                  if (record) handleGroupPress(record);
+                }}
+              >
+                <View style={[styles.dropdownItemIcon, { backgroundColor: '#E3F2FD' }]}>
+                  <Ionicons name="swap-horizontal-outline" size={18} color="#1976D2" />
+                </View>
+                <Text style={styles.dropdownItemText}>View Settlements</Text>
+              </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.dropdownItem}
                 onPress={() => {
@@ -779,6 +796,12 @@ const styles = StyleSheet.create({
   settledCount: {
     fontSize: Platform.OS === 'web' ? 13 : 12,
     color: '#888',
+  },
+  groupTimestamp: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   
   // Menu styles

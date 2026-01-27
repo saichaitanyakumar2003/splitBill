@@ -634,12 +634,14 @@ router.get('/history', async (req, res) => {
     // Get history records for user's groups
     const historyRecords = await History.findByGroupIds(validGroupIds);
     
-    // Get group statuses for all history records
+    // Get group statuses and updatedAt for all history records
     const groupIds = historyRecords.map(r => r.groupId);
-    const groups = await Group.find({ _id: { $in: groupIds } }).select('_id status');
+    const groups = await Group.find({ _id: { $in: groupIds } }).select('_id status updatedAt');
     const groupStatusMap = {};
+    const groupUpdatedAtMap = {};
     groups.forEach(g => {
       groupStatusMap[g._id] = g.status;
+      groupUpdatedAtMap[g._id] = g.updatedAt;
     });
     
     // Filter to only include edges where user is involved
@@ -655,22 +657,27 @@ router.get('/history', async (req, res) => {
     
     const emailToName = await getEmailToNameMap(Array.from(allMemberEmails));
     
-    const historyWithNames = historyRecords.map(record => ({
-      id: record._id,
-      groupId: record.groupId,
-      groupName: record.groupName,
-      groupStatus: groupStatusMap[record.groupId] || 'completed', // Default to completed if group not found
-      settledEdges: record.settledEdges
-        .filter(edge => edge.from === userMailId || edge.to === userMailId)
-        .map(edge => ({
-          ...edge,
-          fromName: emailToName[edge.from] || edge.from?.split('@')[0] || 'Unknown',
-          toName: emailToName[edge.to] || edge.to?.split('@')[0] || 'Unknown',
-        })),
-      expiresAt: record.expiresAt,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt
-    })).filter(record => record.settledEdges.length > 0);
+    const historyWithNames = historyRecords.map(record => {
+      const status = groupStatusMap[record.groupId] || 'completed';
+      return {
+        id: record._id,
+        groupId: record.groupId,
+        groupName: record.groupName,
+        groupStatus: status,
+        settledEdges: record.settledEdges
+          .filter(edge => edge.from === userMailId || edge.to === userMailId)
+          .map(edge => ({
+            ...edge,
+            fromName: emailToName[edge.from] || edge.from?.split('@')[0] || 'Unknown',
+            toName: emailToName[edge.to] || edge.to?.split('@')[0] || 'Unknown',
+          })),
+        expiresAt: record.expiresAt,
+        createdAt: record.createdAt,
+        updatedAt: (status === 'completed' || status === 'deleted') 
+          ? groupUpdatedAtMap[record.groupId] || record.updatedAt 
+          : record.updatedAt
+      };
+    }).filter(record => record.settledEdges.length > 0);
     
     res.json({ success: true, data: historyWithNames });
   } catch (e) {

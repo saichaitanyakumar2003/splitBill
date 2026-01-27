@@ -316,6 +316,8 @@ const styles = StyleSheet.create({
   },
   groupsScrollView: {
     flex: 1,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 16,
   },
   groupsScrollContent: {
     paddingBottom: 10,
@@ -369,11 +371,12 @@ const styles = StyleSheet.create({
   groupItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   groupItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#EFEFEF',
   },
   groupIcon: {
     width: 50,

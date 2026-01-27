@@ -1977,10 +1977,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     borderRadius: 10,
-    gap: 6,
+    gap: 4,
   },
   tabActive: {
     backgroundColor: '#FFF',
@@ -1991,7 +1991,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#888',
   },

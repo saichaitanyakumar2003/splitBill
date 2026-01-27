@@ -287,7 +287,7 @@ export default function GroupPreviewScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Split Details</Text>
+              <Text style={styles.modalTitle}>View Expense</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
