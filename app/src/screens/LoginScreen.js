@@ -346,11 +346,11 @@ export default function LoginScreen() {
     
     setIsGoogleLoading(true);
     
-    // Set a timeout - if no response in 15 seconds, show error
+    // Set a timeout - if no response in 120 seconds, show error
     const timeoutId = setTimeout(() => {
       setIsGoogleLoading(false);
       setApiError('Google SSO request timed out. Please try again or use email login.');
-    }, 15000);
+    }, 120000);
     
     try {
       const result = await promptAsync();
@@ -458,10 +458,11 @@ export default function LoginScreen() {
               ]}
             >
               {/* Tab Toggle */}
-              <View style={styles.tabContainer}>
+              <View style={[styles.tabContainer, (isLoading || isGoogleLoading) && styles.tabContainerDisabled]}>
                 <Pressable
                   style={[styles.tab, isLogin && styles.activeTab]}
                   onPress={() => { 
+                    if (isLoading || isGoogleLoading) return;
                     setIsLogin(true); 
                     setApiError(null);
                     setEmail('');
@@ -471,12 +472,14 @@ export default function LoginScreen() {
                     setShowPassword(false);
                     setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
                   }}
+                  disabled={isLoading || isGoogleLoading}
                 >
                   <Text style={[styles.tabText, isLogin && styles.activeTabText]}>Login</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.tab, !isLogin && styles.activeTab]}
                   onPress={() => { 
+                    if (isLoading || isGoogleLoading) return;
                     setIsLogin(false); 
                     setApiError(null);
                     setEmail('');
@@ -486,6 +489,7 @@ export default function LoginScreen() {
                     setShowPassword(false);
                     setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
                   }}
+                  disabled={isLoading || isGoogleLoading}
                 >
                   <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>Sign Up</Text>
                 </Pressable>
@@ -665,11 +669,11 @@ export default function LoginScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.primaryButton,
-                  pressed && styles.primaryButtonPressed,
-                  isLoading && styles.buttonDisabled,
+                  pressed && !isLoading && !isGoogleLoading && styles.primaryButtonPressed,
+                  (isLoading || isGoogleLoading) && styles.buttonDisabled,
                 ]}
                 onPress={handleEmailLogin}
-                disabled={isLoading}
+                disabled={isLoading || isGoogleLoading}
               >
                 <Text style={styles.primaryButtonText}>
                   {isLoading ? 'Please wait...' : (isLogin ? 'Login' : 'Create Account')}
@@ -689,11 +693,11 @@ export default function LoginScreen() {
                   <Pressable
                     style={({ pressed }) => [
                       styles.googleSSOButton,
-                      pressed && styles.googleSSOButtonPressed,
-                      isGoogleLoading && styles.googleSSOButtonDisabled,
+                      pressed && !isLoading && !isGoogleLoading && styles.googleSSOButtonPressed,
+                      (isGoogleLoading || isLoading) && styles.googleSSOButtonDisabled,
                     ]}
                     onPress={handleGoogleLogin}
-                    disabled={isGoogleLoading || !request}
+                    disabled={isGoogleLoading || isLoading || !request}
                   >
                     {isGoogleLoading ? (
                       <>
@@ -853,6 +857,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 3,
     marginBottom: 18,
+  },
+  tabContainerDisabled: {
+    opacity: 0.6,
   },
   tab: {
     flex: 1,

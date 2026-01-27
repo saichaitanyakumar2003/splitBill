@@ -6,7 +6,7 @@ const User = require('../models/User');
 const ConsolidatedEdges = require('../models/ConsolidatedEdges');
 const History = require('../models/History');
 const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitBill');
-const { sendExpenseNotifications, sendPushNotification } = require('../utils/pushNotifications');
+const { sendExpenseNotifications, sendPushNotification, sendPushNotifications } = require('../utils/pushNotifications');
 
 // Helper: Calculate consolidated edges from expenses and resolved payments
 function calculateConsolidatedEdges(expenses, resolvedPayments = []) {
@@ -93,6 +93,96 @@ async function getEmailToNameMap(emails) {
     }
   });
   return emailToName;
+}
+
+// Helper: Get all unique members from a group's expenses
+function getGroupMemberEmails(group) {
+  const expenses = group.getExpenses();
+  const members = new Set();
+  
+  expenses.forEach(expense => {
+    if (expense.payer) members.add(expense.payer.toLowerCase());
+    if (expense.payees) {
+      expense.payees.forEach(p => {
+        if (typeof p === 'object' && p.mailId) {
+          members.add(p.mailId.toLowerCase());
+        } else if (typeof p === 'string') {
+          members.add(p.toLowerCase());
+        }
+      });
+    }
+  });
+  
+  return Array.from(members);
+}
+
+// Helper: Send notification to all group members (except the actor)
+async function sendGroupNotification(group, actorMailId, notificationType, extraData = {}) {
+  try {
+    const memberEmails = getGroupMemberEmails(group);
+    
+    // Get all members' push tokens (exclude the actor)
+    const membersToNotify = memberEmails.filter(email => email.toLowerCase() !== actorMailId.toLowerCase());
+    
+    if (membersToNotify.length === 0) return;
+    
+    // Fetch users with push tokens
+    const users = await User.find({ _id: { $in: membersToNotify } });
+    
+    // Get actor's name
+    const actor = await User.findById(actorMailId);
+    const actorName = actor?.name || actorMailId.split('@')[0];
+    
+    // Build notification message based on type
+    let title, body;
+    switch (notificationType) {
+      case 'expense_added':
+        title = `💰 ${group.name}`;
+        body = `${actorName} added a new expense: ${extraData.expenseName || 'New expense'}`;
+        break;
+      case 'expense_edited':
+        title = `✏️ ${group.name}`;
+        body = `${actorName} updated expense: ${extraData.expenseName || 'Expense'}`;
+        break;
+      case 'expense_deleted':
+        title = `🗑️ ${group.name}`;
+        body = `${actorName} deleted an expense from the group`;
+        break;
+      case 'group_deleted':
+        title = `⚠️ ${group.name}`;
+        body = `${actorName} deleted this group. It will be removed in 7 days.`;
+        break;
+      default:
+        title = `📢 ${group.name}`;
+        body = `${actorName} made changes to the group`;
+    }
+    
+    const notifications = users
+      .filter(u => {
+        const details = u.getDetails();
+        return details.expoPushToken;
+      })
+      .map(u => ({
+        pushToken: u.getDetails().expoPushToken,
+        message: {
+          title,
+          body,
+          data: {
+            type: notificationType,
+            groupId: group._id,
+            groupName: group.name,
+            ...extraData
+          }
+        }
+      }));
+    
+    if (notifications.length > 0) {
+      await sendPushNotifications(notifications);
+      console.log(`📤 Sent ${notificationType} notification to ${notifications.length} members`);
+    }
+  } catch (error) {
+    console.error('Error sending group notification:', error);
+  }
 }
 
 // Helper: Get email to user details mapping (name + upiId)
@@ -543,6 +633,14 @@ router.get('/history', async (req, res) => {
     // Get history records for user's groups
     const historyRecords = await History.findByGroupIds(validGroupIds);
     
+    // Get group statuses for all history records
+    const groupIds = historyRecords.map(r => r.groupId);
+    const groups = await Group.find({ _id: { $in: groupIds } }).select('_id status');
+    const groupStatusMap = {};
+    groups.forEach(g => {
+      groupStatusMap[g._id] = g.status;
+    });
+    
     // Filter to only include edges where user is involved
     const allMemberEmails = new Set();
     historyRecords.forEach(record => {
@@ -560,6 +658,7 @@ router.get('/history', async (req, res) => {
       id: record._id,
       groupId: record.groupId,
       groupName: record.groupName,
+      groupStatus: groupStatusMap[record.groupId] || 'completed', // Default to completed if group not found
       settledEdges: record.settledEdges
         .filter(edge => edge.from === userMailId || edge.to === userMailId)
         .map(edge => ({
@@ -624,6 +723,47 @@ router.post('/:id/expenses', async (req, res) => {
     const json = group.toJSON();
     json.consolidatedExpenses = edgesDoc.edges;
     
+    // Send personalized "You owe X to Y" notifications to payees
+    const actorMailId = req.user?.mailId || payer;
+    const payerLower = payer.toLowerCase().trim();
+    
+    // Get payer's name
+    const payerUser = await User.findById(payerLower);
+    const payerName = payerUser?.name || payerLower.split('@')[0];
+    
+    // Build list of payees to notify (those who owe money to the payer)
+    const payeesToNotify = [];
+    const expensePayees = payees || [];
+    
+    for (const payee of expensePayees) {
+      const payeeMailId = typeof payee === 'object' ? payee.mailId : payee;
+      const payeeAmount = typeof payee === 'object' ? payee.amount : (amount / expensePayees.length);
+      
+      if (!payeeMailId || payeeMailId.toLowerCase() === payerLower) continue;
+      
+      try {
+        const payeeUser = await User.findById(payeeMailId.toLowerCase());
+        if (payeeUser) {
+          const payeeDetails = payeeUser.getDetails();
+          if (payeeDetails.expoPushToken) {
+            payeesToNotify.push({
+              mailId: payeeMailId,
+              pushToken: payeeDetails.expoPushToken,
+              amount: payeeAmount,
+              payeeName: payerName, // The person they owe money to
+            });
+          }
+        }
+      } catch (tokenError) {}
+    }
+    
+    if (payeesToNotify.length > 0) {
+      sendExpenseNotifications(payeesToNotify, name, group.name).catch(() => {});
+    }
+    
+    console.log(`➕ Expense "${name}" added to group "${group.name}"`);
+    console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
+    
     res.json(json);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -636,12 +776,15 @@ router.delete('/:id/expenses/:expenseId', async (req, res) => {
     
     const { expenseId } = req.params;
     
-    // Check if expense exists
+    // Check if expense exists and get its name for notification
     const expenses = group.getExpenses();
-    const expenseExists = expenses.some(e => e.id === expenseId);
-    if (!expenseExists) {
+    const expenseIndex = expenses.findIndex(e => (e.id === expenseId) || (e._id === expenseId));
+    if (expenseIndex === -1) {
       return res.status(404).json({ success: false, error: 'Expense not found' });
     }
+    const expenseToDelete = expenses[expenseIndex];
+    
+    const expenseName = expenseToDelete.name;
     
     // Remove the expense
     group.removeExpense(expenseId);
@@ -667,7 +810,14 @@ router.delete('/:id/expenses/:expenseId', async (req, res) => {
     const json = group.toJSON();
     json.consolidatedExpenses = edgesDoc.edges;
     
-    console.log(`🗑️ Expense deleted from group "${group.name}", recalculated edges`);
+    // Send notification to all group members
+    const actorMailId = req.user?.mailId;
+    if (actorMailId) {
+      sendGroupNotification(group, actorMailId, 'expense_deleted', { expenseName }).catch(() => {});
+    }
+    
+    console.log(`🗑️ Expense "${expenseName}" deleted from group "${group.name}"`);
+    console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
     
     res.json({ success: true, data: json });
   } catch (e) { 
@@ -685,13 +835,19 @@ router.put('/:id/expenses/:expenseId', async (req, res) => {
     const { expenseId } = req.params;
     const { name, payer, payees, amount, totalAmount } = req.body;
     
-    // Get current expenses
-    const details = group.getDetails();
-    const expenseIndex = details.expenses.findIndex(e => e.id === expenseId);
+    // Get current expenses with IDs
+    const expenses = group.getExpenses(); // This returns expenses with generated IDs for legacy data
+    const expenseIndex = expenses.findIndex(e => (e.id === expenseId) || (e._id === expenseId));
     
     if (expenseIndex === -1) {
       return res.status(404).json({ success: false, error: 'Expense not found' });
     }
+    
+    // Get raw details for updating
+    const details = group.getDetails();
+    
+    // Store expense name for notification
+    const expenseName = name || details.expenses[expenseIndex].name;
     
     // Update expense fields
     if (name) details.expenses[expenseIndex].name = name;
@@ -728,7 +884,14 @@ router.put('/:id/expenses/:expenseId', async (req, res) => {
     const json = group.toJSON();
     json.consolidatedExpenses = edgesDoc.edges;
     
-    console.log(`✏️ Expense updated in group "${group.name}", recalculated edges`);
+    // Send notification to all group members
+    const actorMailId = req.user?.mailId;
+    if (actorMailId) {
+      sendGroupNotification(group, actorMailId, 'expense_edited', { expenseName }).catch(() => {});
+    }
+    
+    console.log(`✏️ Expense "${expenseName}" updated in group "${group.name}"`);
+    console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
     
     res.json({ success: true, data: json });
   } catch (e) { 
@@ -902,6 +1065,12 @@ router.delete('/:id', async (req, res) => {
     const group = await Group.findById(req.params.id);
     if (!group) {
       return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    
+    // Send notification to all group members BEFORE marking as deleted
+    const actorMailId = req.user?.mailId;
+    if (actorMailId) {
+      await sendGroupNotification(group, actorMailId, 'group_deleted', {});
     }
     
     // Mark group as deleted with 7-day TTL

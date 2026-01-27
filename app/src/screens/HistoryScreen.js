@@ -87,6 +87,8 @@ export default function HistoryScreen({ route }) {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -96,6 +98,16 @@ export default function HistoryScreen({ route }) {
   };
 
   const openModal = (record) => {
+    // For completed or deleted groups, navigate to the group screen
+    if (record.groupStatus === 'completed' || record.groupStatus === 'deleted') {
+      navigation.navigate('Groups', { 
+        selectedGroupId: record.groupId,
+        groupName: record.groupName
+      });
+      return;
+    }
+    
+    // For active groups, show the modal
     setSelectedRecord(record);
     setModalVisible(true);
     Animated.spring(slideAnim, {
@@ -191,7 +203,27 @@ export default function HistoryScreen({ route }) {
                         </Text>
                       </View>
                       <View style={styles.groupInfo}>
-                        <Text style={styles.groupName} numberOfLines={1}>{record.groupName}</Text>
+                        <View style={styles.groupNameRow}>
+                          <Text style={styles.groupName} numberOfLines={1}>{record.groupName}</Text>
+                          {record.groupStatus && (
+                            <View style={[
+                              styles.statusBadge,
+                              record.groupStatus === 'active' && styles.statusBadgeActive,
+                              record.groupStatus === 'completed' && styles.statusBadgeCompleted,
+                              record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
+                            ]}>
+                              <Text style={[
+                                styles.statusBadgeText,
+                                record.groupStatus === 'active' && styles.statusBadgeTextActive,
+                                record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
+                                record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
+                              ]}>
+                                {record.groupStatus === 'active' ? 'Active' : 
+                                 record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={styles.settledCount}>
                           {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
                         </Text>
@@ -450,13 +482,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupIcon: {
-    width: 44,
-    height: 44,
+    width: Platform.OS === 'web' ? 44 : 40,
+    height: Platform.OS === 'web' ? 44 : 40,
     borderRadius: 12,
     backgroundColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: Platform.OS === 'web' ? 12 : 10,
+    flexShrink: 0,
   },
   groupIconText: {
     fontSize: 16,
@@ -465,16 +498,53 @@ const styles = StyleSheet.create({
   },
   groupInfo: {
     flex: 1,
-    marginRight: 12,
+    marginRight: Platform.OS === 'web' ? 12 : 8,
+    minWidth: 0, // Allow text truncation
   },
-  groupName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+  groupNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Platform.OS === 'web' ? 6 : 4,
     marginBottom: 2,
   },
+  groupName: {
+    fontSize: Platform.OS === 'web' ? 16 : 14,
+    fontWeight: '600',
+    color: '#333',
+    flexShrink: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+  },
+  statusBadgeActive: {
+    backgroundColor: '#E8F5E9',
+  },
+  statusBadgeCompleted: {
+    backgroundColor: '#E3F2FD',
+  },
+  statusBadgeDeleted: {
+    backgroundColor: '#FFEBEE',
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#888',
+  },
+  statusBadgeTextActive: {
+    color: '#28A745',
+  },
+  statusBadgeTextCompleted: {
+    color: '#1976D2',
+  },
+  statusBadgeTextDeleted: {
+    color: '#DC3545',
+  },
   settledCount: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'web' ? 13 : 12,
     color: '#888',
   },
   viewButton: {
@@ -482,10 +552,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
     paddingHorizontal: 2,
+    flexShrink: 0,
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
   viewButtonText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 14 : 12,
     fontWeight: '600',
     color: '#FF6B35',
   },

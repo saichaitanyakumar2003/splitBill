@@ -32,6 +32,10 @@ export default function GroupsScreen({ route }) {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [memberNames, setMemberNames] = useState({});
   
+  // Handle incoming navigation params from History screen
+  const selectedGroupId = route?.params?.selectedGroupId;
+  const selectedGroupName = route?.params?.groupName;
+  
   // Modal state for viewing member splits
   const [modalVisible, setModalVisible] = useState(false);
   const [activeExpenseIndex, setActiveExpenseIndex] = useState(null);
@@ -54,6 +58,18 @@ export default function GroupsScreen({ route }) {
   const [editExpenseName, setEditExpenseName] = useState('');
   const [editExpenseAmount, setEditExpenseAmount] = useState('');
   const [savingExpense, setSavingExpense] = useState(false);
+  
+  // Edit expense payees state
+  const [editPayees, setEditPayees] = useState([]); // Current payees with amounts
+  const [removedPayees, setRemovedPayees] = useState([]); // Removed payees (can be added back)
+  const [addUserSearch, setAddUserSearch] = useState(''); // Search query for adding users
+  const [showAddUserSection, setShowAddUserSection] = useState(false); // Toggle add user section
+  const [allGroupMembers, setAllGroupMembers] = useState([]); // All members in the group for search suggestions
+  const [userSearchResults, setUserSearchResults] = useState([]); // Search results from API
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false); // Loading state for user search
+  
+  // Save confirmation modal state
+  const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
 
   // Fetch user's groups
   const fetchGroups = async () => {
@@ -155,6 +171,64 @@ export default function GroupsScreen({ route }) {
     fetchGroups();
   }, []);
 
+  // Search users via API when typing in edit expense search
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (addUserSearch.trim().length < 2) {
+        setUserSearchResults([]);
+        return;
+      }
+
+      setIsSearchingUsers(true);
+      try {
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(addUserSearch.trim())}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // Filter out users already in editPayees
+          const currentPayeeIds = new Set(editPayees.map(p => p.mailId.toLowerCase()));
+          const filtered = data.data.filter(
+            u => !currentPayeeIds.has(u.mailId.toLowerCase())
+          );
+          setUserSearchResults(filtered);
+        }
+      } catch (e) {
+        console.error('User search error:', e);
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    };
+
+    const debounce = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounce);
+  }, [addUserSearch, editPayees]);
+
+  // Auto-select group when coming from History screen
+  useEffect(() => {
+    if (selectedGroupId && groups.length > 0 && !selectedGroup) {
+      const groupToSelect = groups.find(g => (g._id || g.id) === selectedGroupId);
+      if (groupToSelect) {
+        handleSelectGroup(groupToSelect, 'settlements'); // Open settlements tab when coming from history
+      } else {
+        // Group not found in current list, fetch it directly
+        const fetchAndSelectGroup = async () => {
+          try {
+            const response = await authGet(`/groups/${selectedGroupId}`);
+            const data = await response.json();
+            if (data && data._id) {
+              setSelectedGroup(data);
+              setActiveTab('settlements'); // Default to settlements tab when coming from history
+              await fetchGroupDetails(selectedGroupId, data);
+            }
+          } catch (error) {
+            console.error('Error fetching selected group:', error);
+          }
+        };
+        fetchAndSelectGroup();
+      }
+    }
+  }, [selectedGroupId, groups]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchGroups();
@@ -169,6 +243,10 @@ export default function GroupsScreen({ route }) {
     if (selectedGroup) {
       setSelectedGroup(null);
       setGroupDetails(null);
+      // Clear navigation params to prevent auto-reselection
+      if (route?.params?.selectedGroupId) {
+        navigation.setParams({ selectedGroupId: undefined, groupName: undefined });
+      }
     } else if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
@@ -191,9 +269,9 @@ export default function GroupsScreen({ route }) {
     return () => subscription.remove();
   }, [navigation]);
 
-  const handleSelectGroup = async (group) => {
+  const handleSelectGroup = async (group, defaultTab = 'expenses') => {
     setSelectedGroup(group);
-    setActiveTab('expenses'); // Reset to expenses tab
+    setActiveTab(defaultTab);
     const groupId = group._id || group.id;
     await fetchGroupDetails(groupId, group);
   };
@@ -259,26 +337,118 @@ export default function GroupsScreen({ route }) {
     setSelectedExpense(expense);
     setEditExpenseName(expense.name || expense.title || '');
     setEditExpenseAmount(String(expense.totalAmount || expense.amount || ''));
+    
+    // Initialize payees with their amounts
+    const payeesList = (expense.payees || []).map(p => {
+      if (typeof p === 'object') {
+        return {
+          mailId: p.mailId,
+          name: getMemberName(p.mailId),
+          amount: String(p.amount || 0),
+          isPayer: p.mailId === expense.payer
+        };
+      } else {
+        const totalAmount = expense.totalAmount || expense.amount || 0;
+        const splitAmount = totalAmount / (expense.payees?.length || 1);
+        return {
+          mailId: p,
+          name: getMemberName(p),
+          amount: String(splitAmount.toFixed(2)),
+          isPayer: p === expense.payer
+        };
+      }
+    });
+    
+    // Collect all unique members from all expenses in the group for search suggestions
+    const allMembers = new Set();
+    const groupExpenses = groupDetails?.expenses || [];
+    groupExpenses.forEach(exp => {
+      if (exp.payer) allMembers.add(exp.payer);
+      if (exp.payees) {
+        exp.payees.forEach(p => {
+          if (typeof p === 'object' && p.mailId) {
+            allMembers.add(p.mailId);
+          } else if (typeof p === 'string') {
+            allMembers.add(p);
+          }
+        });
+      }
+    });
+    
+    // Also add from consolidated expenses
+    const consolidatedEdges = groupDetails?.consolidatedExpenses || [];
+    consolidatedEdges.forEach(edge => {
+      if (edge.from) allMembers.add(edge.from);
+      if (edge.to) allMembers.add(edge.to);
+    });
+    
+    // Convert to array with names
+    const membersList = Array.from(allMembers).map(mailId => ({
+      mailId,
+      name: getMemberName(mailId)
+    }));
+    
+    setAllGroupMembers(membersList);
+    setEditPayees(payeesList);
+    setRemovedPayees([]);
+    setAddUserSearch('');
+    setShowAddUserSection(false);
     setEditExpenseModalVisible(true);
+  };
+  
+  // Show save confirmation modal
+  const handleShowSaveConfirm = () => {
+    setShowSaveConfirmModal(true);
+  };
+  
+  // Confirm and save changes
+  const handleConfirmSave = () => {
+    setShowSaveConfirmModal(false);
+    handleSaveExpense();
   };
 
   // Save edited expense
   const handleSaveExpense = async () => {
-    if (!selectedExpense || !editExpenseName.trim() || !editExpenseAmount) return;
+    if (!selectedExpense || !editExpenseName.trim()) return;
+    
+    // Filter out payees with 0 or empty amounts
+    const validPayees = editPayees.filter(p => {
+      const amount = parseFloat(p.amount);
+      return !isNaN(amount) && amount > 0;
+    });
+    
+    if (validPayees.length === 0) {
+      if (Platform.OS === 'web') {
+        alert('At least one member with a valid amount is required.');
+      } else {
+        Alert.alert('Error', 'At least one member with a valid amount is required.');
+      }
+      return;
+    }
+    
+    // Calculate total from individual amounts
+    const calculatedTotal = validPayees.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
     
     setSavingExpense(true);
     try {
       const groupId = selectedGroup?._id || selectedGroup?.id;
-      const response = await authPut(`/groups/${groupId}/expenses/${selectedExpense.id}`, {
+      const expenseId = selectedExpense.id || selectedExpense._id;
+      const response = await authPut(`/groups/${groupId}/expenses/${expenseId}`, {
         name: editExpenseName.trim(),
-        totalAmount: parseFloat(editExpenseAmount),
-        amount: parseFloat(editExpenseAmount)
+        totalAmount: calculatedTotal,
+        amount: calculatedTotal,
+        payees: validPayees.map(p => ({
+          mailId: p.mailId.toLowerCase().trim(),
+          amount: parseFloat(p.amount)
+        }))
       });
       const data = await response.json();
       
       if (data.success) {
         setEditExpenseModalVisible(false);
         setSelectedExpense(null);
+        setEditPayees([]);
+        setRemovedPayees([]);
         // Refresh group details to get updated data
         await fetchGroupDetails(groupId);
       } else {
@@ -295,6 +465,142 @@ export default function GroupsScreen({ route }) {
       setSavingExpense(false);
     }
   };
+  
+  // Update payee amount
+  const handlePayeeAmountChange = (mailId, newAmount) => {
+    setEditPayees(prev => prev.map(p => 
+      p.mailId === mailId ? { ...p, amount: newAmount } : p
+    ));
+  };
+  
+  // Remove payee from expense (preserve amount for adding back)
+  const handleRemovePayee = (payee) => {
+    setEditPayees(prev => prev.filter(p => p.mailId !== payee.mailId));
+    // Store the payee with their current amount so it can be restored
+    setRemovedPayees(prev => [...prev, { ...payee }]);
+  };
+  
+  // Add back removed payee (restore their original amount)
+  const handleAddBackPayee = (payee) => {
+    setRemovedPayees(prev => prev.filter(p => p.mailId !== payee.mailId));
+    // Restore with the same amount they had before removal
+    setEditPayees(prev => [...prev, { ...payee }]);
+  };
+  
+  // Add new user by email
+  const handleAddNewUser = () => {
+    const email = addUserSearch.trim().toLowerCase();
+    if (!email) return;
+    
+    // Check if already in payees or removed
+    const existsInPayees = editPayees.some(p => p.mailId.toLowerCase() === email);
+    const existsInRemoved = removedPayees.some(p => p.mailId.toLowerCase() === email);
+    
+    if (existsInPayees) {
+      if (Platform.OS === 'web') {
+        alert('This user is already in the expense.');
+      } else {
+        Alert.alert('Info', 'This user is already in the expense.');
+      }
+      return;
+    }
+    
+    if (existsInRemoved) {
+      // Add back from removed
+      const payee = removedPayees.find(p => p.mailId.toLowerCase() === email);
+      handleAddBackPayee(payee);
+    } else {
+      // Add new user
+      const newPayee = {
+        mailId: email,
+        name: getMemberName(email) || email.split('@')[0],
+        amount: '0',
+        isPayer: email === selectedExpense?.payer
+      };
+      setEditPayees(prev => [...prev, newPayee]);
+    }
+    
+    setAddUserSearch('');
+    setShowAddUserSection(false);
+  };
+  
+  // Get calculated total from payees
+  const getEditPayeesTotal = () => {
+    return editPayees.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  };
+  
+  // Get search suggestions for adding users (combines group members + API results)
+  const getSearchSuggestions = () => {
+    const searchLower = addUserSearch.toLowerCase().trim();
+    const currentPayeeIds = new Set(editPayees.map(p => p.mailId.toLowerCase()));
+    
+    // Start with group members that are not already in payees
+    let groupMemberSuggestions = allGroupMembers.filter(member => {
+      const mailIdLower = member.mailId.toLowerCase();
+      const nameLower = (member.name || '').toLowerCase();
+      
+      // Check if not already in current payees
+      const notInPayees = !currentPayeeIds.has(mailIdLower);
+      
+      // If there's a search query, filter by it (partial match)
+      if (searchLower) {
+        const matchesSearch = mailIdLower.includes(searchLower) || nameLower.includes(searchLower);
+        return matchesSearch && notInPayees;
+      }
+      
+      return notInPayees;
+    });
+    
+    // Mark group members
+    groupMemberSuggestions = groupMemberSuggestions.map(m => ({ ...m, isGroupMember: true }));
+    
+    // Add API search results (not already in group members or payees)
+    const groupMemberIds = new Set(groupMemberSuggestions.map(m => m.mailId.toLowerCase()));
+    const apiResults = userSearchResults
+      .filter(u => !groupMemberIds.has(u.mailId.toLowerCase()) && !currentPayeeIds.has(u.mailId.toLowerCase()))
+      .map(u => ({ ...u, isApiResult: true }));
+    
+    // Combine: group members first, then API results
+    let suggestions = [...groupMemberSuggestions, ...apiResults];
+    
+    // Always show option to add email if it looks like a valid email and not already added
+    if (searchLower && searchLower.includes('@')) {
+      const exactMatchExists = suggestions.some(s => s.mailId.toLowerCase() === searchLower);
+      
+      if (!exactMatchExists && !currentPayeeIds.has(searchLower)) {
+        // Add the new email option at the beginning
+        suggestions.unshift({
+          mailId: searchLower,
+          name: searchLower.split('@')[0],
+          isNew: true
+        });
+      }
+    }
+    
+    return suggestions.slice(0, 8); // Limit to 8 suggestions
+  };
+  
+  // Handle selecting a suggestion
+  const handleSelectSuggestion = (suggestion) => {
+    const existsInRemoved = removedPayees.some(p => p.mailId.toLowerCase() === suggestion.mailId.toLowerCase());
+    
+    if (existsInRemoved) {
+      // Add back from removed
+      const payee = removedPayees.find(p => p.mailId.toLowerCase() === suggestion.mailId.toLowerCase());
+      handleAddBackPayee(payee);
+    } else {
+      // Add new user
+      const newPayee = {
+        mailId: suggestion.mailId,
+        name: suggestion.name || getMemberName(suggestion.mailId) || suggestion.mailId.split('@')[0],
+        amount: '0',
+        isPayer: suggestion.mailId.toLowerCase() === selectedExpense?.payer?.toLowerCase()
+      };
+      setEditPayees(prev => [...prev, newPayee]);
+    }
+    
+    setAddUserSearch('');
+  };
 
   // Handle delete expense confirmation
   const handleDeleteExpenseConfirm = (expense) => {
@@ -310,7 +616,8 @@ export default function GroupsScreen({ route }) {
     setDeletingExpense(true);
     try {
       const groupId = selectedGroup?._id || selectedGroup?.id;
-      const response = await authDelete(`/groups/${groupId}/expenses/${selectedExpense.id}`);
+      const expenseId = selectedExpense.id || selectedExpense._id;
+      const response = await authDelete(`/groups/${groupId}/expenses/${expenseId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -506,46 +813,13 @@ export default function GroupsScreen({ route }) {
                   </View>
                 </View>
                 
-                {/* Action Buttons or Menu Icon */}
-                {expandedExpenseIndex === index ? (
-                  <View style={styles.expenseActionsInline}>
-                    <TouchableOpacity 
-                      style={styles.expenseActionIcon}
-                      onPress={() => handleViewExpense(expense, index)}
-                    >
-                      <Ionicons name="eye-outline" size={18} color="#666" />
-                    </TouchableOpacity>
-                    {isEditable && (
-                      <>
-                        <TouchableOpacity 
-                          style={styles.expenseActionIcon}
-                          onPress={() => handleEditExpense(expense)}
-                        >
-                          <Ionicons name="create-outline" size={18} color="#FF6B35" />
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={styles.expenseActionIcon}
-                          onPress={() => handleDeleteExpenseConfirm(expense)}
-                        >
-                          <Ionicons name="trash-outline" size={18} color="#DC3545" />
-                        </TouchableOpacity>
-                      </>
-                    )}
-                    <TouchableOpacity 
-                      style={styles.expenseCloseIcon}
-                      onPress={() => toggleExpenseActions(expense, index)}
-                    >
-                      <Ionicons name="close" size={18} color="#888" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity 
-                    style={styles.expenseMenuButton}
-                    onPress={() => toggleExpenseActions(expense, index)}
-                  >
-                    <Ionicons name="ellipsis-vertical" size={18} color="#888" />
-                  </TouchableOpacity>
-                )}
+                {/* Menu Icon */}
+                <TouchableOpacity 
+                  style={styles.expenseMenuButton}
+                  onPress={() => toggleExpenseActions(expense, index)}
+                >
+                  <Ionicons name="ellipsis-vertical" size={18} color="#888" />
+                </TouchableOpacity>
               </View>
             ))}
           </ScrollView>
@@ -923,7 +1197,7 @@ export default function GroupsScreen({ route }) {
         onRequestClose={() => setEditExpenseModalVisible(false)}
       >
         <View style={styles.editExpenseOverlay}>
-          <View style={styles.editExpenseContent}>
+          <View style={styles.editExpenseContentLarge}>
             <View style={styles.editExpenseHeader}>
               <Text style={styles.editExpenseTitle}>Edit Expense</Text>
               <TouchableOpacity onPress={() => setEditExpenseModalVisible(false)}>
@@ -931,28 +1205,229 @@ export default function GroupsScreen({ route }) {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.editExpenseField}>
-              <Text style={styles.editExpenseLabel}>Expense Name</Text>
-              <TextInput
-                style={styles.editExpenseInput}
-                value={editExpenseName}
-                onChangeText={setEditExpenseName}
-                placeholder="Enter expense name"
-                placeholderTextColor="#999"
-              />
-            </View>
+            <ScrollView 
+              style={styles.editExpenseScrollView}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.editExpenseField}>
+                <Text style={styles.editExpenseLabel}>Expense Name</Text>
+                <TextInput
+                  style={styles.editExpenseInput}
+                  value={editExpenseName}
+                  onChangeText={setEditExpenseName}
+                  placeholder="Enter expense name"
+                  placeholderTextColor="#999"
+                />
+              </View>
 
-            <View style={styles.editExpenseField}>
-              <Text style={styles.editExpenseLabel}>Amount (₹)</Text>
-              <TextInput
-                style={styles.editExpenseInput}
-                value={editExpenseAmount}
-                onChangeText={setEditExpenseAmount}
-                placeholder="Enter amount"
-                placeholderTextColor="#999"
-                keyboardType="decimal-pad"
-              />
-            </View>
+              {/* Total Amount Display */}
+              <View style={styles.editTotalRow}>
+                <Text style={styles.editTotalLabel}>Total Amount</Text>
+                <Text style={styles.editTotalValue}>₹{getEditPayeesTotal().toFixed(2)}</Text>
+              </View>
+
+              {/* Members Section */}
+              <View style={styles.editPayeesSection}>
+                <View style={styles.editPayeesHeader}>
+                  <Text style={styles.editExpenseLabel}>Members & Splits</Text>
+                  <TouchableOpacity 
+                    style={styles.addUserButton}
+                    onPress={() => setShowAddUserSection(!showAddUserSection)}
+                  >
+                    <Ionicons name={showAddUserSection ? "close" : "person-add"} size={18} color="#FF6B35" />
+                    <Text style={styles.addUserButtonText}>{showAddUserSection ? 'Close' : 'Add'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Add User Section */}
+                {showAddUserSection && (
+                  <View style={styles.addUserSection}>
+                    <View style={styles.addUserInputRow}>
+                      <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
+                      <TextInput
+                        style={styles.addUserInput}
+                        value={addUserSearch}
+                        onChangeText={setAddUserSearch}
+                        placeholder="Search by name or email..."
+                        placeholderTextColor="#999"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoFocus={true}
+                      />
+                      {addUserSearch.trim() ? (
+                        <TouchableOpacity 
+                          style={styles.clearSearchButton}
+                          onPress={() => setAddUserSearch('')}
+                        >
+                          <Ionicons name="close-circle" size={20} color="#999" />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                    
+                    {/* Search Results */}
+                    <View style={styles.searchResultsContainer}>
+                      {isSearchingUsers && addUserSearch.trim().length >= 2 && (
+                        <View style={styles.searchingIndicator}>
+                          <ActivityIndicator size="small" color="#FF6B35" />
+                          <Text style={styles.searchingText}>Searching...</Text>
+                        </View>
+                      )}
+                      {getSearchSuggestions().length > 0 ? (
+                        <>
+                          {getSearchSuggestions().map((suggestion, index) => (
+                            <TouchableOpacity
+                              key={suggestion.mailId}
+                              style={[
+                                styles.suggestionItem,
+                                suggestion.isNew && styles.suggestionItemNew,
+                                suggestion.isApiResult && styles.suggestionItemApi,
+                                index < getSearchSuggestions().length - 1 && styles.suggestionItemBorder
+                              ]}
+                              onPress={() => handleSelectSuggestion(suggestion)}
+                            >
+                              <View style={[
+                                styles.suggestionAvatar,
+                                suggestion.isNew && styles.suggestionAvatarNew,
+                                suggestion.isApiResult && styles.suggestionAvatarApi
+                              ]}>
+                                {suggestion.isNew ? (
+                                  <Ionicons name="person-add" size={14} color="#FFF" />
+                                ) : (
+                                  <Text style={styles.suggestionAvatarText}>
+                                    {(suggestion.name || suggestion.mailId).charAt(0).toUpperCase()}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={styles.suggestionInfo}>
+                                <View style={styles.suggestionNameRow}>
+                                  <Text style={[styles.suggestionName, suggestion.isNew && styles.suggestionNameNew]} numberOfLines={1}>
+                                    {suggestion.isNew ? 'Add new member' : suggestion.name}
+                                  </Text>
+                                  {suggestion.isGroupMember && (
+                                    <View style={styles.suggestionBadge}>
+                                      <Text style={styles.suggestionBadgeText}>Group</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.suggestionEmail} numberOfLines={1}>
+                                  {suggestion.mailId}
+                                </Text>
+                              </View>
+                              <Ionicons name="add-circle" size={22} color={suggestion.isNew ? "#28A745" : "#FF6B35"} />
+                            </TouchableOpacity>
+                          ))}
+                        </>
+                      ) : addUserSearch.trim() && addUserSearch.trim().length >= 2 && !isSearchingUsers ? (
+                        <View style={styles.noResultsMessage}>
+                          <Text style={styles.noResultsText}>No users found for "{addUserSearch}"</Text>
+                          <Text style={styles.noResultsHint}>Enter a full email address to add someone new</Text>
+                          {addUserSearch.includes('@') && (
+                            <TouchableOpacity
+                              style={styles.addNewEmailRow}
+                              onPress={handleAddNewUser}
+                            >
+                              <View style={[styles.suggestionAvatar, styles.suggestionAvatarNew]}>
+                                <Ionicons name="person-add" size={14} color="#FFF" />
+                              </View>
+                              <View style={styles.suggestionInfo}>
+                                <Text style={styles.suggestionNameNew}>Add as new member</Text>
+                                <Text style={styles.suggestionEmail}>{addUserSearch.trim()}</Text>
+                              </View>
+                              <Ionicons name="add-circle" size={22} color="#28A745" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ) : !addUserSearch.trim() ? (
+                        <View style={styles.noResultsMessage}>
+                          <Text style={styles.noResultsText}>
+                            {allGroupMembers.filter(m => !editPayees.some(p => p.mailId.toLowerCase() === m.mailId.toLowerCase())).length === 0 
+                              ? 'All group members added' 
+                              : 'Type to search users...'}
+                          </Text>
+                          <Text style={styles.noResultsHint}>Search by name or email</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
+
+                {/* Current Payees */}
+                {editPayees.map((payee, index) => (
+                  <View key={payee.mailId} style={styles.editPayeeRow}>
+                    <View style={styles.editPayeeInfo}>
+                      <View style={styles.editPayeeAvatar}>
+                        <Text style={styles.editPayeeAvatarText}>
+                          {(payee.name || payee.mailId).charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.editPayeeDetails}>
+                        <Text style={styles.editPayeeName} numberOfLines={1}>{payee.name}</Text>
+                        {payee.isPayer && (
+                          <Text style={styles.editPayerBadge}>Payer</Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.editPayeeActions}>
+                      <View style={styles.editPayeeAmountWrapper}>
+                        <Text style={styles.editPayeeCurrency}>₹</Text>
+                        <TextInput
+                          style={styles.editPayeeAmountInput}
+                          value={payee.amount}
+                          onChangeText={(val) => handlePayeeAmountChange(payee.mailId, val)}
+                          placeholder="0"
+                          placeholderTextColor="#CCC"
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.editPayeeDeleteButton}
+                        onPress={() => handleRemovePayee(payee)}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#DC3545" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+
+                {editPayees.length === 0 && (
+                  <View style={styles.noPayeesMessage}>
+                    <Text style={styles.noPayeesText}>No members added. Add members to split the expense.</Text>
+                  </View>
+                )}
+
+                {/* Removed Payees - Can Add Back */}
+                {removedPayees.length > 0 && (
+                  <View style={styles.removedPayeesSection}>
+                    <Text style={styles.removedPayeesTitle}>Removed Members</Text>
+                    {removedPayees.map((payee) => (
+                      <View key={payee.mailId} style={styles.removedPayeeRow}>
+                        <View style={styles.editPayeeInfo}>
+                          <View style={[styles.editPayeeAvatar, styles.removedPayeeAvatar]}>
+                            <Text style={styles.editPayeeAvatarText}>
+                              {(payee.name || payee.mailId).charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.removedPayeeDetails}>
+                            <Text style={styles.removedPayeeName} numberOfLines={1}>{payee.name}</Text>
+                            {parseFloat(payee.amount) > 0 && (
+                              <Text style={styles.removedPayeeAmount}>₹{parseFloat(payee.amount).toFixed(2)}</Text>
+                            )}
+                          </View>
+                        </View>
+                        <TouchableOpacity 
+                          style={styles.addBackButton}
+                          onPress={() => handleAddBackPayee(payee)}
+                        >
+                          <Ionicons name="add-circle-outline" size={18} color="#28A745" />
+                          <Text style={styles.addBackButtonText}>Add back</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
 
             <View style={styles.editExpenseButtons}>
               <TouchableOpacity
@@ -963,9 +1438,12 @@ export default function GroupsScreen({ route }) {
                 <Text style={styles.editExpenseCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.editExpenseSaveButton}
-                onPress={handleSaveExpense}
-                disabled={savingExpense || !editExpenseName.trim() || !editExpenseAmount}
+                style={[
+                  styles.editExpenseSaveButton,
+                  (!editExpenseName.trim() || editPayees.length === 0) && styles.editExpenseSaveButtonDisabled
+                ]}
+                onPress={handleShowSaveConfirm}
+                disabled={savingExpense || !editExpenseName.trim() || editPayees.length === 0}
               >
                 {savingExpense ? (
                   <ActivityIndicator size="small" color="#FFF" />
@@ -976,6 +1454,106 @@ export default function GroupsScreen({ route }) {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Save Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showSaveConfirmModal}
+        onRequestClose={() => setShowSaveConfirmModal(false)}
+      >
+        <Pressable 
+          style={styles.saveConfirmModalOverlay}
+          onPress={() => setShowSaveConfirmModal(false)}
+        >
+          <View style={styles.saveConfirmModalContent}>
+            <View style={styles.saveConfirmModalHeader}>
+              <Ionicons name="help-circle" size={48} color="#FF6B35" />
+              <Text style={styles.saveConfirmModalTitle}>Save Changes?</Text>
+              <Text style={styles.saveConfirmModalSubtitle}>
+                Are you sure you want to save these changes to the expense?
+              </Text>
+            </View>
+            <View style={styles.saveConfirmModalButtonsRow}>
+              <TouchableOpacity
+                style={styles.saveConfirmCancelButtonRow}
+                onPress={() => setShowSaveConfirmModal(false)}
+              >
+                <Text style={styles.saveConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveConfirmSaveButtonRow}
+                onPress={handleConfirmSave}
+              >
+                <Ionicons name="checkmark" size={18} color="#FFF" />
+                <Text style={styles.saveConfirmSaveText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Expense Actions Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={expandedExpenseIndex !== null}
+        onRequestClose={() => setExpandedExpenseIndex(null)}
+      >
+        <Pressable 
+          style={styles.expenseActionsModalOverlay}
+          onPress={() => setExpandedExpenseIndex(null)}
+        >
+          <View style={styles.expenseActionsModalContent}>
+            <View style={styles.expenseActionsModalHeader}>
+              <Text style={styles.expenseActionsModalTitle}>
+                {selectedExpense?.name || 'Expense Options'}
+              </Text>
+              <TouchableOpacity 
+                style={styles.expenseActionsCloseButton}
+                onPress={() => setExpandedExpenseIndex(null)}
+              >
+                <Ionicons name="close" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity 
+              style={styles.expenseActionRow}
+              onPress={() => {
+                const index = expandedExpenseIndex;
+                setExpandedExpenseIndex(null);
+                handleViewExpense(selectedExpense, index);
+              }}
+            >
+              <Ionicons name="eye-outline" size={20} color="#666" />
+              <Text style={styles.expenseActionText}>View Details</Text>
+            </TouchableOpacity>
+            {isGroupEditable() && (
+              <>
+                <TouchableOpacity 
+                  style={styles.expenseActionRow}
+                  onPress={() => {
+                    setExpandedExpenseIndex(null);
+                    handleEditExpense(selectedExpense);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={20} color="#FF6B35" />
+                  <Text style={[styles.expenseActionText, styles.expenseActionTextEdit]}>Edit Expense</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.expenseActionRow, styles.expenseActionRowLast]}
+                  onPress={() => {
+                    setExpandedExpenseIndex(null);
+                    handleDeleteExpenseConfirm(selectedExpense);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#DC3545" />
+                  <Text style={[styles.expenseActionText, styles.expenseActionTextDelete]}>Delete</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </Pressable>
       </Modal>
 
       {/* Delete Expense Confirmation Modal */}
@@ -1138,6 +1716,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     paddingTop: 0,
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   card: {
     flex: 1,
@@ -1149,6 +1728,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   loadingState: {
     flex: 1,
@@ -1313,11 +1893,13 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     flex: 1,
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   detailsContent: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   expensesSectionFull: {
     flex: 1,
@@ -1326,9 +1908,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F8F8',
     borderRadius: 16,
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   expensesScrollContent: {
     paddingBottom: 10,
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   noExpensesFull: {
     flex: 1,
@@ -1396,7 +1980,7 @@ const styles = StyleSheet.create({
   settlementRow: {
     backgroundColor: '#FFF5F0',
     borderRadius: 12,
-    padding: 14,
+    padding: Platform.OS === 'web' ? 14 : 12,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1410,9 +1994,12 @@ const styles = StyleSheet.create({
   },
   settlementInfo: {
     flex: 1,
+    minWidth: 0, // Allow text truncation
+    marginRight: 8,
   },
   settlementFromTo: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    flexWrap: 'wrap',
   },
   settlementName: {
     fontWeight: '600',
@@ -1496,6 +2083,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
+    position: 'relative',
+    backgroundColor: '#F8F8F8',
+    ...(Platform.OS === 'web' && { overflow: 'visible' }),
   },
   expenseMainContent: {
     flex: 1,
@@ -1513,28 +2103,138 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
   },
-  expenseActionsInline: {
+  // Save Confirmation Modal Styles
+  saveConfirmModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  saveConfirmModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  saveConfirmModalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  saveConfirmModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  saveConfirmModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  saveConfirmModalButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  saveConfirmCancelButtonRow: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  saveConfirmCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  saveConfirmSaveButtonRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#FF6B35',
   },
-  expenseActionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  saveConfirmSaveText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  expenseActionsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  expenseActionsModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 300,
+    overflow: 'hidden',
+  },
+  expenseActionsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  expenseActionsModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    flex: 1,
+    marginRight: 12,
+  },
+  expenseActionsCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
-  expenseCloseIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: 'center',
+  expenseActionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+    gap: 14,
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  expenseActionRowLast: {
+    borderBottomWidth: 0,
+  },
+  expenseActionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#555',
+  },
+  expenseActionTextEdit: {
+    color: '#FF6B35',
+  },
+  expenseActionTextDelete: {
+    color: '#DC3545',
   },
   expenseTopRow: {
     flexDirection: 'row',
@@ -1806,6 +2506,378 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',
+  },
+  editExpenseSaveButtonDisabled: {
+    backgroundColor: '#CCC',
+  },
+  editExpenseContentLarge: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Platform.OS === 'web' ? 24 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : (Platform.OS === 'web' ? 24 : 16),
+    maxHeight: '90%',
+  },
+  editExpenseScrollView: {
+    maxHeight: Platform.OS === 'web' ? 400 : undefined,
+  },
+  editTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F0',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  editTotalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  editTotalValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FF6B35',
+  },
+  editPayeesSection: {
+    marginBottom: 16,
+  },
+  editPayeesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addUserButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFF5F0',
+    borderRadius: 16,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  addUserButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF6B35',
+  },
+  addUserSection: {
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  addUserInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  addUserInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#333',
+    ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
+  },
+  addUserConfirmButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  addUserConfirmButtonDisabled: {
+    backgroundColor: '#CCC',
+  },
+  clearSearchButton: {
+    padding: 8,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  searchResultsContainer: {
+    marginTop: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Platform.OS === 'web' ? 12 : 10,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  suggestionItemNew: {
+    backgroundColor: '#F0FFF4',
+  },
+  suggestionItemApi: {
+    backgroundColor: '#FFF8F5',
+  },
+  suggestionItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  searchingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    gap: 8,
+  },
+  searchingText: {
+    fontSize: 14,
+    color: '#888',
+  },
+  suggestionAvatar: {
+    width: Platform.OS === 'web' ? 32 : 28,
+    height: Platform.OS === 'web' ? 32 : 28,
+    borderRadius: Platform.OS === 'web' ? 16 : 14,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  suggestionAvatarNew: {
+    backgroundColor: '#28A745',
+  },
+  suggestionAvatarApi: {
+    backgroundColor: '#6C63FF',
+  },
+  suggestionNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  suggestionBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  suggestionBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#28A745',
+  },
+  suggestionAvatarText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  suggestionInfo: {
+    flex: 1,
+    marginRight: 8,
+    minWidth: 0, // Allow text truncation
+  },
+  suggestionName: {
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  suggestionNameNew: {
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    fontWeight: '600',
+    color: '#28A745',
+  },
+  suggestionEmail: {
+    fontSize: Platform.OS === 'web' ? 12 : 11,
+    color: '#888',
+    marginTop: 1,
+  },
+  noResultsMessage: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 4,
+  },
+  noResultsHint: {
+    fontSize: 12,
+    color: '#AAA',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  addNewEmailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F0FFF4',
+    borderRadius: 10,
+    width: '100%',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  searchHintMessage: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  searchHintText: {
+    fontSize: 14,
+    color: '#999',
+  },
+  editPayeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    padding: Platform.OS === 'web' ? 12 : 10,
+    marginBottom: 8,
+  },
+  editPayeeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0, // Allow flex shrinking
+    marginRight: 6,
+  },
+  editPayeeAvatar: {
+    width: Platform.OS === 'web' ? 36 : 32,
+    height: Platform.OS === 'web' ? 36 : 32,
+    borderRadius: Platform.OS === 'web' ? 18 : 16,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  editPayeeAvatarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  editPayeeDetails: {
+    flex: 1,
+    minWidth: 0, // Allow text truncation
+  },
+  editPayeeName: {
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  editPayerBadge: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FF6B35',
+    marginTop: 2,
+  },
+  editPayeeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Platform.OS === 'web' ? 8 : 6,
+    flexShrink: 0,
+  },
+  editPayeeAmountWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    paddingHorizontal: Platform.OS === 'web' ? 10 : 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  editPayeeCurrency: {
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  editPayeeAmountInput: {
+    width: Platform.OS === 'web' ? 70 : 55,
+    paddingVertical: Platform.OS === 'web' ? 10 : 8,
+    paddingHorizontal: 4,
+    fontSize: Platform.OS === 'web' ? 14 : 13,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'right',
+    ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
+  },
+  editPayeeDeleteButton: {
+    width: Platform.OS === 'web' ? 36 : 32,
+    height: Platform.OS === 'web' ? 36 : 32,
+    borderRadius: Platform.OS === 'web' ? 18 : 16,
+    backgroundColor: '#FFF0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  noPayeesMessage: {
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+  },
+  noPayeesText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+  },
+  removedPayeesSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  removedPayeesTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#888',
+    marginBottom: 10,
+  },
+  removedPayeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    borderStyle: 'dashed',
+  },
+  removedPayeeAvatar: {
+    backgroundColor: '#CCC',
+  },
+  removedPayeeDetails: {
+    flex: 1,
+  },
+  removedPayeeName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#888',
+  },
+  removedPayeeAmount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#28A745',
+    marginTop: 2,
+  },
+  addBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 14,
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  addBackButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#28A745',
   },
   // Floating Create Group Button
   floatingButton: {

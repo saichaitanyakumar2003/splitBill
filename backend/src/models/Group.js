@@ -53,35 +53,22 @@ GroupSchema.methods.setDetails = function(details) {
 
 GroupSchema.methods.getExpenses = function() {
   const details = this.getDetails();
-  return details.expenses || [];
-};
-
-GroupSchema.methods.hasExpenseWithName = function(name) {
-  const details = this.getDetails();
-  const normalizedName = name.toLowerCase().trim();
-  return details.expenses.some(e => e.name.toLowerCase().trim() === normalizedName);
+  // Ensure all expenses have an id (for backwards compatibility with old data)
+  return (details.expenses || []).map((expense, index) => {
+    if (!expense.id && !expense._id) {
+      return { ...expense, id: `exp_${index}_${(expense.name || 'unknown').replace(/\s+/g, '_').substring(0, 20)}` };
+    }
+    return expense;
+  });
 };
 
 GroupSchema.methods.addExpense = function(expense) {
   const details = this.getDetails();
   
-  // Check for unique expense name
-  const normalizedName = expense.name.toLowerCase().trim();
-  const existingNames = details.expenses.map(e => e.name.toLowerCase().trim());
-  
-  let finalName = expense.name;
-  if (existingNames.includes(normalizedName)) {
-    // Generate unique name by appending a number
-    let counter = 2;
-    while (existingNames.includes(`${normalizedName} (${counter})`)) {
-      counter++;
-    }
-    finalName = `${expense.name} (${counter})`;
-  }
-  
+  // Allow duplicate expense names - show them separately
   details.expenses.push({
     id: new mongoose.Types.ObjectId().toString(),
-    name: finalName,
+    name: expense.name.trim(),
     payer: expense.payer.toLowerCase().trim(),
     payees: (expense.payees || []).map(p => 
       typeof p === 'object' ? p : p.toLowerCase().trim()
@@ -97,7 +84,21 @@ GroupSchema.methods.addExpense = function(expense) {
 
 GroupSchema.methods.removeExpense = function(expenseId) {
   const details = this.getDetails();
-  details.expenses = details.expenses.filter(e => e.id !== expenseId);
+  // Generate IDs for comparison (same logic as getExpenses)
+  const expensesWithIds = (details.expenses || []).map((expense, index) => {
+    if (!expense.id && !expense._id) {
+      return { ...expense, id: `exp_${index}_${(expense.name || 'unknown').replace(/\s+/g, '_').substring(0, 20)}` };
+    }
+    return expense;
+  });
+  
+  // Find index to remove
+  const indexToRemove = expensesWithIds.findIndex(e => (e.id === expenseId) || (e._id === expenseId));
+  
+  if (indexToRemove !== -1) {
+    details.expenses.splice(indexToRemove, 1);
+  }
+  
   this.compressedDetails = compressData({ expenses: details.expenses });
   this.updatedAt = new Date();
 };
@@ -117,11 +118,19 @@ GroupSchema.methods.markDeleted = function() {
 
 GroupSchema.methods.toJSON = function() {
   const details = this.getDetails();
+  // Ensure all expenses have an id (for backwards compatibility with old data)
+  const expensesWithIds = (details.expenses || []).map((expense, index) => {
+    if (!expense.id && !expense._id) {
+      // Generate a consistent ID based on index and expense name
+      return { ...expense, id: `exp_${index}_${(expense.name || 'unknown').replace(/\s+/g, '_').substring(0, 20)}` };
+    }
+    return expense;
+  });
   return {
     id: this._id,
     name: this.name,
     status: this.status,
-    expenses: details.expenses,
+    expenses: expensesWithIds,
     expiresAt: this.expiresAt,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
