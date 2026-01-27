@@ -136,7 +136,8 @@ export default function HistoryScreen({ route }) {
     setMenuVisible(null);
     navigation.navigate('Groups', { 
       selectedGroupId: record.groupId,
-      groupName: record.groupName
+      groupName: record.groupName,
+      fromScreen: 'History'
     });
   };
 
@@ -370,18 +371,6 @@ export default function HistoryScreen({ route }) {
                   </TouchableOpacity>
                 </View>
               )}
-              <TouchableOpacity 
-                style={styles.dropdownItem}
-                onPress={() => {
-                  const record = historyRecords.find(r => r.id === menuVisible);
-                  if (record) handleGroupPress(record);
-                }}
-              >
-                <View style={[styles.dropdownItemIcon, { backgroundColor: '#E3F2FD' }]}>
-                  <Ionicons name="swap-horizontal-outline" size={18} color="#1976D2" />
-                </View>
-                <Text style={styles.dropdownItemText}>View Settlements</Text>
-              </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.dropdownItem}
                 onPress={() => {

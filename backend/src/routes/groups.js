@@ -207,31 +207,38 @@ async function getEmailToUserDetailsMap(emails) {
   return emailToDetails;
 }
 
-// Helper: Clean up deleted groups from user's groupIds
+// Helper: Clean up permanently deleted groups from user's groupIds
+// Note: This only removes groups that no longer exist in the database
+// Groups with status='deleted' are kept so they can appear in history
 async function cleanupDeletedGroups(user) {
   const details = user.getDetails();
   const groupIds = details.groupIds || [];
   
-  if (groupIds.length === 0) return { cleaned: false, validGroupIds: [] };
+  if (groupIds.length === 0) return { cleaned: false, validGroupIds: [], allGroupIds: [] };
   
-  // Find which groups still exist and are not deleted
-  const existingGroups = await Group.find({ 
-    _id: { $in: groupIds },
-    status: { $ne: 'deleted' } // Exclude deleted groups
-  }).select('_id');
-  const existingGroupIds = new Set(existingGroups.map(g => g._id));
+  // Find ALL groups that exist in the database (including deleted ones)
+  const allExistingGroups = await Group.find({ 
+    _id: { $in: groupIds }
+  }).select('_id status');
   
-  // Filter to only valid group IDs (exist and not deleted)
-  const validGroupIds = groupIds.filter(id => existingGroupIds.has(id));
+  const existingGroupIds = new Set(allExistingGroups.map(g => g._id));
   
-  // If some were removed, update the user
-  if (validGroupIds.length !== groupIds.length) {
-    user.setDetails({ ...details, groupIds: validGroupIds });
+  // Active groups (not deleted) - used for main groups list
+  const activeGroupIds = allExistingGroups
+    .filter(g => g.status !== 'deleted')
+    .map(g => g._id);
+  
+  // All groups that still exist (including deleted) - keep in user's list
+  const allValidGroupIds = groupIds.filter(id => existingGroupIds.has(id));
+  
+  // Only update user if some groups were permanently removed from database
+  if (allValidGroupIds.length !== groupIds.length) {
+    user.setDetails({ ...details, groupIds: allValidGroupIds });
     await user.save();
-    return { cleaned: true, validGroupIds };
+    return { cleaned: true, validGroupIds: activeGroupIds, allGroupIds: allValidGroupIds };
   }
   
-  return { cleaned: false, validGroupIds: groupIds };
+  return { cleaned: false, validGroupIds: activeGroupIds, allGroupIds: groupIds };
 }
 
 // Create new group
@@ -621,30 +628,30 @@ router.get('/awaiting', async (req, res) => {
   }
 });
 
-// Get history for user (from History table)
+// Get history for user (from History table and deleted/completed groups)
 router.get('/history', async (req, res) => {
   try {
     const userMailId = req.user.mailId;
     const user = await User.findById(userMailId);
     if (!user) return res.json({ success: true, data: [] });
     
-    // Clean up deleted groups
-    const { validGroupIds } = await cleanupDeletedGroups(user);
+    // Get ALL groupIds from user (including deleted groups for history)
+    const details = user.getDetails();
+    const allGroupIds = details.groupIds || [];
     
-    // Get history records for user's groups
-    const historyRecords = await History.findByGroupIds(validGroupIds);
+    if (allGroupIds.length === 0) return res.json({ success: true, data: [] });
     
-    // Get group statuses and updatedAt for all history records
-    const groupIds = historyRecords.map(r => r.groupId);
-    const groups = await Group.find({ _id: { $in: groupIds } }).select('_id status updatedAt');
-    const groupStatusMap = {};
-    const groupUpdatedAtMap = {};
-    groups.forEach(g => {
-      groupStatusMap[g._id] = g.status;
-      groupUpdatedAtMap[g._id] = g.updatedAt;
+    // Get all groups (including deleted ones) from user's list
+    const allGroups = await Group.find({ _id: { $in: allGroupIds } }).select('_id name status updatedAt');
+    
+    // Get history records for ALL user's groups (including deleted)
+    const historyRecords = await History.findByGroupIds(allGroupIds);
+    const historyByGroupId = {};
+    historyRecords.forEach(record => {
+      historyByGroupId[record.groupId] = record;
     });
     
-    // Filter to only include edges where user is involved
+    // Collect all member emails for name lookup
     const allMemberEmails = new Set();
     historyRecords.forEach(record => {
       record.settledEdges.forEach(edge => {
@@ -657,27 +664,42 @@ router.get('/history', async (req, res) => {
     
     const emailToName = await getEmailToNameMap(Array.from(allMemberEmails));
     
-    const historyWithNames = historyRecords.map(record => {
-      const status = groupStatusMap[record.groupId] || 'completed';
-      return {
-        id: record._id,
-        groupId: record.groupId,
-        groupName: record.groupName,
-        groupStatus: status,
-        settledEdges: record.settledEdges
+    // Build history list - include groups that are deleted/completed OR have settlements
+    const historyWithNames = [];
+    
+    for (const group of allGroups) {
+      const historyRecord = historyByGroupId[group._id];
+      const isDeletedOrCompleted = group.status === 'deleted' || group.status === 'completed';
+      
+      // Get settled edges for this user
+      let userSettledEdges = [];
+      if (historyRecord) {
+        userSettledEdges = historyRecord.settledEdges
           .filter(edge => edge.from === userMailId || edge.to === userMailId)
           .map(edge => ({
             ...edge,
             fromName: emailToName[edge.from] || edge.from?.split('@')[0] || 'Unknown',
             toName: emailToName[edge.to] || edge.to?.split('@')[0] || 'Unknown',
-          })),
-        expiresAt: record.expiresAt,
-        createdAt: record.createdAt,
-        updatedAt: (status === 'completed' || status === 'deleted') 
-          ? groupUpdatedAtMap[record.groupId] || record.updatedAt 
-          : record.updatedAt
-      };
-    }).filter(record => record.settledEdges.length > 0);
+          }));
+      }
+      
+      // Include in history if: has settlements OR is deleted/completed
+      if (userSettledEdges.length > 0 || isDeletedOrCompleted) {
+        historyWithNames.push({
+          id: historyRecord?._id || group._id,
+          groupId: group._id,
+          groupName: group.name,
+          groupStatus: group.status,
+          settledEdges: userSettledEdges,
+          expiresAt: historyRecord?.expiresAt || null,
+          createdAt: historyRecord?.createdAt || group.updatedAt,
+          updatedAt: group.updatedAt
+        });
+      }
+    }
+    
+    // Sort by updatedAt descending (most recent first)
+    historyWithNames.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     
     res.json({ success: true, data: historyWithNames });
   } catch (e) {

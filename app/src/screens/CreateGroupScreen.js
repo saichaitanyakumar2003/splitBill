@@ -85,7 +85,8 @@ export default function CreateGroupScreen() {
 
       setIsPayerSearching(true);
       try {
-        const response = await authGet(`/auth/search?q=${encodeURIComponent(payerSearchQuery.trim())}`);
+        // Use forPayer=true to filter out users whose previous_mails match (avoid showing old emails)
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(payerSearchQuery.trim())}&forPayer=true`);
         const data = await response.json();
         
         if (data.success) {
@@ -120,7 +121,8 @@ export default function CreateGroupScreen() {
 
       setIsSearching(true);
       try {
-        const response = await authGet(`/auth/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        // Use forPayer=true to filter out users whose previous_mails match (avoid showing old emails)
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(searchQuery.trim())}&forPayer=true`);
         const data = await response.json();
         
         if (data.success) {

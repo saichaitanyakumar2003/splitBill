@@ -393,15 +393,43 @@ router.post('/friends/details', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Emails array required' });
     }
 
-    const users = await User.find({ _id: { $in: emails.map(e => e.toLowerCase()) } });
+    const normalizedEmails = emails.map(e => e.toLowerCase());
+    
+    // First, find users by their current email (_id)
+    const users = await User.find({ _id: { $in: normalizedEmails } });
     const result = users.map(u => ({ mailId: u._id, name: u.name || u._id.split('@')[0] }));
+    const foundEmails = new Set(result.map(r => r.mailId));
 
-    const foundEmails = result.map(r => r.mailId);
-    emails.forEach(email => {
-      if (!foundEmails.includes(email.toLowerCase())) {
-        result.push({ mailId: email.toLowerCase(), name: email.split('@')[0] });
+    // Find emails that weren't found - check if they're in previous_mails of any user
+    const notFoundEmails = normalizedEmails.filter(e => !foundEmails.has(e));
+    
+    if (notFoundEmails.length > 0) {
+      // Search for users who have these emails in their previous_mails
+      const allUsers = await User.find({});
+      
+      for (const oldEmail of notFoundEmails) {
+        let found = false;
+        for (const u of allUsers) {
+          const details = u.getDetails();
+          if (details.previous_mails && details.previous_mails.includes(oldEmail)) {
+            // Found user with this old email - return their current info
+            // Map the old email to the current user's name for display
+            result.push({ 
+              mailId: oldEmail, // Keep the old mailId for matching
+              name: u.name || u._id.split('@')[0],
+              currentMailId: u._id // Include current email for reference
+            });
+            found = true;
+            break;
+          }
+        }
+        
+        // If still not found, use email prefix as fallback
+        if (!found) {
+          result.push({ mailId: oldEmail, name: oldEmail.split('@')[0] });
+        }
       }
-    });
+    }
 
     res.json({ success: true, data: result });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

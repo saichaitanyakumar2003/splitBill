@@ -8,7 +8,6 @@ import {
   ScrollView,
   ActivityIndicator,
   BackHandler,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -159,33 +158,13 @@ export default function AwaitingScreen({ route }) {
       });
       const data = await response.json();
       
-      if (data.success) {
-        if (data.notified) {
-          const message = `Reminder sent to ${debtorName}`;
-          if (Platform.OS === 'web') {
-            alert(message);
-          } else {
-            Alert.alert('Reminder Sent', message);
-          }
-        } else {
-          const message = `Could not send reminder: ${data.reason || 'Unknown error'}`;
-          if (Platform.OS === 'web') {
-            alert(message);
-          } else {
-            Alert.alert('Notice', message);
-          }
-        }
-      } else {
+      if (!data.success) {
         throw new Error(data.message || 'Failed to send reminder');
       }
+      // Silently succeed - the loading indicator provides feedback
     } catch (error) {
       console.error('Error sending reminder:', error);
-      const message = 'Failed to send reminder. Please try again.';
-      if (Platform.OS === 'web') {
-        alert(message);
-      } else {
-        Alert.alert('Error', message);
-      }
+      // Silently fail - just log the error
     } finally {
       setNotifyingUser(null);
     }

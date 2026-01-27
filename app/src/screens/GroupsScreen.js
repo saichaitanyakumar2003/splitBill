@@ -35,6 +35,7 @@ export default function GroupsScreen({ route }) {
   // Handle incoming navigation params from History screen
   const selectedGroupId = route?.params?.selectedGroupId;
   const selectedGroupName = route?.params?.groupName;
+  const fromScreen = route?.params?.fromScreen;
   
   // Modal state for viewing member splits
   const [modalVisible, setModalVisible] = useState(false);
@@ -202,7 +203,8 @@ export default function GroupsScreen({ route }) {
 
       setIsSearchingUsers(true);
       try {
-        const response = await authGet(`/auth/search?q=${encodeURIComponent(addUserSearch.trim())}`);
+        // Use forPayer=true to filter out users whose previous_mails match the search (avoid showing old emails)
+        const response = await authGet(`/auth/search?q=${encodeURIComponent(addUserSearch.trim())}&forPayer=true`);
         const data = await response.json();
         
         if (data.success) {
@@ -262,11 +264,17 @@ export default function GroupsScreen({ route }) {
 
   const handleBack = () => {
     if (selectedGroup) {
+      // If came from History, navigate back to History directly
+      if (fromScreen === 'History') {
+        navigation.setParams({ selectedGroupId: undefined, groupName: undefined, fromScreen: undefined });
+        navigation.navigate('History');
+        return;
+      }
       setSelectedGroup(null);
       setGroupDetails(null);
       // Clear navigation params to prevent auto-reselection
       if (route?.params?.selectedGroupId) {
-        navigation.setParams({ selectedGroupId: undefined, groupName: undefined });
+        navigation.setParams({ selectedGroupId: undefined, groupName: undefined, fromScreen: undefined });
       }
     } else if (navigation.canGoBack()) {
       navigation.goBack();
@@ -279,6 +287,20 @@ export default function GroupsScreen({ route }) {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const backAction = () => {
+      if (selectedGroup) {
+        // If came from History, navigate back to History directly
+        if (fromScreen === 'History') {
+          navigation.setParams({ selectedGroupId: undefined, groupName: undefined, fromScreen: undefined });
+          navigation.navigate('History');
+          return true;
+        }
+        setSelectedGroup(null);
+        setGroupDetails(null);
+        if (route?.params?.selectedGroupId) {
+          navigation.setParams({ selectedGroupId: undefined, groupName: undefined, fromScreen: undefined });
+        }
+        return true;
+      }
       if (navigation.canGoBack()) {
         navigation.goBack();
       } else {
@@ -288,7 +310,7 @@ export default function GroupsScreen({ route }) {
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => subscription.remove();
-  }, [navigation]);
+  }, [navigation, selectedGroup, fromScreen]);
 
   const handleSelectGroup = async (group, defaultTab = 'expenses') => {
     setSelectedGroup(group);
@@ -1115,11 +1137,14 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="receipt-outline" 
-                size={16} 
+                size={Platform.OS === 'web' ? 16 : 18} 
                 color={activeTab === 'expenses' ? '#FF6B35' : '#888'} 
               />
               <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>
-                Expenses ({expenses.length})
+                Expenses
+              </Text>
+              <Text style={[styles.tabCount, activeTab === 'expenses' && styles.tabCountActive]}>
+                ({expenses.length})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1128,11 +1153,14 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="swap-horizontal-outline" 
-                size={16} 
+                size={Platform.OS === 'web' ? 16 : 18} 
                 color={activeTab === 'settlements' ? '#FF6B35' : '#888'} 
               />
               <Text style={[styles.tabText, activeTab === 'settlements' && styles.tabTextActive]}>
-                Settlements ({consolidatedEdges.length})
+                Settlements
+              </Text>
+              <Text style={[styles.tabCount, activeTab === 'settlements' && styles.tabCountActive]}>
+                ({consolidatedEdges.length})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1145,7 +1173,7 @@ export default function GroupsScreen({ route }) {
             >
               <Ionicons 
                 name="time-outline" 
-                size={16} 
+                size={Platform.OS === 'web' ? 16 : 18} 
                 color={activeTab === 'activity' ? '#FF6B35' : '#888'} 
               />
               <Text style={[styles.tabText, activeTab === 'activity' && styles.tabTextActive]}>
@@ -1974,13 +2002,13 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: Platform.OS === 'web' ? 'row' : 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingVertical: Platform.OS === 'web' ? 8 : 10,
+    paddingHorizontal: Platform.OS === 'web' ? 6 : 4,
     borderRadius: 10,
-    gap: 4,
+    gap: Platform.OS === 'web' ? 4 : 2,
   },
   tabActive: {
     backgroundColor: '#FFF',
@@ -1991,11 +2019,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'web' ? 12 : 11,
+    fontWeight: '600',
+    color: '#888',
+    textAlign: 'center',
+  },
+  tabTextActive: {
+    color: '#FF6B35',
+  },
+  tabCount: {
+    fontSize: Platform.OS === 'web' ? 12 : 10,
     fontWeight: '600',
     color: '#888',
   },
-  tabTextActive: {
+  tabCountActive: {
     color: '#FF6B35',
   },
   tabContent: {
