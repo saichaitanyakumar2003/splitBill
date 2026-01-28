@@ -27,6 +27,17 @@ const UserSchema = new mongoose.Schema({
     select: false
   },
 
+  tempPassword: {
+    type: String,
+    select: false,
+    default: null
+  },
+
+  tempPasswordExpiry: {
+    type: Date,
+    default: null
+  },
+
   compressedDetails: {
     type: Buffer,
     required: true
@@ -70,7 +81,7 @@ UserSchema.statics.createUser = async function(mailId, password, details) {
 };
 
 UserSchema.statics.findByMailIdWithPassword = function(mailId) {
-  return this.findById(mailId.toLowerCase().trim()).select('+pswd');
+  return this.findById(mailId.toLowerCase().trim()).select('+pswd +tempPassword +tempPasswordExpiry');
 };
 
 UserSchema.statics.searchUsers = async function(query, excludeMailId = null, limit = 20, filterPreviousMails = false) {
@@ -112,7 +123,45 @@ UserSchema.statics.searchUsers = async function(query, excludeMailId = null, lim
 };
 
 UserSchema.methods.verifyPassword = async function(password) {
-  return bcrypt.compare(password, this.pswd);
+  // First check original password
+  const originalMatch = await bcrypt.compare(password, this.pswd);
+  if (originalMatch) {
+    return { valid: true, usedTempPassword: false };
+  }
+  
+  // If original password doesn't match, check temporary password
+  if (this.tempPassword && this.tempPasswordExpiry) {
+    // Check if temp password has expired
+    if (new Date() > this.tempPasswordExpiry) {
+      // Temp password expired, clear it
+      this.tempPassword = null;
+      this.tempPasswordExpiry = null;
+      await this.save();
+      return { valid: false, usedTempPassword: false };
+    }
+    
+    // Check temp password
+    const tempMatch = await bcrypt.compare(password, this.tempPassword);
+    if (tempMatch) {
+      return { valid: true, usedTempPassword: true };
+    }
+  }
+  
+  return { valid: false, usedTempPassword: false };
+};
+
+// Method to set temporary password with expiry (30 minutes)
+UserSchema.methods.setTempPassword = async function(tempPassword) {
+  this.tempPassword = await bcrypt.hash(tempPassword, 12);
+  this.tempPasswordExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  await this.save();
+};
+
+// Method to clear temporary password (after user changes password)
+UserSchema.methods.clearTempPassword = async function() {
+  this.tempPassword = null;
+  this.tempPasswordExpiry = null;
+  await this.save();
 };
 
 UserSchema.methods.getDetails = function() {

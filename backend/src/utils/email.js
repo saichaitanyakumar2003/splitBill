@@ -87,7 +87,7 @@ async function sendPasswordResetEmail(toEmail, temporaryPassword, userName = '')
               
               <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; border-radius: 0 8px 8px 0; margin: 0 0 25px;">
                 <p style="color: #92400E; font-size: 14px; margin: 0;">
-                  <strong>Security Notice:</strong> This temporary password will work until you change it. If you didn't request this reset, please ignore this email or contact support.
+                  <strong>Important:</strong> This temporary password is valid for <strong>30 minutes</strong>. Your original password still works - if you remember it, you can use that instead.
                 </p>
               </div>
               
@@ -131,7 +131,7 @@ What to do next:
 2. Login with your email and the temporary password above
 3. Go to View Profile to change your password
 
-Security Notice: This temporary password will work until you change it. If you didn't request this reset, please ignore this email.
+Important: This temporary password is valid for 30 minutes. Your original password still works - if you remember it, you can use that instead.
 
 Need help? Reply to this email or contact our support team.
 

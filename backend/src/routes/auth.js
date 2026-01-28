@@ -42,17 +42,27 @@ router.post('/login', async (req, res) => {
 
     const user = await User.findByMailIdWithPassword(email);
     if (!user) return res.status(401).json({ success: false, message: 'Account not found' });
-    if (!await user.verifyPassword(password)) return res.status(401).json({ success: false, message: 'Wrong password' });
+    
+    const passwordResult = await user.verifyPassword(password);
+    if (!passwordResult.valid) return res.status(401).json({ success: false, message: 'Wrong password' });
 
     user.sessionExpiresAt = getSessionExp();
     await user.save();
 
     const d = user.getDetails();
-    res.json({ success: true, data: { token: genToken(user._id, d.name), user: user.toJSON() } });
+    res.json({ 
+      success: true, 
+      data: { 
+        token: genToken(user._id, d.name), 
+        user: user.toJSON(),
+        usedTempPassword: passwordResult.usedTempPassword 
+      } 
+    });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Forgot password - sends temporary password via email
+// Forgot password - sends temporary password via email (valid for 30 minutes)
+// Original password is NOT replaced - user can still login with original password
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
@@ -77,9 +87,9 @@ router.post('/forgot-password', async (req, res) => {
     // Generate temporary password
     const temporaryPassword = generateTemporaryPassword(8);
     
-    // Hash and save the temporary password
-    user.pswd = await User.hashPassword(temporaryPassword);
-    await user.save();
+    // Set temporary password (does NOT replace original password)
+    // Temp password expires in 30 minutes
+    await user.setTempPassword(temporaryPassword);
     
     // Get user's name for email personalization
     const userName = user.name || user.getDetails()?.name || '';
@@ -189,7 +199,10 @@ router.put('/password', authenticate, async (req, res) => {
     const user = await User.findByMailIdWithPassword(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
+    // Update password and clear any temporary password
     user.pswd = await User.hashPassword(newPassword);
+    user.tempPassword = null;
+    user.tempPasswordExpiry = null;
     await user.save();
 
     res.json({ success: true, message: 'Password updated successfully' });
