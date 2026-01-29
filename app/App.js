@@ -1232,7 +1232,7 @@ function UpdateBanner({ visible, onUpdate, isUpdating }) {
           </View>
         )}
         {isUpdating && (
-          <ActivityIndicator size="small" color="#FFF" />
+          <ActivityIndicator size="small" color="#FF6B35" />
         )}
       </View>
     </TouchableOpacity>
@@ -2221,14 +2221,16 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 50 : 30,
     left: 16,
     right: 16,
-    backgroundColor: '#28A745',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     elevation: 10,
     zIndex: 9999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.2)',
   },
   updateBannerContent: {
     flexDirection: 'row',
@@ -2243,23 +2245,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   updateBannerTitle: {
-    color: '#FFF',
+    color: '#1A1A1A',
     fontSize: 15,
     fontWeight: '700',
   },
   updateBannerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#666',
     fontSize: 12,
     marginTop: 2,
   },
   updateBannerButton: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#FF6B35',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   updateBannerButtonText: {
-    color: '#28A745',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
