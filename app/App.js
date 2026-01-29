@@ -1300,8 +1300,8 @@ function AppContent() {
       appState.current = nextAppState;
     });
     
-    // Also check periodically (every 5 minutes while app is active)
-    const interval = setInterval(checkForUpdates, 5 * 60 * 1000);
+    // Also check periodically (every 1 minute while app is active)
+    const interval = setInterval(checkForUpdates, 1 * 60 * 1000);
     
     return () => {
       subscription.remove();
