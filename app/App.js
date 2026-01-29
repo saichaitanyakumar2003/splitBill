@@ -1,3 +1,7 @@
+/**
+ * SplitBill App - Version 1.0.1
+ * OTA Update: Auto-update banner feature added
+ */
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
