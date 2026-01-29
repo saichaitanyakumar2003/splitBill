@@ -1035,8 +1035,12 @@ router.post('/:id/resolve', async (req, res) => {
       return res.status(404).json({ success: false, message: 'No edges found for group' });
     }
     
+    // Normalize emails for comparison (edges are stored lowercase)
+    const fromLower = from.toLowerCase().trim();
+    const toLower = to.toLowerCase().trim();
+    
     // Find the edge to resolve
-    const edgeToResolve = edgesDoc.edges.find(e => e.from === from && e.to === to && !e.resolved);
+    const edgeToResolve = edgesDoc.edges.find(e => e.from === fromLower && e.to === toLower && !e.resolved);
     if (!edgeToResolve) {
       return res.status(404).json({ success: false, message: 'Edge not found or already resolved' });
     }
@@ -1116,7 +1120,8 @@ router.post('/:id/resolve', async (req, res) => {
         groupStatus: group.status,
         allResolved,
         keepActive: keepActive === true,
-        willComplete: shouldComplete
+        willComplete: shouldComplete,
+        consolidatedExpenses: edgesDoc.edges // Return updated edges
       }
     });
   } catch (e) {

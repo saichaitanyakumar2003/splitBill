@@ -60,10 +60,14 @@ ConsolidatedEdgesSchema.methods.markResolved = function(from, to) {
   const edges = this.getEdges();
   let found = false;
   
+  // Normalize to lowercase for comparison (edges are stored lowercase)
+  const fromLower = from.toLowerCase().trim();
+  const toLower = to.toLowerCase().trim();
+  
   const updatedEdges = edges.map(edge => {
-    if (edge.from === from && edge.to === to && !edge.resolved) {
+    if (edge.from === fromLower && edge.to === toLower && !edge.resolved) {
       found = true;
-      return { ...edge, resolved: true };
+      return { ...edge, resolved: true, settledAt: new Date().toISOString() };
     }
     return edge;
   });

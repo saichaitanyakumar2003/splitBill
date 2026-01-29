@@ -33,7 +33,6 @@ export default function PendingExpensesScreen({ route }) {
     to: null,
     toName: '',
     amount: 0,
-    isLastEdge: false,
     groupName: '',
   });
   const [successModal, setSuccessModal] = useState({
@@ -96,8 +95,7 @@ export default function PendingExpensesScreen({ route }) {
   }, [navigation]);
 
 
-  const handleResolve = (groupId, from, to, toName, amount, groupName, pendingCount) => {
-    const isLastEdge = pendingCount === 1;
+  const handleResolve = (groupId, from, to, toName, amount, groupName) => {
     setConfirmModal({
       visible: true,
       groupId,
@@ -105,25 +103,28 @@ export default function PendingExpensesScreen({ route }) {
       to,
       toName,
       amount,
-      isLastEdge,
       groupName,
     });
   };
 
-  const processResolve = async (groupId, from, to, keepActive = false) => {
+  const processResolve = async (groupId, from, to, groupName) => {
     setResolvingEdge(`${groupId}-${from}-${to}`);
     try {
-      const response = await authPost(`/groups/${groupId}/resolve`, { from, to, keepActive });
+      // First resolve the edge without keepActive (don't auto-complete)
+      const response = await authPost(`/groups/${groupId}/resolve`, { from, to, keepActive: true });
       const data = await response.json();
       
       if (data.success) {
         await fetchPendingExpenses();
         
+        // If all edges are now resolved, show the completion choice modal
         if (data.data.allResolved) {
-          setSuccessModal({
+          setCompletionChoiceModal({
             visible: true,
-            groupName: data.data.groupName,
-            keptActive: keepActive,
+            groupId,
+            from,
+            to,
+            groupName: data.data.groupName || groupName,
           });
         }
       } else {
@@ -148,21 +149,9 @@ export default function PendingExpensesScreen({ route }) {
   };
 
   const handleConfirmSettle = () => {
-    const { groupId, from, to, isLastEdge, groupName } = confirmModal;
+    const { groupId, from, to, groupName } = confirmModal;
     setConfirmModal({ ...confirmModal, visible: false });
-    
-    if (isLastEdge) {
-      // Show completion choice modal
-      setCompletionChoiceModal({
-        visible: true,
-        groupId,
-        from,
-        to,
-        groupName,
-      });
-    } else {
-      processResolve(groupId, from, to);
-    }
+    processResolve(groupId, from, to, groupName);
   };
 
   const handleCancelSettle = () => {
@@ -173,15 +162,29 @@ export default function PendingExpensesScreen({ route }) {
       to: null,
       toName: '',
       amount: 0,
-      isLastEdge: false,
       groupName: '',
     });
   };
 
-  const handleCompletionChoice = (keepActive) => {
-    const { groupId, from, to } = completionChoiceModal;
+  const handleCompletionChoice = async (keepActive) => {
+    const { groupId, groupName } = completionChoiceModal;
     setCompletionChoiceModal({ visible: false, groupId: null, from: null, to: null, groupName: '' });
-    processResolve(groupId, from, to, keepActive);
+    
+    if (!keepActive) {
+      // User chose to complete the group - call the complete endpoint
+      try {
+        await authPost(`/groups/${groupId}/complete`);
+      } catch (error) {
+        console.error('Error completing group:', error);
+      }
+    }
+    
+    // Show success modal
+    setSuccessModal({
+      visible: true,
+      groupName,
+      keptActive: keepActive,
+    });
   };
 
   const handleCancelCompletionChoice = () => {
@@ -305,7 +308,6 @@ export default function PendingExpensesScreen({ route }) {
                       {/* Pending Edges */}
                       {group.pendingEdges?.map((edge, index) => {
                         const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
-                        const pendingCount = group.pendingEdges?.length || 0;
                         return (
                           <View key={`pending-${index}`} style={styles.expenseRow}>
                             <View style={styles.expenseTop}>
@@ -324,7 +326,7 @@ export default function PendingExpensesScreen({ route }) {
                             <View style={styles.buttonGroup}>
                               <TouchableOpacity
                                 style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
-                                onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName, pendingCount)}
+                                onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
                                 disabled={isResolving}
                               >
                                 {isResolving ? (

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
+import * as Updates from 'expo-updates';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -1200,12 +1201,49 @@ function AppNavigator() {
   );
 }
 
+// Update Banner Component - shows when an update is available
+function UpdateBanner({ visible, onUpdate, isUpdating }) {
+  if (!visible) return null;
+  
+  return (
+    <TouchableOpacity 
+      style={styles.updateBanner}
+      onPress={onUpdate}
+      disabled={isUpdating}
+      activeOpacity={0.9}
+    >
+      <View style={styles.updateBannerContent}>
+        <Text style={styles.updateBannerIcon}>{isUpdating ? '⏳' : '🎉'}</Text>
+        <View style={styles.updateBannerTextContainer}>
+          <Text style={styles.updateBannerTitle}>
+            {isUpdating ? 'Updating...' : 'Update Available!'}
+          </Text>
+          <Text style={styles.updateBannerSubtitle}>
+            {isUpdating ? 'Please wait...' : 'Tap to get the latest version'}
+          </Text>
+        </View>
+        {!isUpdating && (
+          <View style={styles.updateBannerButton}>
+            <Text style={styles.updateBannerButtonText}>Update</Text>
+          </View>
+        )}
+        {isUpdating && (
+          <ActivityIndicator size="small" color="#FFF" />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 // Network-aware App Content
 function AppContent() {
   const { isConnected } = useNetwork();
   const { isAuthenticated } = useAuth();
   const { clearStore } = useStore();
   const prevAuthRef = React.useRef(isAuthenticated);
+  const appState = useRef(AppState.currentState);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   
   // Clear store cache on logout
   React.useEffect(() => {
@@ -1215,6 +1253,57 @@ function AppContent() {
     }
     prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated, clearStore]);
+  
+  // Check for OTA updates
+  const checkForUpdates = async () => {
+    // Skip update checks in development or on web
+    if (__DEV__ || Platform.OS === 'web') return;
+    
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        // Fetch the update in the background
+        await Updates.fetchUpdateAsync();
+        setUpdateAvailable(true);
+      }
+    } catch (error) {
+      // Silently fail - don't interrupt user experience
+      console.log('Update check failed:', error.message);
+    }
+  };
+  
+  // Handle update button press
+  const handleUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      await Updates.reloadAsync();
+    } catch (error) {
+      console.log('Update reload failed:', error.message);
+      setIsUpdating(false);
+    }
+  };
+  
+  // Check for updates on app foreground and periodically
+  useEffect(() => {
+    // Check on initial mount
+    checkForUpdates();
+    
+    // Check when app comes to foreground
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        checkForUpdates();
+      }
+      appState.current = nextAppState;
+    });
+    
+    // Also check periodically (every 5 minutes while app is active)
+    const interval = setInterval(checkForUpdates, 5 * 60 * 1000);
+    
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, []);
   
   // Keep AppNavigator mounted to preserve navigation state
   // Overlay NetworkErrorScreen when disconnected
@@ -1226,6 +1315,12 @@ function AppContent() {
           <NetworkErrorScreen />
         </View>
       )}
+      {/* Update Banner - shows at top when update is available */}
+      <UpdateBanner 
+        visible={updateAvailable} 
+        onUpdate={handleUpdate}
+        isUpdating={isUpdating}
+      />
     </View>
   );
 }
@@ -2114,5 +2209,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 12,
     fontWeight: '500',
+  },
+  
+  // Update Banner Styles
+  updateBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 16,
+    right: 16,
+    backgroundColor: '#28A745',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 9999,
+  },
+  updateBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  updateBannerIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  updateBannerTextContainer: {
+    flex: 1,
+  },
+  updateBannerTitle: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  updateBannerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  updateBannerButton: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  updateBannerButtonText: {
+    color: '#28A745',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
