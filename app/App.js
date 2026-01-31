@@ -844,7 +844,7 @@ function HomeScreen({ navigation, route }) {
           
           {/* Logo - without text */}
           <View style={styles.androidLogoContainer}>
-            <Logo size="large" hideText={true} />
+            <Logo isMobile={true} hideText={true} />
           </View>
         </LinearGradient>
 
@@ -2643,10 +2643,11 @@ const styles = StyleSheet.create({
   androidWhitePanel: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginTop: -35,
-    borderTopLeftRadius: 35,
-    borderTopRightRadius: 35,
-    zIndex: 1,
+    marginTop: -30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    zIndex: 10,
+    elevation: 10,
   },
   androidScrollView: {
     flex: 1,
