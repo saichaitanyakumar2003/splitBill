@@ -937,6 +937,8 @@ const styles = StyleSheet.create({
     elevation: 10,
     marginBottom: 24,
     position: 'relative',
+    minHeight: 300,
+    maxHeight: Platform.OS === 'web' ? 500 : 450,
   },
   cardActions: {
     position: 'absolute',
@@ -1035,10 +1037,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   expensesScrollView: {
-    maxHeight: 250,
+    flex: 1,
+    maxHeight: Platform.OS === 'web' ? 350 : 300,
+    minHeight: 100,
   },
   expensesScrollContent: {
-    paddingBottom: 8,
+    paddingBottom: 16,
+    flexGrow: 1,
   },
   expenseRow: {
     flexDirection: 'row',
