@@ -827,7 +827,7 @@ function HomeScreen({ navigation, route }) {
       <View style={[styles.container, { backgroundColor: '#FF6B35' }]}>
         {/* Orange Header Section */}
         <LinearGradient
-          colors={['#FF8C5A', '#FF6B35', '#FF5722']}
+          colors={['#F57C3A', '#E85A24', '#D84315']}
           style={styles.androidHeader}
         >
           <StatusBar style="light" />
@@ -1122,7 +1122,7 @@ function HomeScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
+        colors={['#F57C3A', '#E85A24', '#D84315', '#BF360C']}
         locations={[0, 0.3, 0.7, 1]}
         style={styles.gradient}
       >
@@ -1365,7 +1365,7 @@ function LoadingScreen() {
   return (
     <View style={styles.loadingContainer}>
       <LinearGradient
-        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
+        colors={['#F57C3A', '#E85A24', '#D84315', '#BF360C']}
         locations={[0, 0.3, 0.7, 1]}
         style={styles.gradient}
       >
@@ -2644,7 +2644,7 @@ const styles = StyleSheet.create({
   androidWhitePanel: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginTop: -40,
+    marginTop: -45,
     borderTopLeftRadius: 35,
     borderTopRightRadius: 35,
     zIndex: 10,
