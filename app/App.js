@@ -2361,9 +2361,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   subtitleMobile: {
-    fontSize: 11,
-    marginTop: 4,
-    letterSpacing: 2,
+    fontSize: 9,
+    marginTop: 12,
+    letterSpacing: 1.5,
   },
   taglineRow: {
     flexDirection: 'row',
@@ -2601,10 +2601,10 @@ const styles = StyleSheet.create({
   // Android Dashboard Styles
   androidHeader: {
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 40,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    zIndex: 1,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    zIndex: 0,
   },
   androidTopBar: {
     flexDirection: 'row',
@@ -2643,10 +2643,10 @@ const styles = StyleSheet.create({
   androidWhitePanel: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginTop: -30,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    zIndex: 0,
+    marginTop: -35,
+    borderTopLeftRadius: 35,
+    borderTopRightRadius: 35,
+    zIndex: 1,
   },
   androidScrollView: {
     flex: 1,
