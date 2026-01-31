@@ -576,6 +576,9 @@ function HomeScreen({ navigation, route }) {
   const { user, logout, token, isAuthenticated } = useAuth();
   const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
   
+  // API Base URL for analysis endpoints
+  const API_BASE_URL = ENV.API_HOST;
+  
   // Track screen width for responsive layout (especially for mobile web)
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
   
