@@ -14,11 +14,14 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { authGet, reportNetworkError } from '../utils/apiHelper';
 import WebPullToRefresh from '../components/WebPullToRefresh';
+
+const isAndroid = Platform.OS === 'android';
 
 export default function CreateGroupScreen() {
   const navigation = useNavigation();
@@ -702,6 +705,59 @@ export default function CreateGroupScreen() {
             </View>
   );
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          <View style={androidStyles.header}>
+            <TouchableOpacity onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </TouchableOpacity>
+            <Text style={androidStyles.headerTitle}>Create New Group</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
+              <Ionicons name="add-circle-outline" size={40} color="#FFFFFF" />
+            </View>
+          </View>
+
+          <View style={androidStyles.whiteContentArea}>
+            {isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                style={androidStyles.content}
+                contentContainerStyle={androidStyles.cardScrollContent}
+                scrollViewProps={{
+                  showsVerticalScrollIndicator: true,
+                }}
+              >
+                {cardContent}
+              </WebPullToRefresh>
+            ) : (
+              <ScrollView 
+                style={androidStyles.content}
+                contentContainerStyle={androidStyles.cardScrollContent}
+                showsVerticalScrollIndicator={true}
+              >
+                {cardContent}
+              </ScrollView>
+            )}
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  // Web/iOS layout (original unchanged)
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -1152,5 +1208,67 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+});
+
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerRight: {
+    width: 44,
+  },
+  decorativeIconContainer: {
+    alignItems: 'center',
+    marginTop: -10,
+    marginBottom: 10,
+  },
+  decorativeIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteContentArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+  },
+  cardScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
 });

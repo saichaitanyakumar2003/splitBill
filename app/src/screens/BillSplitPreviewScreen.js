@@ -21,6 +21,7 @@ import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 80;
+const isAndroid = Platform.OS === 'android';
 
 export default function BillSplitPreviewScreen() {
   const navigation = useNavigation();
@@ -563,6 +564,62 @@ export default function BillSplitPreviewScreen() {
     </>
   );
   
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Header */}
+          <View style={androidStyles.header}>
+            <Pressable onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </Pressable>
+            <Text style={androidStyles.headerTitle}>Split Preview</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+          
+          {/* Decorative Icon */}
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
+              <Ionicons name="git-network-outline" size={40} color="#FFF" />
+            </View>
+          </View>
+          
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.whiteContentArea}>
+            {isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                contentContainerStyle={androidStyles.mainScrollContent}
+                scrollViewProps={{
+                  style: androidStyles.mainScroll,
+                  showsVerticalScrollIndicator: false,
+                }}
+              >
+                {mainContent}
+              </WebPullToRefresh>
+            ) : (
+              <ScrollView 
+                style={androidStyles.mainScroll}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={androidStyles.mainScrollContent}
+              >
+                {mainContent}
+              </ScrollView>
+            )}
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+  
+  // Web/iOS - Original design unchanged
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -1021,6 +1078,68 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+});
+
+// Android-specific styles
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'android' ? 50 : 65,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  headerRight: {
+    width: 44,
+  },
+  decorativeIconContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  decorativeIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteContentArea: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+  },
+  mainScroll: {
+    flex: 1,
+  },
+  mainScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
 });
 

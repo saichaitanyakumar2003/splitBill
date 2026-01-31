@@ -21,32 +21,36 @@ import WebPullToRefresh from '../components/WebPullToRefresh';
 // Check if mobile web
 const isMobileWeb = () => Platform.OS === 'web' && Dimensions.get('window').width < 768;
 
+// Platform check for Android
+const isAndroid = Platform.OS === 'android';
+
 // Collapsible Group Component
-function CollapsibleGroup({ group, onNotify, notifyingUser }) {
+function CollapsibleGroup({ group, onNotify, notifyingUser, platformStyles }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const groupTotal = (group.awaitingEdges || []).reduce((sum, edge) => sum + (edge.amount || 0), 0);
+  const currentStyles = platformStyles || styles;
   
   return (
-    <View style={styles.groupSection}>
+    <View style={currentStyles.groupSection}>
       {/* Group Header - Clickable to expand/collapse */}
       <TouchableOpacity 
-        style={styles.groupHeader}
+        style={currentStyles.groupHeader}
         onPress={() => setIsExpanded(!isExpanded)}
         activeOpacity={0.7}
       >
-        <View style={styles.groupIcon}>
-          <Text style={styles.groupIconText}>
+        <View style={currentStyles.groupIcon}>
+          <Text style={currentStyles.groupIconText}>
             {group.groupName.substring(0, 2).toUpperCase()}
           </Text>
         </View>
-        <View style={styles.groupInfo}>
-          <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
-          <Text style={styles.groupStatus}>
+        <View style={currentStyles.groupInfo}>
+          <Text style={currentStyles.groupName} numberOfLines={1}>{group.groupName}</Text>
+          <Text style={currentStyles.groupStatus}>
             {group.awaitingEdges?.length || 0} awaiting • ₹{groupTotal.toFixed(2)}
           </Text>
         </View>
-        <View style={styles.expandButton}>
+        <View style={currentStyles.expandButton}>
           <Ionicons 
             name={isExpanded ? "chevron-up" : "chevron-down"} 
             size={20} 
@@ -57,26 +61,26 @@ function CollapsibleGroup({ group, onNotify, notifyingUser }) {
 
       {/* Awaiting Edges - Only shown when expanded */}
       {isExpanded && (
-        <View style={styles.expandedContent}>
+        <View style={currentStyles.expandedContent}>
           {group.awaitingEdges?.map((edge, index) => {
             const isNotifying = notifyingUser === `${group.groupId}-${edge.from}`;
             return (
-              <View key={`awaiting-${index}`} style={styles.expenseRow}>
-                <View style={styles.expenseLeft}>
-                  <View style={styles.avatarFrom}>
-                    <Text style={styles.avatarText}>
+              <View key={`awaiting-${index}`} style={currentStyles.expenseRow}>
+                <View style={currentStyles.expenseLeft}>
+                  <View style={currentStyles.avatarFrom}>
+                    <Text style={currentStyles.avatarText}>
                       {(edge.fromName || 'U').charAt(0).toUpperCase()}
                     </Text>
                   </View>
-                  <View style={styles.expenseInfo}>
-                    <Text style={styles.expenseText} numberOfLines={1}>
-                      <Text style={styles.expenseName}>{edge.fromName}</Text>
+                  <View style={currentStyles.expenseInfo}>
+                    <Text style={currentStyles.expenseText} numberOfLines={1}>
+                      <Text style={currentStyles.expenseName}>{edge.fromName}</Text>
                     </Text>
-                    <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                    <Text style={currentStyles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={[styles.notifyButton, isNotifying && styles.notifyButtonDisabled]}
+                  style={[currentStyles.notifyButton, isNotifying && currentStyles.notifyButtonDisabled]}
                   onPress={() => onNotify(group.groupId, group.groupName, edge.from, edge.fromName, edge.amount)}
                   disabled={isNotifying}
                   activeOpacity={0.7}
@@ -86,7 +90,7 @@ function CollapsibleGroup({ group, onNotify, notifyingUser }) {
                   ) : (
                     <>
                       <Ionicons name="notifications-outline" size={14} color="#FF6B35" />
-                      <Text style={styles.notifyButtonText}>Remind</Text>
+                      <Text style={currentStyles.notifyButtonText}>Remind</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -196,6 +200,108 @@ export default function AwaitingScreen({ route }) {
     0
   );
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Orange Gradient Header */}
+          <View style={androidStyles.header}>
+            <TouchableOpacity onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </TouchableOpacity>
+            <Text style={androidStyles.headerTitle}>Awaiting</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+
+          {/* Decorative Icon in White Circle */}
+          <View style={androidStyles.iconContainer}>
+            <View style={androidStyles.iconCircle}>
+              <Ionicons name="time-outline" size={40} color="#E85A24" />
+            </View>
+          </View>
+
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.content}>
+            <View style={androidStyles.card}>
+              {/* Card Header with Refresh - Always visible */}
+              <View style={androidStyles.cardHeader}>
+                <Text style={androidStyles.cardTitle}>Awaiting Payments</Text>
+                <TouchableOpacity 
+                  onPress={handleRefresh} 
+                  style={androidStyles.cardRefreshButton}
+                  disabled={refreshing || loading}
+                >
+                  {refreshing ? (
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  ) : (
+                    <Ionicons name="refresh" size={20} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {loading ? (
+                <View style={androidStyles.loadingState}>
+                  <ActivityIndicator size="large" color="#FF6B35" />
+                  <Text style={androidStyles.loadingText}>Loading awaiting payments...</Text>
+                </View>
+              ) : awaitingPayments.length === 0 ? (
+                <View style={androidStyles.emptyState}>
+                  <Text style={androidStyles.emptyIcon}>💰</Text>
+                  <Text style={androidStyles.emptyTitle}>No Pending Receivables</Text>
+                  <Text style={androidStyles.emptySubtext}>
+                    No one owes you money right now. All payments have been settled.
+                  </Text>
+                </View>
+              ) : (
+                <View style={androidStyles.cardContent}>
+                  {/* Summary Header */}
+                  <View style={androidStyles.summaryHeader}>
+                    <View style={androidStyles.summaryLeft}>
+                      <Text style={androidStyles.summaryTitle}>You'll Receive</Text>
+                      <Text style={androidStyles.summaryAmount}>₹{totalAmount.toFixed(2)}</Text>
+                    </View>
+                    <View style={androidStyles.summaryBadge}>
+                      <Text style={androidStyles.summaryBadgeText}>
+                        {totalAwaiting} payment{totalAwaiting !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Scrollable Awaiting List */}
+                  <ScrollView 
+                    style={androidStyles.scrollView}
+                    contentContainerStyle={androidStyles.scrollViewContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {awaitingPayments.map((group) => (
+                      <CollapsibleGroup
+                        key={group.groupId}
+                        group={group}
+                        onNotify={handleNotify}
+                        notifyingUser={notifyingUser}
+                        platformStyles={androidStyles}
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  // Web/iOS - Original layout unchanged
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -283,6 +389,7 @@ export default function AwaitingScreen({ route }) {
                         group={group}
                         onNotify={handleNotify}
                         notifyingUser={notifyingUser}
+                        platformStyles={styles}
                       />
                     ))}
                   </WebPullToRefresh>
@@ -301,6 +408,7 @@ export default function AwaitingScreen({ route }) {
                         group={group}
                         onNotify={handleNotify}
                         notifyingUser={notifyingUser}
+                        platformStyles={styles}
                       />
                     ))}
                   </ScrollView>
@@ -583,7 +691,281 @@ const styles = StyleSheet.create({
     gap: 4,
     minWidth: 85,
     justifyContent: 'center',
-    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  notifyButtonDisabled: {
+    opacity: 0.7,
+  },
+  notifyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF6B35',
+  },
+});
+
+// Android-specific styles
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  headerRight: {
+    width: 44,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginTop: -20,
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+    padding: 20,
+    paddingBottom: 20,
+  },
+  card: {
+    flex: 1,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  summaryLeft: {
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  cardRefreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#888',
+  },
+  summaryAmount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#28A745',
+    marginTop: 2,
+  },
+  summaryBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  summaryBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#28A745',
+  },
+  scrollView: {
+    flex: 1,
+    marginTop: 8,
+  },
+  scrollViewContent: {
+    paddingBottom: 20,
+  },
+  groupSection: {
+    marginTop: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    paddingBottom: 4,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  groupIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  groupIconText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  groupStatus: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  expandButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+  },
+  expenseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFEFEF',
+  },
+  expenseLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarFrom: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  expenseInfo: {
+    flex: 1,
+  },
+  expenseText: {
+    fontSize: 15,
+    color: '#333',
+  },
+  expenseName: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  expenseAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#28A745',
+    marginTop: 2,
+  },
+  notifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#FF6B35',
+    gap: 4,
+    minWidth: 85,
+    justifyContent: 'center',
   },
   notifyButtonDisabled: {
     opacity: 0.7,

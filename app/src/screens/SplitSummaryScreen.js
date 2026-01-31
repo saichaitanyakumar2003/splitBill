@@ -15,9 +15,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
+import { Ionicons } from '@expo/vector-icons';
 import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const ANIMATION_DURATION = 4000; // Animation stops after 4 seconds
+const isAndroid = Platform.OS === 'android';
 
 // Party Balloon Component
 function PartyBalloon({ left, delay, color, isAnimating }) {
@@ -537,6 +539,62 @@ export default function SplitSummaryScreen() {
     </>
   );
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.headerGradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={androidStyles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#E85A24" />
+          </TouchableOpacity>
+
+          {/* Header Title */}
+          <Text style={androidStyles.headerTitle}>Summary</Text>
+
+          {/* Decorative Icon */}
+          <View style={androidStyles.decorativeIconContainer}>
+            <Ionicons name="checkmark-done-outline" size={40} color="#FFFFFF" />
+          </View>
+        </LinearGradient>
+
+        {/* White Content Area with Curved Top */}
+        <View style={androidStyles.whiteContentArea}>
+          {isMobileWeb ? (
+            <WebPullToRefresh
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+              contentContainerStyle={androidStyles.scrollContent}
+              scrollViewProps={{
+                style: androidStyles.scrollView,
+                showsVerticalScrollIndicator: false,
+              }}
+            >
+              {scrollContent}
+            </WebPullToRefresh>
+          ) : (
+            <ScrollView 
+              style={androidStyles.scrollView}
+              contentContainerStyle={androidStyles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {scrollContent}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // Web/iOS - Original design unchanged
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -887,6 +945,62 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#FF6B35',
+  },
+});
+
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  headerGradient: {
+    paddingTop: Platform.OS === 'android' ? 50 : 0,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    position: 'relative',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  decorativeIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 10,
+  },
+  whiteContentArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    alignItems: 'center',
   },
 });
 

@@ -21,6 +21,7 @@ import { authGet } from '../utils/apiHelper';
 import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const isAndroid = Platform.OS === 'android';
 
 export default function HistoryScreen({ route }) {
   const navigation = useNavigation();
@@ -229,6 +230,475 @@ export default function HistoryScreen({ route }) {
     }
   };
 
+  // Render content area (card with history list) - reusable for both platforms
+  const renderContent = (contentStyle, cardStyle) => (
+    <View style={contentStyle}>
+      <View style={cardStyle}>
+        {/* Card Header with Refresh - Always visible */}
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Groups History</Text>
+          <TouchableOpacity 
+            onPress={handleRefresh} 
+            style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
+            disabled={refreshing || loading}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color="#FF6B35" />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={20} color="#FF6B35" />
+                {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="#FF6B35" />
+            <Text style={styles.loadingText}>Loading history...</Text>
+          </View>
+        ) : historyRecords.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📜</Text>
+            <Text style={styles.emptyTitle}>No History Yet</Text>
+            <Text style={styles.emptySubtext}>
+              Your groups and their history will appear here
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Summary Info */}
+            <View style={styles.summaryInfo}>
+              <Text style={styles.summaryCount}>
+                {historyRecords.length} group{historyRecords.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+
+            {/* Scrollable History List */}
+            {isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                style={styles.groupsList}
+                contentContainerStyle={styles.groupsListContent}
+                scrollViewProps={{
+                  showsVerticalScrollIndicator: true,
+                }}
+              >
+                {historyRecords.map((record) => {
+                  const isDeleted = record.groupStatus === 'deleted';
+                  const ItemWrapper = isDeleted ? View : TouchableOpacity;
+                  const itemWrapperProps = isDeleted 
+                    ? { style: styles.historyItemLeft }
+                    : { 
+                        style: styles.historyItemLeft,
+                        onPress: () => handleGroupPress(record),
+                        activeOpacity: 0.7
+                      };
+                  
+                  return (
+                  <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
+                    <ItemWrapper {...itemWrapperProps}>
+                      <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
+                        <Text style={styles.groupIconText}>
+                          {record.groupName.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <View style={styles.groupNameRow}>
+                          <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
+                          {record.groupStatus && (
+                            <View style={[
+                              styles.statusBadge,
+                              record.groupStatus === 'active' && styles.statusBadgeActive,
+                              record.groupStatus === 'completed' && styles.statusBadgeCompleted,
+                              record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
+                            ]}>
+                              <Text style={[
+                                styles.statusBadgeText,
+                                record.groupStatus === 'active' && styles.statusBadgeTextActive,
+                                record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
+                                record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
+                              ]}>
+                                {record.groupStatus === 'active' ? 'Active' : 
+                                 record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.settledCount}>
+                          {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
+                        </Text>
+                        {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
+                          <Text style={styles.groupTimestamp}>
+                            {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
+                          </Text>
+                        )}
+                      </View>
+                    </ItemWrapper>
+                    
+                    {/* Three-dot menu */}
+                    <TouchableOpacity 
+                      style={styles.menuButton}
+                      onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  );
+                })}
+              </WebPullToRefresh>
+            ) : (
+              <ScrollView 
+                style={styles.groupsList}
+                contentContainerStyle={styles.groupsListContent}
+                showsVerticalScrollIndicator={true}
+              >
+                {historyRecords.map((record) => {
+                  const isDeleted = record.groupStatus === 'deleted';
+                  const ItemWrapper = isDeleted ? View : TouchableOpacity;
+                  const itemWrapperProps = isDeleted 
+                    ? { style: styles.historyItemLeft }
+                    : { 
+                        style: styles.historyItemLeft,
+                        onPress: () => handleGroupPress(record),
+                        activeOpacity: 0.7
+                      };
+                  
+                  return (
+                  <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
+                    <ItemWrapper {...itemWrapperProps}>
+                      <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
+                        <Text style={styles.groupIconText}>
+                          {record.groupName.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <View style={styles.groupNameRow}>
+                          <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
+                          {record.groupStatus && (
+                            <View style={[
+                              styles.statusBadge,
+                              record.groupStatus === 'active' && styles.statusBadgeActive,
+                              record.groupStatus === 'completed' && styles.statusBadgeCompleted,
+                              record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
+                            ]}>
+                              <Text style={[
+                                styles.statusBadgeText,
+                                record.groupStatus === 'active' && styles.statusBadgeTextActive,
+                                record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
+                                record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
+                              ]}>
+                                {record.groupStatus === 'active' ? 'Active' : 
+                                 record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.settledCount}>
+                          {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
+                        </Text>
+                        {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
+                          <Text style={styles.groupTimestamp}>
+                            {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
+                          </Text>
+                        )}
+                      </View>
+                    </ItemWrapper>
+                    
+                    {/* Three-dot menu */}
+                    <TouchableOpacity 
+                      style={styles.menuButton}
+                      onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </>
+        )}
+      </View>
+    </View>
+  );
+
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Header */}
+          <View style={androidStyles.header}>
+            <TouchableOpacity onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </TouchableOpacity>
+            <Text style={androidStyles.headerTitle}>History</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+
+          {/* Decorative Icon */}
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
+              <Ionicons name="document-text-outline" size={40} color="#FFFFFF" />
+            </View>
+          </View>
+
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.whiteContentArea}>
+            {renderContent(androidStyles.content, androidStyles.card)}
+          </View>
+        </LinearGradient>
+
+        {/* Dropdown Menu Modal */}
+        <Modal
+          visible={menuVisible !== null}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setMenuVisible(null)}
+        >
+          <Pressable 
+            style={styles.menuOverlay} 
+            onPress={() => setMenuVisible(null)} 
+          >
+            <View style={styles.dropdownMenuContainer}>
+              <View style={styles.dropdownMenu}>
+                {/* Group Name Header with Close Button */}
+                {menuVisible && (
+                  <View style={styles.dropdownHeader}>
+                    <Text style={styles.dropdownHeaderText} numberOfLines={1}>
+                      {historyRecords.find(r => r.id === menuVisible)?.groupName || 'Group'}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.dropdownCloseButton}
+                      onPress={() => setMenuVisible(null)}
+                    >
+                      <Ionicons name="close" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    const record = historyRecords.find(r => r.id === menuVisible);
+                    if (record) openPaymentModal(record);
+                  }}
+                >
+                  <View style={[styles.dropdownItemIcon, { backgroundColor: '#E8F5E9' }]}>
+                    <Ionicons name="wallet-outline" size={18} color="#28A745" />
+                  </View>
+                  <Text style={styles.dropdownItemText}>View Payment History</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    const record = historyRecords.find(r => r.id === menuVisible);
+                    if (record) openEditHistoryModal(record);
+                  }}
+                >
+                  <View style={[styles.dropdownItemIcon, { backgroundColor: '#FFF5F0' }]}>
+                    <Ionicons name="time-outline" size={18} color="#FF6B35" />
+                  </View>
+                  <Text style={styles.dropdownItemText}>View Edit History</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Payment History Modal */}
+        <Modal
+          visible={paymentModalVisible}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closePaymentModal}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={closePaymentModal} />
+            <Animated.View 
+              style={[
+                styles.modalContent,
+                { transform: [{ translateY: paymentSlideAnim }] }
+              ]}
+            >
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.modalTitle}>
+                  Payment History
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {selectedRecord?.groupName}
+                </Text>
+                <TouchableOpacity onPress={closePaymentModal} style={styles.modalCloseButton}>
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Modal Stats */}
+              {selectedRecord && (
+                <View style={styles.modalStats}>
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatValue}>
+                      {selectedRecord.settledEdges?.length || 0}
+                    </Text>
+                    <Text style={styles.modalStatLabel}>Settlements</Text>
+                  </View>
+                  <View style={styles.modalStatDivider} />
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatValue}>
+                      ₹{getTotalSettled(selectedRecord.settledEdges).toFixed(2)}
+                    </Text>
+                    <Text style={styles.modalStatLabel}>Total Amount</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Settlements List */}
+              <ScrollView 
+                style={styles.modalScrollView}
+                showsVerticalScrollIndicator={true}
+              >
+                {selectedRecord?.settledEdges?.map((edge, index) => (
+                  <View key={index} style={styles.settlementItem}>
+                    <View style={styles.settlementLeft}>
+                      <View style={styles.settlementAvatars}>
+                        <View style={styles.avatarFrom}>
+                          <Text style={styles.avatarText}>
+                            {(edge.fromName || edge.from || '?').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.avatarArrow}>
+                          <Text style={styles.avatarArrowText}>→</Text>
+                        </View>
+                        <View style={styles.avatarTo}>
+                          <Text style={styles.avatarText}>
+                            {(edge.toName || edge.to || '?').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.settlementNames}>
+                        <Text style={styles.settlementFromName} numberOfLines={1}>
+                          {edge.fromName || edge.from?.split('@')[0] || 'Unknown'}
+                        </Text>
+                        <Text style={styles.settlementToText}> paid </Text>
+                        <Text style={styles.settlementToName} numberOfLines={1}>
+                          {edge.toName || edge.to?.split('@')[0] || 'Unknown'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.settlementRight}>
+                      <Text style={styles.settlementAmount}>₹{edge.amount?.toFixed(2)}</Text>
+                      {edge.settledAt && (
+                        <Text style={styles.settlementDate}>{formatDate(edge.settledAt)}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+                
+                {(!selectedRecord?.settledEdges || selectedRecord.settledEdges.length === 0) && (
+                  <View style={styles.noSettlements}>
+                    <Text style={styles.noSettlementsIcon}>💰</Text>
+                    <Text style={styles.noSettlementsText}>No payments yet</Text>
+                    <Text style={styles.noSettlementsSubtext}>Completed payments will appear here</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Edit History Modal */}
+        <Modal
+          visible={editHistoryModalVisible}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closeEditHistoryModal}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={closeEditHistoryModal} />
+            <Animated.View 
+              style={[
+                styles.modalContent,
+                { transform: [{ translateY: editSlideAnim }] }
+              ]}
+            >
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.modalTitle}>
+                  Edit History
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {selectedRecord?.groupName}
+                </Text>
+                <TouchableOpacity onPress={closeEditHistoryModal} style={styles.modalCloseButton}>
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Edit History List */}
+              <ScrollView 
+                style={styles.modalScrollView}
+                showsVerticalScrollIndicator={true}
+              >
+                {loadingEditHistory ? (
+                  <View style={styles.loadingHistoryState}>
+                    <ActivityIndicator size="large" color="#FF6B35" />
+                    <Text style={styles.loadingText}>Loading history...</Text>
+                  </View>
+                ) : editHistory.length > 0 ? (
+                  editHistory.map((item, index) => {
+                    const actionStyle = getActionStyle(item.action);
+                    return (
+                      <View key={item._id || index} style={styles.editHistoryItem}>
+                        <View style={[styles.editHistoryIcon, { backgroundColor: actionStyle.bgColor }]}>
+                          <Ionicons name={actionStyle.icon} size={18} color={actionStyle.color} />
+                        </View>
+                        <View style={styles.editHistoryContent}>
+                          <View style={styles.editHistoryHeader}>
+                            <Text style={[styles.editHistoryAction, { color: actionStyle.color }]}>
+                              {getActionLabel(item.action)}
+                            </Text>
+                            <Text style={styles.editHistoryTime}>
+                              {formatDate(item.createdAt)}
+                            </Text>
+                          </View>
+                          <Text style={styles.editHistoryDescription} numberOfLines={2}>
+                            {item.details?.changes || item.details?.expenseName || 'No details'}
+                          </Text>
+                          <Text style={styles.editHistoryUser}>
+                            by {item.actionByName || item.actionBy?.split('@')[0] || 'Unknown'}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.noSettlements}>
+                    <Text style={styles.noSettlementsIcon}>📋</Text>
+                    <Text style={styles.noSettlementsText}>No edit history</Text>
+                    <Text style={styles.noSettlementsSubtext}>Actions will be recorded here</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </Animated.View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
+  // Web/iOS layout - original unchanged
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -248,199 +718,7 @@ export default function HistoryScreen({ route }) {
         </View>
 
         {/* Content */}
-        <View style={styles.content}>
-          <View style={styles.card}>
-            {/* Card Header with Refresh - Always visible */}
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Groups History</Text>
-              <TouchableOpacity 
-                onPress={handleRefresh} 
-                style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
-                disabled={refreshing || loading}
-              >
-                {refreshing ? (
-                  <ActivityIndicator size="small" color="#FF6B35" />
-                ) : (
-                  <>
-                    <Ionicons name="refresh" size={20} color="#FF6B35" />
-                    {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {loading ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator size="large" color="#FF6B35" />
-                <Text style={styles.loadingText}>Loading history...</Text>
-              </View>
-            ) : historyRecords.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>📜</Text>
-                <Text style={styles.emptyTitle}>No History Yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Your groups and their history will appear here
-                </Text>
-              </View>
-            ) : (
-              <>
-                {/* Summary Info */}
-                <View style={styles.summaryInfo}>
-                  <Text style={styles.summaryCount}>
-                    {historyRecords.length} group{historyRecords.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-
-                {/* Scrollable History List */}
-                {isMobileWeb ? (
-                  <WebPullToRefresh
-                    onRefresh={handleRefresh}
-                    refreshing={refreshing}
-                    style={styles.groupsList}
-                    contentContainerStyle={styles.groupsListContent}
-                    scrollViewProps={{
-                      showsVerticalScrollIndicator: true,
-                    }}
-                  >
-                    {historyRecords.map((record) => {
-                      const isDeleted = record.groupStatus === 'deleted';
-                      const ItemWrapper = isDeleted ? View : TouchableOpacity;
-                      const itemWrapperProps = isDeleted 
-                        ? { style: styles.historyItemLeft }
-                        : { 
-                            style: styles.historyItemLeft,
-                            onPress: () => handleGroupPress(record),
-                            activeOpacity: 0.7
-                          };
-                      
-                      return (
-                      <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
-                        <ItemWrapper {...itemWrapperProps}>
-                          <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
-                            <Text style={styles.groupIconText}>
-                              {record.groupName.substring(0, 2).toUpperCase()}
-                            </Text>
-                          </View>
-                          <View style={styles.groupInfo}>
-                            <View style={styles.groupNameRow}>
-                              <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
-                              {record.groupStatus && (
-                                <View style={[
-                                  styles.statusBadge,
-                                  record.groupStatus === 'active' && styles.statusBadgeActive,
-                                  record.groupStatus === 'completed' && styles.statusBadgeCompleted,
-                                  record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
-                                ]}>
-                                  <Text style={[
-                                    styles.statusBadgeText,
-                                    record.groupStatus === 'active' && styles.statusBadgeTextActive,
-                                    record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
-                                    record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
-                                  ]}>
-                                    {record.groupStatus === 'active' ? 'Active' : 
-                                     record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={styles.settledCount}>
-                              {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
-                            </Text>
-                            {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
-                              <Text style={styles.groupTimestamp}>
-                                {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
-                              </Text>
-                            )}
-                          </View>
-                        </ItemWrapper>
-                        
-                        {/* Three-dot menu */}
-                        <TouchableOpacity 
-                          style={styles.menuButton}
-                          onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="ellipsis-vertical" size={20} color="#888" />
-                        </TouchableOpacity>
-                      </View>
-                      );
-                    })}
-                  </WebPullToRefresh>
-                ) : (
-                  <ScrollView 
-                    style={styles.groupsList}
-                    contentContainerStyle={styles.groupsListContent}
-                    showsVerticalScrollIndicator={true}
-                  >
-                    {historyRecords.map((record) => {
-                      const isDeleted = record.groupStatus === 'deleted';
-                      const ItemWrapper = isDeleted ? View : TouchableOpacity;
-                      const itemWrapperProps = isDeleted 
-                        ? { style: styles.historyItemLeft }
-                        : { 
-                            style: styles.historyItemLeft,
-                            onPress: () => handleGroupPress(record),
-                            activeOpacity: 0.7
-                          };
-                      
-                      return (
-                      <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
-                        <ItemWrapper {...itemWrapperProps}>
-                          <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
-                            <Text style={styles.groupIconText}>
-                              {record.groupName.substring(0, 2).toUpperCase()}
-                            </Text>
-                          </View>
-                          <View style={styles.groupInfo}>
-                            <View style={styles.groupNameRow}>
-                              <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
-                              {record.groupStatus && (
-                                <View style={[
-                                  styles.statusBadge,
-                                  record.groupStatus === 'active' && styles.statusBadgeActive,
-                                  record.groupStatus === 'completed' && styles.statusBadgeCompleted,
-                                  record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
-                                ]}>
-                                  <Text style={[
-                                    styles.statusBadgeText,
-                                    record.groupStatus === 'active' && styles.statusBadgeTextActive,
-                                    record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
-                                    record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
-                                  ]}>
-                                    {record.groupStatus === 'active' ? 'Active' : 
-                                     record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={styles.settledCount}>
-                              {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
-                            </Text>
-                            {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
-                              <Text style={styles.groupTimestamp}>
-                                {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
-                              </Text>
-                            )}
-                          </View>
-                        </ItemWrapper>
-                        
-                        {/* Three-dot menu */}
-                        <TouchableOpacity 
-                          style={styles.menuButton}
-                          onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="ellipsis-vertical" size={20} color="#888" />
-                        </TouchableOpacity>
-                      </View>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-              </>
-            )}
-          </View>
-        </View>
+        {renderContent(styles.content, styles.card)}
       </LinearGradient>
 
       {/* Dropdown Menu Modal */}
@@ -1213,5 +1491,82 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     fontStyle: 'italic',
+  },
+});
+
+// Android-specific styles
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerRight: {
+    width: 44,
+  },
+  decorativeIconContainer: {
+    alignItems: 'center',
+    marginTop: -10,
+    marginBottom: 10,
+  },
+  decorativeIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  whiteContentArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    paddingBottom: 20,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 0,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+    minHeight: 300,
   },
 });

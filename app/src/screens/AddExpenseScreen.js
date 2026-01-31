@@ -16,9 +16,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { authGet } from '../utils/apiHelper';
 import WebPullToRefresh from '../components/WebPullToRefresh';
+
+const isAndroid = Platform.OS === 'android';
 
 export default function AddExpenseScreen() {
   const navigation = useNavigation();
@@ -381,6 +384,399 @@ export default function AddExpenseScreen() {
     return null;
   }
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Header */}
+          <View style={androidStyles.header}>
+            <Pressable onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </Pressable>
+            <Text style={androidStyles.headerTitle}>Add Expense</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+
+          {/* Decorative Icon */}
+          <View style={androidStyles.iconContainer}>
+            <View style={androidStyles.iconCircle}>
+              <Ionicons name="receipt-outline" size={40} color="#FFFFFF" />
+            </View>
+          </View>
+
+          {/* White Content Area */}
+          <View style={androidStyles.whiteContentArea}>
+            <KeyboardAvoidingView 
+              behavior="height"
+              style={androidStyles.content}
+            >
+              <ScrollView 
+                style={androidStyles.cardScrollView}
+                contentContainerStyle={androidStyles.cardScrollContent}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+              >
+                <View style={androidStyles.card}>
+                  {/* Group Name - Fixed/Read-only */}
+                  <View style={androidStyles.inputGroup}>
+                    <Text style={androidStyles.label}>Group Name</Text>
+                    <View style={androidStyles.fixedGroupContainer}>
+                      <View style={androidStyles.fixedGroupIcon}>
+                        <Text style={androidStyles.fixedGroupIconText}>
+                          {selectedGroup.name.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={androidStyles.fixedGroupName} numberOfLines={1}>{selectedGroup.name}</Text>
+                      <Text style={androidStyles.fixedGroupBadge}>Selected</Text>
+                    </View>
+                  </View>
+
+                  {/* Expense Title */}
+                  <View style={androidStyles.inputGroup}>
+                    <Text style={androidStyles.label}>Expense Title</Text>
+                    <TextInput
+                      style={[androidStyles.input, validationErrors.expenseTitle && androidStyles.inputError]}
+                      placeholder="e.g., Food & Drinks"
+                      placeholderTextColor="#999"
+                      value={expenseTitle}
+                      onChangeText={handleExpenseTitleChange}
+                    />
+                  </View>
+
+                  {/* Paid By */}
+                  <View style={androidStyles.inputGroup}>
+                    <Text style={androidStyles.label}>Paid By</Text>
+                    <TouchableOpacity 
+                      style={[
+                        androidStyles.payerDropdownTrigger, 
+                        isPayerDropdownOpen && androidStyles.payerDropdownTriggerOpen,
+                        validationErrors.paidBy && androidStyles.dropdownError
+                      ]}
+                      onPress={togglePayerDropdown}
+                      activeOpacity={0.8}
+                    >
+                      {paidBy ? (
+                        <View style={androidStyles.payerChipContainer}>
+                          <View style={androidStyles.payerChip}>
+                            <Text style={androidStyles.payerChipText} numberOfLines={1}>
+                              {paidBy.mailId === user?.mailId ? `${paidBy.name} (You)` : paidBy.name}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={androidStyles.payerPlaceholder}>Select who paid</Text>
+                      )}
+                      <Text style={[androidStyles.dropdownArrow, isPayerDropdownOpen && androidStyles.dropdownArrowUp]}>
+                        {isPayerDropdownOpen ? '▲' : '▼'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {isPayerDropdownOpen && (
+                      <View style={androidStyles.payerDropdownContent}>
+                        <View style={androidStyles.dropdownSearchBar}>
+                          <Text style={androidStyles.searchIcon}>🔍</Text>
+                          <TextInput
+                            style={androidStyles.dropdownSearchInput}
+                            placeholder="Search by name or email"
+                            placeholderTextColor="#999"
+                            value={payerSearchQuery}
+                            onChangeText={setPayerSearchQuery}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                          />
+                          {isPayerSearching && <ActivityIndicator size="small" color="#E85A24" />}
+                        </View>
+
+                        <ScrollView 
+                          style={androidStyles.payerDropdownScroll}
+                          showsVerticalScrollIndicator={true}
+                          nestedScrollEnabled={true}
+                          keyboardShouldPersistTaps="handled"
+                        >
+                          {/* Current User */}
+                          {paidBy?.mailId !== user?.mailId && (
+                            <View style={androidStyles.listSection}>
+                              <Text style={androidStyles.listSectionTitle}>You</Text>
+                              <TouchableOpacity
+                                style={androidStyles.listItem}
+                                onPress={() => selectPayer({ mailId: user?.mailId, name: user?.name || 'You' })}
+                              >
+                                <View style={androidStyles.userInfo}>
+                                  <Text style={androidStyles.userName} numberOfLines={1}>{user?.name || 'You'}</Text>
+                                  <Text style={androidStyles.userEmail}>{user?.mailId}</Text>
+                                </View>
+                                <Text style={androidStyles.selectIcon}>○</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+
+                          {/* Group Members */}
+                          {groupMembers.length > 0 && payerSearchQuery.length < 2 && (
+                            <View style={androidStyles.listSection}>
+                              <Text style={androidStyles.listSectionTitle}>Group Members</Text>
+                              {groupMembers
+                                .filter(m => m.mailId !== paidBy?.mailId && m.mailId !== user?.mailId)
+                                .map(member => (
+                                  <TouchableOpacity
+                                    key={member.mailId}
+                                    style={androidStyles.listItem}
+                                    onPress={() => selectPayer(member)}
+                                  >
+                                    <View style={androidStyles.userInfo}>
+                                      <Text style={androidStyles.userName} numberOfLines={1}>{member.name}</Text>
+                                      <Text style={androidStyles.userEmail}>{member.mailId}</Text>
+                                    </View>
+                                    <Text style={androidStyles.selectIcon}>○</Text>
+                                  </TouchableOpacity>
+                                ))}
+                            </View>
+                          )}
+
+                          {/* API Search Results */}
+                          {payerSearchResults.length > 0 && (
+                            <View style={androidStyles.listSection}>
+                              <Text style={androidStyles.listSectionTitle}>Search Results</Text>
+                              {payerSearchResults.map(result => (
+                                <TouchableOpacity
+                                  key={result.mailId}
+                                  style={androidStyles.listItem}
+                                  onPress={() => selectPayer(result)}
+                                >
+                                  <View style={androidStyles.userInfo}>
+                                    <Text style={androidStyles.userName} numberOfLines={1}>{result.name}</Text>
+                                    <Text style={androidStyles.userEmail}>{result.mailId}</Text>
+                                  </View>
+                                  <Text style={androidStyles.selectIcon}>○</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+
+                          {payerSearchQuery.length >= 2 && payerSearchResults.length === 0 && !isPayerSearching && (
+                            <Text style={androidStyles.emptyText}>No users found</Text>
+                          )}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Amount */}
+                  <View style={androidStyles.inputGroup}>
+                    <Text style={androidStyles.label}>
+                      Amount Paid
+                      {isFromBillScan && <Text style={androidStyles.labelHint}> (from scanned bill)</Text>}
+                    </Text>
+                    <View style={[
+                      androidStyles.amountInputContainer, 
+                      validationErrors.amount && androidStyles.inputError,
+                      isFromBillScan && androidStyles.amountInputLocked
+                    ]}>
+                      <Text style={androidStyles.currencySymbol}>₹</Text>
+                      <TextInput
+                        style={[androidStyles.amountInput, isFromBillScan && androidStyles.amountInputDisabled]}
+                        placeholder="0.00"
+                        placeholderTextColor="#999"
+                        value={amount}
+                        onChangeText={handleAmountChange}
+                        keyboardType="decimal-pad"
+                        editable={!isFromBillScan}
+                      />
+                      {isFromBillScan && (
+                        <Text style={androidStyles.lockedIcon}>🔒</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Split With */}
+                  <View style={androidStyles.splitWithSection}>
+                    <Text style={androidStyles.label}>
+                      Split With ({selectedMembers.length} selected)
+                    </Text>
+                    
+                    <TouchableOpacity 
+                      style={[
+                        androidStyles.dropdownTrigger, 
+                        isDropdownOpen && androidStyles.dropdownTriggerOpen,
+                        validationErrors.selectedMembers && androidStyles.dropdownError
+                      ]}
+                      onPress={toggleDropdown}
+                      activeOpacity={0.8}
+                    >
+                      {selectedMembers.length === 0 ? (
+                        <Text style={androidStyles.dropdownPlaceholder}>Select members to split with</Text>
+                      ) : (
+                        <View style={androidStyles.chipsPreview}>
+                          {selectedMembers.slice(0, 2).map(member => (
+                            <View key={member.mailId} style={androidStyles.previewChip}>
+                              <Text style={androidStyles.previewChipText} numberOfLines={1}>
+                                {member.name}
+                              </Text>
+                            </View>
+                          ))}
+                          {selectedMembers.length > 2 && (
+                            <Text style={androidStyles.moreCount}>+{selectedMembers.length - 2} more</Text>
+                          )}
+                        </View>
+                      )}
+                      <Text style={[androidStyles.dropdownArrow, isDropdownOpen && androidStyles.dropdownArrowUp]}>
+                        {isDropdownOpen ? '▲' : '▼'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {isDropdownOpen && (
+                      <View style={androidStyles.dropdownContent}>
+                        {selectedMembers.length > 0 && (
+                          <ScrollView 
+                            style={androidStyles.selectedChipsScrollContainer}
+                            showsVerticalScrollIndicator={selectedMembers.length > 4}
+                            nestedScrollEnabled={true}
+                          >
+                            <View style={androidStyles.selectedChipsWrap}>
+                              {selectedMembers.map(member => (
+                                <View key={member.mailId} style={androidStyles.memberChip}>
+                                  <Text style={androidStyles.memberChipText} numberOfLines={1}>
+                                    {member.name}
+                                  </Text>
+                                  <TouchableOpacity 
+                                    onPress={() => handleRemoveMember(member.mailId)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                  >
+                                    <Text style={androidStyles.memberChipRemove}>✕</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                            </View>
+                          </ScrollView>
+                        )}
+
+                        <View style={androidStyles.dropdownSearchBar}>
+                          <Text style={androidStyles.searchIcon}>🔍</Text>
+                          <TextInput
+                            style={androidStyles.dropdownSearchInput}
+                            placeholder="Search by name or email"
+                            placeholderTextColor="#999"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                          />
+                          {isSearching && <ActivityIndicator size="small" color="#E85A24" />}
+                        </View>
+
+                        <ScrollView 
+                          style={androidStyles.dropdownScroll}
+                          showsVerticalScrollIndicator={true}
+                          nestedScrollEnabled={true}
+                          keyboardShouldPersistTaps="handled"
+                        >
+                          {/* Add Yourself Option */}
+                          {currentUserOption && searchQuery.length < 2 && (
+                            <View style={androidStyles.listSection}>
+                              <Text style={androidStyles.listSectionTitle}>Add Yourself</Text>
+                              <TouchableOpacity
+                                style={androidStyles.listItem}
+                                onPress={handleAddCurrentUser}
+                              >
+                                <View style={androidStyles.userInfo}>
+                                  <Text style={androidStyles.userName} numberOfLines={1}>{user.name || 'You'} (You)</Text>
+                                  <Text style={androidStyles.userEmail}>{user.mailId}</Text>
+                                </View>
+                                <Text style={androidStyles.addIcon}>+</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+
+                          {/* Group Members (excluding the payer) */}
+                          {groupMembers.length > 0 && searchQuery.length < 2 && (
+                            <View style={androidStyles.listSection}>
+                              <Text style={androidStyles.listSectionTitle}>Group Members</Text>
+                              {groupMembers
+                                .filter(m => 
+                                  !selectedMembers.some(sm => sm.mailId?.toLowerCase() === m.mailId?.toLowerCase()) && 
+                                  m.mailId?.toLowerCase() !== paidBy?.mailId?.toLowerCase()
+                                )
+                                .map(member => (
+                                  <TouchableOpacity
+                                    key={member.mailId}
+                                    style={androidStyles.listItem}
+                                    onPress={() => handleSelectMember(member)}
+                                  >
+                                    <View style={androidStyles.userInfo}>
+                                      <Text style={androidStyles.userName} numberOfLines={1}>{member.name}</Text>
+                                      <Text style={androidStyles.userEmail}>{member.mailId}</Text>
+                                    </View>
+                                    <Text style={androidStyles.addIcon}>+</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              {groupMembers.filter(m => 
+                                !selectedMembers.some(sm => sm.mailId?.toLowerCase() === m.mailId?.toLowerCase()) && 
+                                m.mailId?.toLowerCase() !== paidBy?.mailId?.toLowerCase()
+                              ).length === 0 && (
+                                <Text style={androidStyles.emptyTextSmall}>All group members already added</Text>
+                              )}
+                            </View>
+                          )}
+
+                          {/* API Search Results */}
+                          {searchResults.length > 0 && (
+                            <View style={androidStyles.listSection}>
+                              <Text style={androidStyles.listSectionTitle}>Search Results</Text>
+                              {searchResults.map(result => (
+                                <TouchableOpacity
+                                  key={result.mailId}
+                                  style={androidStyles.listItem}
+                                  onPress={() => handleSelectMember(result)}
+                                >
+                                  <View style={androidStyles.userInfo}>
+                                    <Text style={androidStyles.userName} numberOfLines={1}>{result.name}</Text>
+                                    <Text style={androidStyles.userEmail}>{result.mailId}</Text>
+                                  </View>
+                                  <Text style={androidStyles.addIcon}>+</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+
+                          {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+                            <Text style={androidStyles.emptyText}>No users found</Text>
+                          )}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Error */}
+                  {error && (
+                    <View style={androidStyles.errorContainer}>
+                      <Text style={androidStyles.errorText}>⚠️ {error}</Text>
+                    </View>
+                  )}
+
+                  {/* Continue Button */}
+                  <TouchableOpacity
+                    style={androidStyles.createButton}
+                    onPress={handleContinue}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={androidStyles.createButtonText}>Continue</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  // Web/iOS layout - original unchanged
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -1525,6 +1921,437 @@ const styles = StyleSheet.create({
   },
   createButton: {
     backgroundColor: '#FF6B35',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  createButtonText: {
+    color: '#FFF',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+});
+
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerRight: {
+    width: 44,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginTop: -20,
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  whiteContentArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+  },
+  cardScrollView: {
+    flex: 1,
+  },
+  cardScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  input: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#333',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  inputError: {
+    borderColor: '#DC3545',
+  },
+  fixedGroupContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F0',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: '#E85A24',
+  },
+  fixedGroupIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#E85A24',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  fixedGroupIconText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  fixedGroupName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  fixedGroupBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#E85A24',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  amountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  currencySymbol: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#E85A24',
+    marginRight: 8,
+  },
+  amountInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+  },
+  amountInputLocked: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  amountInputDisabled: {
+    color: '#2E7D32',
+  },
+  lockedIcon: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  labelHint: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#4CAF50',
+    fontStyle: 'italic',
+  },
+  payerDropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  payerDropdownTriggerOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  payerPlaceholder: {
+    fontSize: 16,
+    color: '#999',
+  },
+  payerChipContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  payerChip: {
+    backgroundColor: '#E85A24',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    maxWidth: 200,
+  },
+  payerChipText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  payerDropdownContent: {
+    backgroundColor: '#F5F5F5',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: 'hidden',
+  },
+  payerDropdownScroll: {
+    maxHeight: 180,
+  },
+  splitWithSection: {
+    marginBottom: 20,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  dropdownError: {
+    borderColor: '#DC3545',
+  },
+  dropdownTriggerOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  dropdownPlaceholder: {
+    fontSize: 16,
+    color: '#999',
+  },
+  chipsPreview: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewChip: {
+    backgroundColor: '#E85A24',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: 100,
+  },
+  previewChipText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  moreCount: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
+  },
+  dropdownArrowUp: {
+    color: '#E85A24',
+  },
+  dropdownContent: {
+    backgroundColor: '#F5F5F5',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: 'hidden',
+  },
+  selectedChipsScrollContainer: {
+    maxHeight: 88,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    backgroundColor: '#FFF5F0',
+  },
+  selectedChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 10,
+    gap: 8,
+  },
+  memberChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E85A24',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingLeft: 14,
+    paddingRight: 10,
+    gap: 6,
+  },
+  memberChipText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    maxWidth: 100,
+  },
+  memberChipRemove: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    margin: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  searchIcon: {
+    fontSize: 14,
+    marginRight: 8,
+  },
+  dropdownSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  listSection: {
+    paddingBottom: 8,
+  },
+  listSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#ECECEC',
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  userEmail: {
+    fontSize: 13,
+    color: '#888',
+  },
+  addIcon: {
+    fontSize: 24,
+    color: '#E85A24',
+    fontWeight: '600',
+  },
+  selectIcon: {
+    fontSize: 20,
+    color: '#E85A24',
+    fontWeight: '400',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    paddingVertical: 24,
+    fontStyle: 'italic',
+  },
+  emptyTextSmall: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    paddingVertical: 12,
+    fontStyle: 'italic',
+  },
+  errorContainer: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FFE69C',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#856404',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  createButton: {
+    backgroundColor: '#E85A24',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',

@@ -73,6 +73,7 @@ const transformBillData = (bill) => {
 export default function BillScanScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const isAndroid = Platform.OS === 'android';
   
   // Get bill data from route params (mobile) or sessionStorage (web)
   const getRawBillData = () => {
@@ -172,29 +173,33 @@ export default function BillScanScreen() {
   };
 
   // Render item row
-  const renderItem = (item, index, isLast) => (
-    <View key={index} style={[styles.itemRow, isLast && styles.itemRowLast]}>
-      <Text style={styles.itemName}>{item.name}</Text>
-      <View style={styles.itemRight}>
-        <Text style={styles.itemQty}>×{item.quantity}</Text>
-        <Text style={styles.itemPrice}>₹{item.price.toFixed(2)}</Text>
+  const renderItem = (item, index, isLast, useAndroidStyles = false) => {
+    const activeStyles = useAndroidStyles ? androidStyles : styles;
+    return (
+      <View key={index} style={[activeStyles.itemRow, isLast && activeStyles.itemRowLast]}>
+        <Text style={activeStyles.itemName}>{item.name}</Text>
+        <View style={activeStyles.itemRight}>
+          <Text style={activeStyles.itemQty}>×{item.quantity}</Text>
+          <Text style={activeStyles.itemPrice}>₹{item.price.toFixed(2)}</Text>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   // Render category section
-  const renderCategory = (title, items, icon) => {
+  const renderCategory = (title, items, icon, useAndroidStyles = false) => {
     if (!items || items.length === 0) return null;
+    const activeStyles = useAndroidStyles ? androidStyles : styles;
     
     return (
-      <View style={styles.categorySection}>
-        <View style={styles.categoryHeader}>
-          <Text style={styles.categoryIcon}>{icon}</Text>
-          <Text style={styles.categoryTitle}>{title}</Text>
-          <Text style={styles.categoryCount}>{items.length} {items.length === 1 ? 'item' : 'items'}</Text>
+      <View style={activeStyles.categorySection}>
+        <View style={activeStyles.categoryHeader}>
+          <Text style={activeStyles.categoryIcon}>{icon}</Text>
+          <Text style={activeStyles.categoryTitle}>{title}</Text>
+          <Text style={activeStyles.categoryCount}>{items.length} {items.length === 1 ? 'item' : 'items'}</Text>
         </View>
-        <View style={styles.categoryItems}>
-          {items.map((item, index) => renderItem(item, index, index === items.length - 1))}
+        <View style={activeStyles.categoryItems}>
+          {items.map((item, index) => renderItem(item, index, index === items.length - 1, useAndroidStyles))}
         </View>
       </View>
     );
@@ -209,6 +214,41 @@ export default function BillScanScreen() {
 
   // If no bill data, show error state
   if (!billData) {
+    if (isAndroid) {
+      return (
+        <View style={styles.container}>
+          <LinearGradient
+            colors={['#F57C3A', '#E85A24', '#D84315']}
+            style={styles.gradient}
+          >
+            <StatusBar style="light" />
+            <View style={androidStyles.androidHeader}>
+              <TouchableOpacity onPress={handleBack} style={androidStyles.androidBackButton}>
+                <Ionicons name="arrow-back" size={24} color="#E85A24" />
+              </TouchableOpacity>
+              <Text style={androidStyles.androidHeaderTitle}>Bill Scan</Text>
+              <View style={androidStyles.androidHeaderRight} />
+            </View>
+            <View style={androidStyles.androidIconContainer}>
+              <View style={androidStyles.androidIconCircle}>
+                <Ionicons name="scan-outline" size={40} color="#E85A24" />
+              </View>
+            </View>
+            <View style={androidStyles.androidContentArea}>
+              <View style={androidStyles.errorContainer}>
+                <Ionicons name="warning-outline" size={64} color="#FF9800" />
+                <Text style={androidStyles.errorTitle}>No Bill Data</Text>
+                <Text style={androidStyles.errorText}>Please upload a bill image first</Text>
+                <TouchableOpacity style={androidStyles.goBackButton} onPress={handleBack}>
+                  <Text style={androidStyles.goBackButtonText}>Go Back</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+      );
+    }
+    
     return (
       <View style={styles.container}>
         <LinearGradient
@@ -237,6 +277,142 @@ export default function BillScanScreen() {
     );
   }
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={styles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Android Header */}
+          <View style={androidStyles.androidHeader}>
+            <TouchableOpacity onPress={handleBack} style={androidStyles.androidBackButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </TouchableOpacity>
+            <Text style={androidStyles.androidHeaderTitle}>Bill Scan</Text>
+            <View style={androidStyles.androidHeaderRight} />
+          </View>
+
+          {/* Decorative Icon */}
+          <View style={androidStyles.androidIconContainer}>
+            <View style={androidStyles.androidIconCircle}>
+              <Ionicons name="scan-outline" size={40} color="#E85A24" />
+            </View>
+          </View>
+
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.androidContentArea}>
+            <View style={androidStyles.androidContentInner}>
+              {/* Main Card - Contains Everything */}
+              {hasItems ? (
+                <View style={androidStyles.mainCard}>
+                  {/* Scrollable Content */}
+                  <ScrollView 
+                    style={androidStyles.cardScrollView}
+                    contentContainerStyle={androidStyles.cardScrollContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                  >
+                    {/* Restaurant Header */}
+                    {billData.restaurantName && (
+                      <View style={androidStyles.restaurantHeader}>
+                        <Text style={androidStyles.restaurantName}>{billData.restaurantName}</Text>
+                        <Text style={androidStyles.billDate}>{billData.date}</Text>
+                      </View>
+                    )}
+
+                    {/* Divider */}
+                    <View style={androidStyles.divider} />
+
+                    {/* Items by Category */}
+                    {billData.isFoodBill ? (
+                      <>
+                        {renderCategory('Non-Veg Items', billData.items.nonVeg, '🍗', true)}
+                        {renderCategory('Veg Items', billData.items.veg, '🥬', true)}
+                        {billData.items.general.length > 0 && 
+                          renderCategory('Other Items', billData.items.general, '📦', true)}
+                      </>
+                    ) : (
+                      renderCategory('Items', billData.items.general, '🛒', true)
+                    )}
+
+                    {/* Subtotal */}
+                    <View style={androidStyles.subtotalSection}>
+                      <Text style={androidStyles.subtotalLabel}>Subtotal</Text>
+                      <Text style={androidStyles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
+                    </View>
+
+                    {/* Individual Tax Rows - Always show if taxes exist */}
+                    {billData.taxes && billData.taxes.length > 0 && (
+                      <View style={androidStyles.taxesSection}>
+                        <Text style={androidStyles.taxesTitle}>TAXES & CHARGES</Text>
+                        {billData.taxes.map((tax, index) => (
+                          <View key={index} style={androidStyles.taxRow}>
+                            <Text style={androidStyles.taxName}>{tax.name}</Text>
+                            <Text style={androidStyles.taxAmount}>₹{(tax.amount || 0).toFixed(2)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Total Tax Row - Show only if subtotal != total (taxes added on top) */}
+                    {getSubtotal() !== billData.total && (
+                      <View style={androidStyles.taxesTotalSection}>
+                        <Text style={androidStyles.taxesTotalLabel}>Total Taxes & Charges</Text>
+                        <Text style={androidStyles.taxesTotalValue}>
+                          ₹{(billData.total - getSubtotal()).toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Total */}
+                    <View style={androidStyles.totalSection}>
+                      <Text style={androidStyles.totalLabel}>Total</Text>
+                      <Text style={androidStyles.totalValue}>₹{billData.total.toFixed(2)}</Text>
+                    </View>
+
+                    {/* Continue Button - Inside Card */}
+                    <View style={androidStyles.continueButtonWrapper}>
+                      <TouchableOpacity 
+                        style={androidStyles.continueButton}
+                        onPress={() => {
+                          // Navigate to SplitOptions with bill data
+                          navigation.navigate('SplitOptions', {
+                            billData: {
+                              ...billData,
+                              rawItems: rawBillData?.items || [],
+                            }
+                          });
+                        }}
+                      >
+                        <Text style={androidStyles.continueButtonText}>Continue</Text>
+                        <Ionicons name="chevron-forward" size={22} color="#FFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </View>
+              ) : (
+                <View style={androidStyles.noItemsCard}>
+                  <Ionicons name="warning-outline" size={48} color="#FF9800" />
+                  <Text style={androidStyles.noItemsTitle}>No Items Detected</Text>
+                  <Text style={androidStyles.noItemsText}>
+                    We couldn't extract items from this image.{'\n'}
+                    Please try with a clearer image.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  // Web/iOS layout (original unchanged)
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -764,6 +940,361 @@ const styles = StyleSheet.create({
   },
 
   // Continue Button Wrapper (inside card)
+  continueButtonWrapper: {
+    padding: 20,
+    paddingHorizontal: 40,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+  },
+  continueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF6B35',
+    paddingVertical: 20,
+    minHeight: 60,
+    paddingHorizontal: 50,
+    borderRadius: 30,
+    gap: 8,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  continueButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+});
+
+const androidStyles = StyleSheet.create({
+  // Android Header
+  androidHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 45,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  androidBackButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  androidHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  androidHeaderRight: {
+    width: 44,
+  },
+  
+  // Decorative Icon
+  androidIconContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  androidIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  // White Content Area with Curved Top
+  androidContentArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+  },
+  androidContentInner: {
+    flex: 1,
+    padding: 20,
+    paddingBottom: 20,
+  },
+  
+  // Error State
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 8,
+  },
+  goBackButton: {
+    marginTop: 24,
+    backgroundColor: '#E85A24',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  goBackButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  
+  // Main Card
+  mainCard: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cardScrollView: {
+    flex: 1,
+  },
+  cardScrollContent: {
+    flexGrow: 1,
+  },
+  
+  // Restaurant Header
+  restaurantHeader: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
+  restaurantName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+  },
+  billDate: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#EFEFEF',
+    marginHorizontal: 20,
+  },
+  
+  // Category Section
+  categorySection: {
+    marginTop: 0,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+  },
+  categoryIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  categoryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    flex: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  categoryCount: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '500',
+  },
+  categoryItems: {
+    backgroundColor: '#FAFAFA',
+    paddingHorizontal: 20,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFEFEF',
+  },
+  itemRowLast: {
+    borderBottomWidth: 0,
+  },
+  itemName: {
+    fontSize: 15,
+    color: '#333',
+    flex: 1,
+    marginRight: 12,
+    flexWrap: 'wrap',
+    lineHeight: 22,
+  },
+  itemRight: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexShrink: 0,
+    paddingTop: 2,
+  },
+  itemQty: {
+    fontSize: 13,
+    color: '#888',
+    marginRight: 16,
+    fontWeight: '500',
+  },
+  itemPrice: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    minWidth: 70,
+    textAlign: 'right',
+  },
+  
+  // Subtotal
+  subtotalSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+  },
+  subtotalLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  subtotalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  
+  // Taxes
+  taxesSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+  },
+  taxesTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#999',
+    marginBottom: 10,
+    letterSpacing: 0.8,
+  },
+  taxRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  taxName: {
+    fontSize: 14,
+    color: '#666',
+  },
+  taxAmount: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  
+  // Taxes Total Row
+  taxesTotalSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EFEFEF',
+  },
+  taxesTotalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  taxesTotalValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  
+  // Total
+  totalSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: '#1A1A1A',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  totalValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  
+  // No Items Card
+  noItemsCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  noItemsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noItemsText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  
+  // Continue Button Wrapper
   continueButtonWrapper: {
     padding: 20,
     paddingHorizontal: 40,

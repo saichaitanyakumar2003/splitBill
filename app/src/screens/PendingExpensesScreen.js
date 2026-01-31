@@ -20,6 +20,8 @@ import { authGet, authPost } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
 import WebPullToRefresh from '../components/WebPullToRefresh';
 
+const isAndroid = Platform.OS === 'android';
+
 export default function PendingExpensesScreen({ route }) {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -220,6 +222,749 @@ export default function PendingExpensesScreen({ route }) {
     0
   );
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          <View style={androidStyles.header}>
+            <TouchableOpacity onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </TouchableOpacity>
+            <Text style={androidStyles.headerTitle}>Settle Up</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+
+          {/* Decorative Icon */}
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
+              <Ionicons name="checkmark-circle-outline" size={40} color="#FFFFFF" />
+            </View>
+          </View>
+
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.content}>
+          <View style={styles.card}>
+            {/* Card Header with Refresh - Always visible */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Pending Payments</Text>
+              <TouchableOpacity 
+                onPress={handleRefresh} 
+                style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : (
+                  <>
+                    <Ionicons name="refresh" size={20} color="#FF6B35" />
+                    {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator size="large" color="#FF6B35" />
+                <Text style={styles.loadingText}>Loading pending expenses...</Text>
+              </View>
+            ) : pendingExpenses.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>✅</Text>
+                <Text style={styles.emptyTitle}>All Settled!</Text>
+                <Text style={styles.emptySubtext}>
+                  You have no pending payments. All your expenses are settled.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Summary Header */}
+                <View style={styles.summaryHeader}>
+                  <View style={styles.summaryLeft}>
+                    <Text style={styles.summaryTitle}>You Owe</Text>
+                    <Text style={styles.summaryAmount}>₹{totalAmount.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.summaryBadge}>
+                    <Text style={styles.summaryBadgeText}>
+                      {totalPending} payment{totalPending !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Scrollable Pending List */}
+                {isMobileWeb ? (
+                  <WebPullToRefresh
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    scrollViewProps={{
+                      showsVerticalScrollIndicator: true,
+                      bounces: true,
+                      nestedScrollEnabled: true,
+                    }}
+                  >
+                    {pendingExpenses.map((group) => (
+                      <View key={group.groupId} style={styles.groupSection}>
+                        {/* Group Header */}
+                        <View style={styles.groupHeader}>
+                          <View style={styles.groupIcon}>
+                            <Text style={styles.groupIconText}>
+                              {group.groupName.substring(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.groupInfo}>
+                            <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
+                            <Text style={styles.groupStatus}>
+                              {group.pendingEdges?.length || 0} pending
+                              {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Pending Edges */}
+                        {group.pendingEdges?.map((edge, index) => {
+                          const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
+                          return (
+                            <View key={`pending-${index}`} style={styles.expenseRow}>
+                              <View style={styles.expenseTop}>
+                                <View style={styles.avatarTo}>
+                                  <Text style={styles.avatarText}>
+                                    {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={styles.expenseInfo}>
+                                  <Text style={styles.expenseText} numberOfLines={1}>
+                                    Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                  </Text>
+                                  <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                </View>
+                              </View>
+                              <View style={styles.buttonGroup}>
+                                <TouchableOpacity
+                                  style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
+                                  onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
+                                  disabled={isResolving}
+                                >
+                                  {isResolving ? (
+                                    <ActivityIndicator size="small" color="#FF6B35" />
+                                  ) : (
+                                    <Text style={styles.resolveButtonText}>Mark as Settled</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Resolved Edges */}
+                        {group.resolvedEdges?.map((edge, index) => (
+                          <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
+                            <View style={styles.expenseLeft}>
+                              <View style={styles.avatarResolved}>
+                                <Text style={styles.avatarTextResolved}>
+                                  {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={styles.expenseInfo}>
+                                <Text style={styles.expenseTextResolved} numberOfLines={1}>
+                                  Paid {edge.toName}
+                                </Text>
+                                <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.settledBadge}>
+                              <Text style={styles.settledBadgeText}>✓</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </WebPullToRefresh>
+                ) : (
+                  <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                  >
+                    {pendingExpenses.map((group) => (
+                      <View key={group.groupId} style={styles.groupSection}>
+                        {/* Group Header */}
+                        <View style={styles.groupHeader}>
+                          <View style={styles.groupIcon}>
+                            <Text style={styles.groupIconText}>
+                              {group.groupName.substring(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.groupInfo}>
+                            <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
+                            <Text style={styles.groupStatus}>
+                              {group.pendingEdges?.length || 0} pending
+                              {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Pending Edges */}
+                        {group.pendingEdges?.map((edge, index) => {
+                          const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
+                          return (
+                            <View key={`pending-${index}`} style={styles.expenseRow}>
+                              <View style={styles.expenseTop}>
+                                <View style={styles.avatarTo}>
+                                  <Text style={styles.avatarText}>
+                                    {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={styles.expenseInfo}>
+                                  <Text style={styles.expenseText} numberOfLines={1}>
+                                    Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                  </Text>
+                                  <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                </View>
+                              </View>
+                              <View style={styles.buttonGroup}>
+                                <TouchableOpacity
+                                  style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
+                                  onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
+                                  disabled={isResolving}
+                                >
+                                  {isResolving ? (
+                                    <ActivityIndicator size="small" color="#FF6B35" />
+                                  ) : (
+                                    <Text style={styles.resolveButtonText}>Mark as Settled</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Resolved Edges */}
+                        {group.resolvedEdges?.map((edge, index) => (
+                          <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
+                            <View style={styles.expenseLeft}>
+                              <View style={styles.avatarResolved}>
+                                <Text style={styles.avatarTextResolved}>
+                                  {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={styles.expenseInfo}>
+                                <Text style={styles.expenseTextResolved} numberOfLines={1}>
+                                  Paid {edge.toName}
+                                </Text>
+                                <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.settledBadge}>
+                              <Text style={styles.settledBadgeText}>✓</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </>
+            )}
+          </View>
+          </View>
+
+          {/* Confirm Settle Modal */}
+          <Modal
+            visible={confirmModal.visible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={handleCancelSettle}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContainer}>
+                <View style={styles.modalIconContainer}>
+                  <Text style={styles.modalIcon}>💰</Text>
+                </View>
+                <Text style={styles.modalTitle}>Mark as Settled?</Text>
+                <Text style={styles.modalMessage}>
+                  Have you paid{' '}
+                  <Text style={styles.modalAmount}>₹{confirmModal.amount.toFixed(2)}</Text>
+                  {' '}to{' '}
+                  <Text style={styles.modalName}>{confirmModal.toName}</Text>?
+                </Text>
+                <View style={styles.modalButtonRow}>
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={handleCancelSettle}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalConfirmButton}
+                    onPress={handleConfirmSettle}
+                  >
+                    <Text style={styles.modalConfirmText}>Yes, Settled</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Success Modal */}
+          <Modal
+            visible={successModal.visible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setSuccessModal({ visible: false, groupName: '', keptActive: false })}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.successModalContainer}>
+                <View style={styles.successIconContainer}>
+                  <Text style={styles.successIcon}>{successModal.keptActive ? '✅' : '🎉'}</Text>
+                </View>
+                <Text style={styles.successTitle}>
+                  {successModal.keptActive ? 'All Settled!' : 'Group Completed!'}
+                </Text>
+                <Text style={styles.successMessage}>
+                  All payments in{' '}
+                  <Text style={styles.successGroupName}>"{successModal.groupName}"</Text>
+                  {' '}have been settled!
+                </Text>
+                <Text style={styles.successSubMessage}>
+                  {successModal.keptActive 
+                    ? 'The group is still active for future expenses.'
+                    : 'The group has been moved to History and will be auto-deleted in 7 days.'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.successButton}
+                  onPress={() => setSuccessModal({ visible: false, groupName: '', keptActive: false })}
+                >
+                  <Text style={styles.successButtonText}>Got it!</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Completion Choice Modal */}
+          <Modal
+            visible={completionChoiceModal.visible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={handleCancelCompletionChoice}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.completionModalContainer}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCancelCompletionChoice}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+                <View style={styles.completionIconContainer}>
+                  <Text style={styles.completionIcon}>🏁</Text>
+                </View>
+                <Text style={styles.completionTitle}>Last Payment!</Text>
+                <Text style={styles.completionMessage}>
+                  This is the last pending payment in{' '}
+                  <Text style={styles.completionGroupName}>"{completionChoiceModal.groupName}"</Text>.
+                  {'\n\n'}What would you like to do with the group?
+                </Text>
+                <View style={styles.completionButtonRow}>
+                  <TouchableOpacity
+                    style={styles.keepActiveButton}
+                    onPress={() => handleCompletionChoice(true)}
+                  >
+                    <Text style={styles.keepActiveButtonText}>Keep Active</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.completeGroupButton}
+                    onPress={() => handleCompletionChoice(false)}
+                  >
+                    <Text style={styles.completeGroupButtonText}>Complete Group</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  // Web/iOS layout (original unchanged)
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
+        locations={[0, 0.3, 0.7, 1]}
+        style={styles.gradient}
+      >
+        <StatusBar style="light" />
+        
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Text style={styles.backText}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Pending Payments</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        {/* White Background Card */}
+        <View style={styles.content}>
+          <View style={styles.card}>
+            {/* Card Header with Refresh - Always visible */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Pending Payments</Text>
+              <TouchableOpacity 
+                onPress={handleRefresh} 
+                style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : (
+                  <>
+                    <Ionicons name="refresh" size={20} color="#FF6B35" />
+                    {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator size="large" color="#FF6B35" />
+                <Text style={styles.loadingText}>Loading pending expenses...</Text>
+              </View>
+            ) : pendingExpenses.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>✅</Text>
+                <Text style={styles.emptyTitle}>All Settled!</Text>
+                <Text style={styles.emptySubtext}>
+                  You have no pending payments. All your expenses are settled.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Summary Header */}
+                <View style={styles.summaryHeader}>
+                  <View style={styles.summaryLeft}>
+                    <Text style={styles.summaryTitle}>You Owe</Text>
+                    <Text style={styles.summaryAmount}>₹{totalAmount.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.summaryBadge}>
+                    <Text style={styles.summaryBadgeText}>
+                      {totalPending} payment{totalPending !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Scrollable Pending List */}
+                {isMobileWeb ? (
+                  <WebPullToRefresh
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    scrollViewProps={{
+                      showsVerticalScrollIndicator: true,
+                      bounces: true,
+                      nestedScrollEnabled: true,
+                    }}
+                  >
+                    {pendingExpenses.map((group) => (
+                      <View key={group.groupId} style={styles.groupSection}>
+                        {/* Group Header */}
+                        <View style={styles.groupHeader}>
+                          <View style={styles.groupIcon}>
+                            <Text style={styles.groupIconText}>
+                              {group.groupName.substring(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.groupInfo}>
+                            <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
+                            <Text style={styles.groupStatus}>
+                              {group.pendingEdges?.length || 0} pending
+                              {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Pending Edges */}
+                        {group.pendingEdges?.map((edge, index) => {
+                          const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
+                          return (
+                            <View key={`pending-${index}`} style={styles.expenseRow}>
+                              <View style={styles.expenseTop}>
+                                <View style={styles.avatarTo}>
+                                  <Text style={styles.avatarText}>
+                                    {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={styles.expenseInfo}>
+                                  <Text style={styles.expenseText} numberOfLines={1}>
+                                    Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                  </Text>
+                                  <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                </View>
+                              </View>
+                              <View style={styles.buttonGroup}>
+                                <TouchableOpacity
+                                  style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
+                                  onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
+                                  disabled={isResolving}
+                                >
+                                  {isResolving ? (
+                                    <ActivityIndicator size="small" color="#FF6B35" />
+                                  ) : (
+                                    <Text style={styles.resolveButtonText}>Mark as Settled</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Resolved Edges */}
+                        {group.resolvedEdges?.map((edge, index) => (
+                          <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
+                            <View style={styles.expenseLeft}>
+                              <View style={styles.avatarResolved}>
+                                <Text style={styles.avatarTextResolved}>
+                                  {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={styles.expenseInfo}>
+                                <Text style={styles.expenseTextResolved} numberOfLines={1}>
+                                  Paid {edge.toName}
+                                </Text>
+                                <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.settledBadge}>
+                              <Text style={styles.settledBadgeText}>✓</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </WebPullToRefresh>
+                ) : (
+                  <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                  >
+                    {pendingExpenses.map((group) => (
+                      <View key={group.groupId} style={styles.groupSection}>
+                        {/* Group Header */}
+                        <View style={styles.groupHeader}>
+                          <View style={styles.groupIcon}>
+                            <Text style={styles.groupIconText}>
+                              {group.groupName.substring(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.groupInfo}>
+                            <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
+                            <Text style={styles.groupStatus}>
+                              {group.pendingEdges?.length || 0} pending
+                              {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Pending Edges */}
+                        {group.pendingEdges?.map((edge, index) => {
+                          const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
+                          return (
+                            <View key={`pending-${index}`} style={styles.expenseRow}>
+                              <View style={styles.expenseTop}>
+                                <View style={styles.avatarTo}>
+                                  <Text style={styles.avatarText}>
+                                    {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={styles.expenseInfo}>
+                                  <Text style={styles.expenseText} numberOfLines={1}>
+                                    Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                  </Text>
+                                  <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                </View>
+                              </View>
+                              <View style={styles.buttonGroup}>
+                                <TouchableOpacity
+                                  style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
+                                  onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
+                                  disabled={isResolving}
+                                >
+                                  {isResolving ? (
+                                    <ActivityIndicator size="small" color="#FF6B35" />
+                                  ) : (
+                                    <Text style={styles.resolveButtonText}>Mark as Settled</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Resolved Edges */}
+                        {group.resolvedEdges?.map((edge, index) => (
+                          <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
+                            <View style={styles.expenseLeft}>
+                              <View style={styles.avatarResolved}>
+                                <Text style={styles.avatarTextResolved}>
+                                  {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={styles.expenseInfo}>
+                                <Text style={styles.expenseTextResolved} numberOfLines={1}>
+                                  Paid {edge.toName}
+                                </Text>
+                                <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.settledBadge}>
+                              <Text style={styles.settledBadgeText}>✓</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Confirm Settle Modal */}
+        <Modal
+          visible={confirmModal.visible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCancelSettle}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalIconContainer}>
+                <Text style={styles.modalIcon}>💰</Text>
+              </View>
+              <Text style={styles.modalTitle}>Mark as Settled?</Text>
+              <Text style={styles.modalMessage}>
+                Have you paid{' '}
+                <Text style={styles.modalAmount}>₹{confirmModal.amount.toFixed(2)}</Text>
+                {' '}to{' '}
+                <Text style={styles.modalName}>{confirmModal.toName}</Text>?
+              </Text>
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={handleCancelSettle}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirmButton}
+                  onPress={handleConfirmSettle}
+                >
+                  <Text style={styles.modalConfirmText}>Yes, Settled</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Success Modal */}
+        <Modal
+          visible={successModal.visible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSuccessModal({ visible: false, groupName: '', keptActive: false })}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.successModalContainer}>
+              <View style={styles.successIconContainer}>
+                <Text style={styles.successIcon}>{successModal.keptActive ? '✅' : '🎉'}</Text>
+              </View>
+              <Text style={styles.successTitle}>
+                {successModal.keptActive ? 'All Settled!' : 'Group Completed!'}
+              </Text>
+              <Text style={styles.successMessage}>
+                All payments in{' '}
+                <Text style={styles.successGroupName}>"{successModal.groupName}"</Text>
+                {' '}have been settled!
+              </Text>
+              <Text style={styles.successSubMessage}>
+                {successModal.keptActive 
+                  ? 'The group is still active for future expenses.'
+                  : 'The group has been moved to History and will be auto-deleted in 7 days.'}
+              </Text>
+              <TouchableOpacity
+                style={styles.successButton}
+                onPress={() => setSuccessModal({ visible: false, groupName: '', keptActive: false })}
+              >
+                <Text style={styles.successButtonText}>Got it!</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Completion Choice Modal */}
+        <Modal
+          visible={completionChoiceModal.visible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleCancelCompletionChoice}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.completionModalContainer}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleCancelCompletionChoice}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+              <View style={styles.completionIconContainer}>
+                <Text style={styles.completionIcon}>🏁</Text>
+              </View>
+              <Text style={styles.completionTitle}>Last Payment!</Text>
+              <Text style={styles.completionMessage}>
+                This is the last pending payment in{' '}
+                <Text style={styles.completionGroupName}>"{completionChoiceModal.groupName}"</Text>.
+                {'\n\n'}What would you like to do with the group?
+              </Text>
+              <View style={styles.completionButtonRow}>
+                <TouchableOpacity
+                  style={styles.keepActiveButton}
+                  onPress={() => handleCompletionChoice(true)}
+                >
+                  <Text style={styles.keepActiveButtonText}>Keep Active</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.completeGroupButton}
+                  onPress={() => handleCompletionChoice(false)}
+                >
+                  <Text style={styles.completeGroupButtonText}>Complete Group</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+      </LinearGradient>
+    </View>
+  );
+}
+
+  // Web/iOS layout (original unchanged)
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -1144,5 +1889,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFF',
+  },
+});
+
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerRight: {
+    width: 44,
+  },
+  decorativeIconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  decorativeIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+    padding: 20,
+    paddingBottom: 20,
   },
 });

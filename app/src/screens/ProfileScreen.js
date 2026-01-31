@@ -17,10 +17,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const isAndroid = Platform.OS === 'android';
 
 // Helper function to get initials (max 2 characters)
 const getInitials = (name) => {
@@ -271,6 +273,476 @@ export default function ProfileScreen() {
     return '•'.repeat(length);
   };
 
+  // Helper function to render profile content (used in both Android and Web/iOS)
+  const renderProfileContent = () => (
+    <>
+      {/* Profile Error/Success Messages */}
+      {profileError && (
+        <View style={isAndroid ? androidStyles.apiErrorContainer : styles.apiErrorContainer}>
+          <Text style={isAndroid ? androidStyles.apiErrorEmoji : styles.apiErrorEmoji}>😅</Text>
+          <Text style={isAndroid ? androidStyles.apiErrorMessage : styles.apiErrorMessage}>{profileError}</Text>
+        </View>
+      )}
+      {profileSuccess && (
+        <View style={isAndroid ? androidStyles.successContainer : styles.successContainer}>
+          <Text style={isAndroid ? androidStyles.successEmoji : styles.successEmoji}>✓</Text>
+          <Text style={isAndroid ? androidStyles.successMessageText : styles.successMessageText}>{profileSuccess}</Text>
+        </View>
+      )}
+
+      {/* Username Field with Edit Button */}
+      <View style={isAndroid ? androidStyles.fieldContainer : styles.fieldContainer}>
+        <View style={isAndroid ? androidStyles.fieldHeaderWithEdit : styles.fieldHeaderWithEdit}>
+          <View style={isAndroid ? androidStyles.fieldHeader : styles.fieldHeader}>
+            <Text style={isAndroid ? androidStyles.fieldIcon : styles.fieldIcon}>👤</Text>
+            <Text style={isAndroid ? androidStyles.fieldLabel : styles.fieldLabel}>User Name</Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              isAndroid ? androidStyles.editButtonInline : styles.editButtonInline,
+              isEditing && (isAndroid ? androidStyles.editButtonActive : styles.editButtonActive)
+            ]}
+            onPress={() => (isEditing ? handleSave() : setIsEditing(true))}
+            disabled={isSaving || (isEditing && mobile.length > 0 && mobile.length !== 10)}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color={isAndroid ? "#E85A24" : "#FF6B35"} />
+            ) : (
+              <Text style={[
+                isAndroid ? androidStyles.editButtonInlineText : styles.editButtonInlineText,
+                isEditing && (isAndroid ? androidStyles.editButtonActiveText : styles.editButtonActiveText)
+              ]}>
+                {isEditing ? 'Save' : 'Edit'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+        {isEditing ? (
+          <TextInput
+            style={isAndroid ? androidStyles.fieldInput : styles.fieldInput}
+            value={userName}
+            onChangeText={setUserName}
+            placeholder="Enter your name"
+            placeholderTextColor="#999"
+          />
+        ) : (
+          <Text style={isAndroid ? androidStyles.fieldValue : styles.fieldValue}>{userName || 'Not set'}</Text>
+        )}
+      </View>
+
+      <View style={isAndroid ? androidStyles.fieldDivider : styles.fieldDivider} />
+
+      {/* Email Field */}
+      <View style={isAndroid ? androidStyles.fieldContainer : styles.fieldContainer}>
+        {/* Email Error/Success Messages */}
+        {emailError && (
+          <View style={isAndroid ? androidStyles.apiErrorContainer : styles.apiErrorContainer}>
+            <Text style={isAndroid ? androidStyles.apiErrorEmoji : styles.apiErrorEmoji}>😅</Text>
+            <Text style={isAndroid ? androidStyles.apiErrorMessage : styles.apiErrorMessage}>{emailError}</Text>
+          </View>
+        )}
+        {emailSuccess && (
+          <View style={isAndroid ? androidStyles.successContainer : styles.successContainer}>
+            <Text style={isAndroid ? androidStyles.successEmoji : styles.successEmoji}>✓</Text>
+            <Text style={isAndroid ? androidStyles.successMessageText : styles.successMessageText}>{emailSuccess}</Text>
+          </View>
+        )}
+        
+        <View style={isAndroid ? androidStyles.fieldHeaderWithEdit : styles.fieldHeaderWithEdit}>
+          <View style={isAndroid ? androidStyles.fieldHeader : styles.fieldHeader}>
+            <Text style={isAndroid ? androidStyles.fieldIcon : styles.fieldIcon}>📧</Text>
+            <Text style={isAndroid ? androidStyles.fieldLabel : styles.fieldLabel}>Email Address</Text>
+          </View>
+          {!isEditingEmail ? (
+            <TouchableOpacity
+              style={isAndroid ? androidStyles.editButtonInline : styles.editButtonInline}
+              onPress={() => {
+                setIsEditingEmail(true);
+                setNewEmail(email);
+                setEmailError(null);
+              }}
+            >
+              <Text style={isAndroid ? androidStyles.editButtonInlineText : styles.editButtonInlineText}>Edit</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        
+        {isEditingEmail ? (
+          <View>
+            <TextInput
+              style={[
+                isAndroid ? androidStyles.fieldInput : styles.fieldInput,
+                emailError && (isAndroid ? androidStyles.fieldInputError : styles.fieldInputError)
+              ]}
+              value={newEmail}
+              onChangeText={(text) => {
+                setNewEmail(text);
+                if (emailError) setEmailError(null);
+              }}
+              placeholder="Enter new email address"
+              placeholderTextColor="#999"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={isAndroid ? androidStyles.fieldHint : styles.fieldHint}>Your old email will be stored for reference</Text>
+            
+            <View style={isAndroid ? androidStyles.passwordActions : styles.passwordActions}>
+              <TouchableOpacity
+                style={isAndroid ? androidStyles.cancelButton : styles.cancelButton}
+                onPress={() => {
+                  setIsEditingEmail(false);
+                  setNewEmail('');
+                  setEmailError(null);
+                }}
+              >
+                <Text style={isAndroid ? androidStyles.cancelButtonText : styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  isAndroid ? androidStyles.savePasswordButton : styles.savePasswordButton,
+                  (isSavingEmail || !newEmail.trim() || !isValidEmail(newEmail.trim())) && (isAndroid ? androidStyles.savePasswordButtonDisabled : styles.savePasswordButtonDisabled)
+                ]}
+                onPress={handleSaveEmail}
+                disabled={isSavingEmail || !newEmail.trim() || !isValidEmail(newEmail.trim())}
+              >
+                {isSavingEmail ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={[
+                    isAndroid ? androidStyles.savePasswordButtonText : styles.savePasswordButtonText,
+                    (!newEmail.trim() || !isValidEmail(newEmail.trim())) && (isAndroid ? androidStyles.savePasswordButtonTextDisabled : styles.savePasswordButtonTextDisabled)
+                  ]}>Save Email</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <Text style={isAndroid ? androidStyles.fieldValue : styles.fieldValue}>{email || 'Not set'}</Text>
+        )}
+      </View>
+
+      <View style={isAndroid ? androidStyles.fieldDivider : styles.fieldDivider} />
+
+      {/* Mobile Field */}
+      <View style={isAndroid ? androidStyles.fieldContainer : styles.fieldContainer}>
+        <View style={isAndroid ? androidStyles.fieldHeader : styles.fieldHeader}>
+          <Text style={isAndroid ? androidStyles.fieldIcon : styles.fieldIcon}>📱</Text>
+          <Text style={isAndroid ? androidStyles.fieldLabel : styles.fieldLabel}>Phone Number</Text>
+        </View>
+        {isEditing ? (
+          <View>
+            <TextInput
+              style={[
+                isAndroid ? androidStyles.fieldInput : styles.fieldInput,
+                mobile.length > 0 && mobile.length !== 10 && (isAndroid ? androidStyles.fieldInputError : styles.fieldInputError)
+              ]}
+              value={mobile}
+              onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, '').slice(0, 10))}
+              placeholder="Enter 10 digit phone number"
+              placeholderTextColor="#999"
+              keyboardType="number-pad"
+              maxLength={10}
+            />
+            {mobile.length > 0 && mobile.length !== 10 && (
+              <Text style={isAndroid ? androidStyles.errorText : styles.errorText}>Phone number must be exactly 10 digits ({mobile.length}/10)</Text>
+            )}
+            {mobile.length === 10 && (
+              <Text style={isAndroid ? androidStyles.successText : styles.successText}>✓ Valid phone number</Text>
+            )}
+          </View>
+        ) : (
+          <Text style={isAndroid ? androidStyles.fieldValue : styles.fieldValue}>{mobile || 'Not set'}</Text>
+        )}
+      </View>
+
+      <View style={isAndroid ? androidStyles.fieldDivider : styles.fieldDivider} />
+
+      {/* Password Section */}
+      <View style={isAndroid ? androidStyles.fieldContainer : styles.fieldContainer}>
+        <View style={isAndroid ? androidStyles.fieldHeaderWithEdit : styles.fieldHeaderWithEdit}>
+          <View style={isAndroid ? androidStyles.fieldHeader : styles.fieldHeader}>
+            <Text style={isAndroid ? androidStyles.fieldIcon : styles.fieldIcon}>🔒</Text>
+            <Text style={isAndroid ? androidStyles.fieldLabel : styles.fieldLabel}>Password</Text>
+          </View>
+          {!isChangingPassword && !isSettingPassword && (
+            <TouchableOpacity
+              style={isAndroid ? androidStyles.editButtonInline : styles.editButtonInline}
+              onPress={() => {
+                if (isOAuthUser) {
+                  setIsSettingPassword(true);
+                } else {
+                  setIsChangingPassword(true);
+                }
+              }}
+            >
+              <Text style={isAndroid ? androidStyles.editButtonInlineText : styles.editButtonInlineText}>
+                {isOAuthUser ? 'Set Password' : 'Change'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {(isChangingPassword || isSettingPassword) ? (
+          <View>
+            {/* API Error Message */}
+            {apiError && (
+              <View style={isAndroid ? androidStyles.apiErrorContainer : styles.apiErrorContainer}>
+                <Text style={isAndroid ? androidStyles.apiErrorEmoji : styles.apiErrorEmoji}>😅</Text>
+                <View style={isAndroid ? androidStyles.apiErrorContent : styles.apiErrorContent}>
+                  <Text style={isAndroid ? androidStyles.apiErrorTitle : styles.apiErrorTitle}>Oops!</Text>
+                  <Text style={isAndroid ? androidStyles.apiErrorMessage : styles.apiErrorMessage}>{apiError}</Text>
+                </View>
+                <TouchableOpacity 
+                  style={isAndroid ? androidStyles.apiErrorClose : styles.apiErrorClose}
+                  onPress={() => setApiError(null)}
+                >
+                  <Text style={isAndroid ? androidStyles.apiErrorCloseText : styles.apiErrorCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            {/* Success Message */}
+            {successMessage && (
+              <View style={isAndroid ? androidStyles.successContainer : styles.successContainer}>
+                <Text style={isAndroid ? androidStyles.successEmoji : styles.successEmoji}>🎉</Text>
+                <Text style={isAndroid ? androidStyles.successMessageText : styles.successMessageText}>{successMessage}</Text>
+              </View>
+            )}
+            
+            {/* OAuth user info */}
+            {isSettingPassword && (
+              <View style={isAndroid ? androidStyles.oauthInfoContainer : styles.oauthInfoContainer}>
+                <Text style={isAndroid ? androidStyles.oauthInfoText : styles.oauthInfoText}>
+                  You signed up with Google. Set a password to also login with email.
+                </Text>
+              </View>
+            )}
+            
+            {/* New Password */}
+            <View style={isAndroid ? androidStyles.passwordInputWrapper : styles.passwordInputWrapper}>
+              <TextInput
+                style={[
+                  isAndroid ? androidStyles.fieldInput : styles.fieldInput,
+                  newPassword && newPassword.length < 6 && (isAndroid ? androidStyles.fieldInputError : styles.fieldInputError)
+                ]}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder={isSettingPassword ? "Create password (min 6 characters)" : "New password (min 6 characters)"}
+                placeholderTextColor="#999"
+                secureTextEntry={!showPassword}
+              />
+              {newPassword && newPassword.length < 6 && (
+                <Text style={isAndroid ? androidStyles.errorText : styles.errorText}>Password must be at least 6 characters</Text>
+              )}
+            </View>
+            
+            {/* Confirm New Password */}
+            <View style={[isAndroid ? androidStyles.passwordInputWrapper : styles.passwordInputWrapper, { marginTop: 12 }]}>
+              <TextInput
+                style={[
+                  isAndroid ? androidStyles.fieldInput : styles.fieldInput,
+                  confirmNewPassword && newPassword !== confirmNewPassword && (isAndroid ? androidStyles.fieldInputError : styles.fieldInputError)
+                ]}
+                value={confirmNewPassword}
+                onChangeText={setConfirmNewPassword}
+                placeholder="Confirm new password"
+                placeholderTextColor="#999"
+                secureTextEntry={!showPassword}
+              />
+              {confirmNewPassword && newPassword !== confirmNewPassword && (
+                <Text style={isAndroid ? androidStyles.errorText : styles.errorText}>Passwords do not match</Text>
+              )}
+              {confirmNewPassword && newPassword === confirmNewPassword && newPassword.length >= 6 && (
+                <Text style={isAndroid ? androidStyles.successText : styles.successText}>✓ Passwords match</Text>
+              )}
+            </View>
+            
+            {/* Show/Hide Password Toggle */}
+            <TouchableOpacity
+              style={isAndroid ? androidStyles.showPasswordToggle : styles.showPasswordToggle}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Text style={isAndroid ? androidStyles.showPasswordText : styles.showPasswordText}>
+                {showPassword ? '🙈 Hide passwords' : '👁️ Show passwords'}
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Password Action Buttons */}
+            <View style={isAndroid ? androidStyles.passwordActions : styles.passwordActions}>
+              <TouchableOpacity
+                style={isAndroid ? androidStyles.cancelButton : styles.cancelButton}
+                onPress={resetPasswordForm}
+              >
+                <Text style={isAndroid ? androidStyles.cancelButtonText : styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  isAndroid ? androidStyles.savePasswordButton : styles.savePasswordButton,
+                  (isSaving || !isPasswordFormValid()) && (isAndroid ? androidStyles.savePasswordButtonDisabled : styles.savePasswordButtonDisabled)
+                ]}
+                onPress={handleChangePassword}
+                disabled={isSaving || !isPasswordFormValid()}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={[
+                    isAndroid ? androidStyles.savePasswordButtonText : styles.savePasswordButtonText,
+                    !isPasswordFormValid() && (isAndroid ? androidStyles.savePasswordButtonTextDisabled : styles.savePasswordButtonTextDisabled)
+                  ]}>Save Password</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <Text style={[
+            isAndroid ? androidStyles.fieldValue : styles.fieldValue,
+            isAndroid ? androidStyles.passwordValue : styles.passwordValue
+          ]}>
+            {isOAuthUser ? 'Not set' : maskPassword(8)}
+          </Text>
+        )}
+        
+        {!isChangingPassword && !isSettingPassword && (
+          <Text style={isAndroid ? androidStyles.fieldHint : styles.fieldHint}>
+            {isOAuthUser 
+              ? 'Signed in with Google. Set a password for email login.' 
+              : 'Password is securely encrypted'}
+          </Text>
+        )}
+      </View>
+    </>
+  );
+
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={styles.gradient}
+        >
+          <StatusBar style="light" />
+
+          {/* Android Header */}
+          <Animated.View
+            style={[
+              androidStyles.header,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <Pressable 
+              style={({ pressed }) => [
+                androidStyles.backButton,
+                pressed && androidStyles.backButtonPressed,
+              ]} 
+              onPress={() => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              {({ pressed }) => (
+                <Ionicons 
+                  name="arrow-back" 
+                  size={24} 
+                  color="#E85A24" 
+                  style={pressed && { opacity: 0.7 }}
+                />
+              )}
+            </Pressable>
+            <Text style={androidStyles.headerTitle}>My Profile</Text>
+          </Animated.View>
+
+          {/* Profile Photo Section in Header */}
+          <Animated.View
+            style={[
+              androidStyles.photoSection,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={androidStyles.photoContainer}>
+              <View style={androidStyles.photoWrapper}>
+                <View style={androidStyles.photoPlaceholder}>
+                  <Text style={androidStyles.photoInitials}>
+                    {getInitials(userName)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.whiteContentArea}>
+            {isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                contentContainerStyle={androidStyles.scrollContent}
+                scrollViewProps={{
+                  style: androidStyles.scrollView,
+                  showsVerticalScrollIndicator: false,
+                }}
+              >
+                {/* Profile Info Card */}
+                <Animated.View
+                  style={[
+                    androidStyles.infoCard,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: slideAnim }],
+                    },
+                  ]}
+                >
+                  {renderProfileContent()}
+                </Animated.View>
+
+                {/* Version Info */}
+                <View style={androidStyles.versionContainer}>
+                  <Text style={androidStyles.versionText}>SplitBill v1.0.0</Text>
+                </View>
+              </WebPullToRefresh>
+            ) : (
+              <ScrollView
+                style={androidStyles.scrollView}
+                contentContainerStyle={androidStyles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Profile Info Card */}
+                <Animated.View
+                  style={[
+                    androidStyles.infoCard,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: slideAnim }],
+                    },
+                  ]}
+                >
+                  {renderProfileContent()}
+                </Animated.View>
+
+                {/* Version Info */}
+                <View style={androidStyles.versionContainer}>
+                  <Text style={androidStyles.versionText}>SplitBill v1.0.0</Text>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
+  // Web/iOS - Original layout unchanged
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -1467,6 +1939,300 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   savePasswordButtonTextDisabled: {
+    color: '#999',
+  },
+});
+
+// Android-specific styles
+const androidStyles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    zIndex: 100,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  backButtonPressed: {
+    backgroundColor: '#F5F5F5',
+    transform: [{ scale: 0.95 }],
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+    marginLeft: 12,
+  },
+  photoSection: {
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  photoContainer: {
+    alignItems: 'center',
+  },
+  photoWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  photoPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#FFF',
+  },
+  photoInitials: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  whiteContentArea: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    overflow: 'hidden',
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
+  infoCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 28,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fieldContainer: {
+    paddingVertical: 18,
+  },
+  fieldHeaderWithEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  fieldHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fieldIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  editButtonInline: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(232, 90, 36, 0.1)',
+  },
+  editButtonActive: {
+    backgroundColor: '#E85A24',
+  },
+  editButtonInlineText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#E85A24',
+  },
+  editButtonActiveText: {
+    color: '#FFF',
+  },
+  fieldValue: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  fieldInput: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+    borderBottomWidth: 2,
+    borderBottomColor: '#E85A24',
+    paddingVertical: 8,
+  },
+  fieldInputError: {
+    borderBottomColor: '#E74C3C',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#E74C3C',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  successText: {
+    fontSize: 12,
+    color: '#27AE60',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  fieldDivider: {
+    height: 1,
+    backgroundColor: '#EEE',
+  },
+  passwordValue: {
+    flex: 1,
+    letterSpacing: 3,
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  passwordInputWrapper: {
+    marginTop: 8,
+  },
+  showPasswordToggle: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  showPasswordText: {
+    fontSize: 13,
+    color: '#E85A24',
+    fontWeight: '500',
+  },
+  passwordActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+    gap: 12,
+  },
+  cancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDD',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  savePasswordButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#E85A24',
+  },
+  savePasswordButtonDisabled: {
+    backgroundColor: '#CCC',
+    opacity: 0.7,
+  },
+  savePasswordButtonText: {
+    fontSize: 14,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  savePasswordButtonTextDisabled: {
+    color: '#999',
+  },
+  apiErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FED7D7',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  apiErrorEmoji: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  apiErrorContent: {
+    flex: 1,
+  },
+  apiErrorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#C53030',
+    marginBottom: 2,
+  },
+  apiErrorMessage: {
+    fontSize: 13,
+    color: '#742A2A',
+    lineHeight: 18,
+  },
+  apiErrorClose: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  apiErrorCloseText: {
+    fontSize: 16,
+    color: '#C53030',
+    fontWeight: '600',
+  },
+  successContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FFF4',
+    borderWidth: 1,
+    borderColor: '#9AE6B4',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  successMessageText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#276749',
+    flex: 1,
+  },
+  oauthInfoContainer: {
+    backgroundColor: '#EBF8FF',
+    borderWidth: 1,
+    borderColor: '#90CDF4',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  oauthInfoText: {
+    fontSize: 13,
+    color: '#2B6CB0',
+    lineHeight: 18,
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  versionText: {
+    fontSize: 12,
     color: '#999',
   },
 });

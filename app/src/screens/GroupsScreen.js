@@ -29,6 +29,7 @@ export default function GroupsScreen({ route }) {
   
   // Detect mobile web (web platform with narrow screen)
   const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+  const isAndroid = Platform.OS === 'android';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [groups, setGroups] = useState([]);
@@ -1415,6 +1416,554 @@ export default function GroupsScreen({ route }) {
   const currentExpense = activeExpenseIndex !== null && groupDetails?.expenses?.[activeExpenseIndex];
   const expenseMembers = currentExpense ? getExpenseMembers(currentExpense) : [];
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.gradient}
+        >
+          <StatusBar style="light" />
+          
+          {/* Header */}
+          <View style={androidStyles.header}>
+            <Pressable onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#E85A24" />
+            </Pressable>
+            <Text style={androidStyles.headerTitle}>
+              {selectedGroup ? selectedGroup.name : 'Groups'}
+            </Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+
+          {/* Decorative Icon */}
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
+              <Ionicons name="people-outline" size={40} color="#FFF" />
+            </View>
+          </View>
+
+          {/* White Content Area */}
+          <View style={androidStyles.whiteContentArea}>
+            {selectedGroup ? renderGroupDetails() : renderGroupList()}
+
+            {/* Floating Create Group Button - Only show in list view */}
+            {!selectedGroup && (
+              <TouchableOpacity
+                style={styles.floatingButton}
+                onPress={() => navigation.navigate('CreateGroup')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={24} color="#FFF" />
+                <Text style={styles.floatingButtonText}>Create Group</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </LinearGradient>
+
+        {/* Member Split Modal - Same as Preview */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Split Details</Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {currentExpense && (
+                <>
+                  <View style={styles.modalTotalRow}>
+                    <Text style={styles.modalTotalLabel}>Total Amount:</Text>
+                    <Text style={styles.modalTotalValue}>
+                      ₹{parseFloat(currentExpense.totalAmount || currentExpense.amount || 0).toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <ScrollView style={styles.membersList}>
+                    {expenseMembers.map((member, index) => (
+                      <View key={member.mailId || index} style={styles.memberRow}>
+                        <View style={styles.memberInfo}>
+                          <Text style={styles.memberName}>{member.name}</Text>
+                          {member.mailId === currentExpense.payer && (
+                            <Text style={styles.payerBadge}>Payer</Text>
+                          )}
+                        </View>
+                        <View style={styles.amountDisplay}>
+                          <Text style={styles.memberAmount}>
+                            ₹{parseFloat(member.amount || 0).toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={deleteModalVisible}
+          onRequestClose={() => setDeleteModalVisible(false)}
+        >
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.deleteModalContent}>
+              <View style={styles.deleteModalIcon}>
+                <Ionicons name="trash-outline" size={40} color="#DC3545" />
+              </View>
+              <Text style={styles.deleteModalTitle}>Delete Group?</Text>
+              <Text style={styles.deleteModalText}>
+                Are you sure you want to delete "{selectedGroup?.name}"? The group will be permanently removed in 7 days.
+              </Text>
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancelButton}
+                  onPress={() => setDeleteModalVisible(false)}
+                  disabled={deleting}
+                >
+                  <Text style={styles.deleteModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteModalConfirmButton}
+                  onPress={handleDeleteGroup}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Edit Expense Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={editExpenseModalVisible}
+          onRequestClose={() => setEditExpenseModalVisible(false)}
+        >
+          <View style={styles.editExpenseOverlay}>
+            <View style={styles.editExpenseContentLarge}>
+              <View style={styles.editExpenseHeader}>
+                <Text style={styles.editExpenseTitle}>Edit Expense</Text>
+                <TouchableOpacity onPress={() => setEditExpenseModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                style={styles.editExpenseScrollView}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.editExpenseField}>
+                  <Text style={styles.editExpenseLabel}>Expense Name</Text>
+                  <TextInput
+                    style={styles.editExpenseInput}
+                    value={editExpenseName}
+                    onChangeText={setEditExpenseName}
+                    placeholder="Enter expense name"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                {/* Total Amount Display */}
+                <View style={styles.editTotalRow}>
+                  <Text style={styles.editTotalLabel}>Total Amount</Text>
+                  <Text style={styles.editTotalValue}>₹{getEditPayeesTotal().toFixed(2)}</Text>
+                </View>
+
+                {/* Members Section */}
+                <View style={styles.editPayeesSection}>
+                  <View style={styles.editPayeesHeader}>
+                    <Text style={styles.editExpenseLabel}>Members & Splits</Text>
+                    <TouchableOpacity 
+                      style={styles.addUserButton}
+                      onPress={() => setShowAddUserSection(!showAddUserSection)}
+                    >
+                      <Ionicons name={showAddUserSection ? "close" : "person-add"} size={18} color="#FF6B35" />
+                      <Text style={styles.addUserButtonText}>{showAddUserSection ? 'Close' : 'Add'}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Add User Section */}
+                  {showAddUserSection && (
+                    <View style={styles.addUserSection}>
+                      <View style={styles.addUserInputRow}>
+                        <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
+                        <TextInput
+                          style={styles.addUserInput}
+                          value={addUserSearch}
+                          onChangeText={setAddUserSearch}
+                          placeholder="Search by name or email..."
+                          placeholderTextColor="#999"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoFocus={true}
+                        />
+                        {addUserSearch.trim() ? (
+                          <TouchableOpacity 
+                            style={styles.clearSearchButton}
+                            onPress={() => setAddUserSearch('')}
+                          >
+                            <Ionicons name="close-circle" size={20} color="#999" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      
+                      {/* Search Results */}
+                      <View style={styles.searchResultsContainer}>
+                        {isSearchingUsers && addUserSearch.trim().length >= 2 && (
+                          <View style={styles.searchingIndicator}>
+                            <ActivityIndicator size="small" color="#FF6B35" />
+                            <Text style={styles.searchingText}>Searching...</Text>
+                          </View>
+                        )}
+                        {getSearchSuggestions().length > 0 ? (
+                          <>
+                            {getSearchSuggestions().map((suggestion, index) => (
+                              <TouchableOpacity
+                                key={suggestion.mailId}
+                                style={[
+                                  styles.suggestionItem,
+                                  suggestion.isNew && styles.suggestionItemNew,
+                                  suggestion.isApiResult && styles.suggestionItemApi,
+                                  index < getSearchSuggestions().length - 1 && styles.suggestionItemBorder
+                                ]}
+                                onPress={() => handleSelectSuggestion(suggestion)}
+                              >
+                                <View style={[
+                                  styles.suggestionAvatar,
+                                  suggestion.isNew && styles.suggestionAvatarNew,
+                                  suggestion.isApiResult && styles.suggestionAvatarApi
+                                ]}>
+                                  {suggestion.isNew ? (
+                                    <Ionicons name="person-add" size={14} color="#FFF" />
+                                  ) : (
+                                    <Text style={styles.suggestionAvatarText}>
+                                      {(suggestion.name || suggestion.mailId).charAt(0).toUpperCase()}
+                                    </Text>
+                                  )}
+                                </View>
+                                <View style={styles.suggestionInfo}>
+                                  <View style={styles.suggestionNameRow}>
+                                    <Text style={[styles.suggestionName, suggestion.isNew && styles.suggestionNameNew]} numberOfLines={1}>
+                                      {suggestion.isNew ? 'Add new member' : suggestion.name}
+                                    </Text>
+                                    {suggestion.isGroupMember && (
+                                      <View style={styles.suggestionBadge}>
+                                        <Text style={styles.suggestionBadgeText}>Group</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <Text style={styles.suggestionEmail} numberOfLines={1}>
+                                    {suggestion.mailId}
+                                  </Text>
+                                </View>
+                                <Ionicons name="add-circle" size={22} color={suggestion.isNew ? "#28A745" : "#FF6B35"} />
+                              </TouchableOpacity>
+                            ))}
+                          </>
+                        ) : addUserSearch.trim() && addUserSearch.trim().length >= 2 && !isSearchingUsers ? (
+                          <View style={styles.noResultsMessage}>
+                            <Text style={styles.noResultsText}>No users found for "{addUserSearch}"</Text>
+                            <Text style={styles.noResultsHint}>Enter a full email address to add someone new</Text>
+                            {addUserSearch.includes('@') && (
+                              <TouchableOpacity
+                                style={styles.addNewEmailRow}
+                                onPress={handleAddNewUser}
+                              >
+                                <View style={[styles.suggestionAvatar, styles.suggestionAvatarNew]}>
+                                  <Ionicons name="person-add" size={14} color="#FFF" />
+                                </View>
+                                <View style={styles.suggestionInfo}>
+                                  <Text style={styles.suggestionNameNew}>Add as new member</Text>
+                                  <Text style={styles.suggestionEmail}>{addUserSearch.trim()}</Text>
+                                </View>
+                                <Ionicons name="add-circle" size={22} color="#28A745" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ) : !addUserSearch.trim() ? (
+                          <View style={styles.noResultsMessage}>
+                            <Text style={styles.noResultsText}>
+                              {allGroupMembers.filter(m => !editPayees.some(p => p.mailId.toLowerCase() === m.mailId.toLowerCase())).length === 0 
+                                ? 'All group members added' 
+                                : 'Type to search users...'}
+                            </Text>
+                            <Text style={styles.noResultsHint}>Search by name or email</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Current Payees */}
+                  {editPayees.map((payee, index) => (
+                    <View key={payee.mailId} style={styles.editPayeeRow}>
+                      <View style={styles.editPayeeInfo}>
+                        <View style={styles.editPayeeAvatar}>
+                          <Text style={styles.editPayeeAvatarText}>
+                            {(payee.name || payee.mailId).charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.editPayeeDetails}>
+                          <Text style={styles.editPayeeName} numberOfLines={1}>{payee.name}</Text>
+                          {payee.isPayer && (
+                            <Text style={styles.editPayerBadge}>Payer</Text>
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.editPayeeActions}>
+                        <View style={styles.editPayeeAmountWrapper}>
+                          <Text style={styles.editPayeeCurrency}>₹</Text>
+                          <TextInput
+                            style={styles.editPayeeAmountInput}
+                            value={payee.amount}
+                            onChangeText={(val) => handlePayeeAmountChange(payee.mailId, val)}
+                            placeholder="0"
+                            placeholderTextColor="#CCC"
+                            keyboardType="decimal-pad"
+                          />
+                        </View>
+                        {/* Don't allow deleting the payer */}
+                        {!payee.isPayer && (
+                          <TouchableOpacity 
+                            style={styles.editPayeeDeleteButton}
+                            onPress={() => handleRemovePayee(payee)}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#DC3545" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+
+                  {editPayees.length === 0 && (
+                    <View style={styles.noPayeesMessage}>
+                      <Text style={styles.noPayeesText}>No members added. Add members to split the expense.</Text>
+                    </View>
+                  )}
+
+                  {/* Removed Payees - Can Add Back */}
+                  {removedPayees.length > 0 && (
+                    <View style={styles.removedPayeesSection}>
+                      <Text style={styles.removedPayeesTitle}>Removed Members</Text>
+                      {removedPayees.map((payee) => (
+                        <View key={payee.mailId} style={styles.removedPayeeRow}>
+                          <View style={styles.editPayeeInfo}>
+                            <View style={[styles.editPayeeAvatar, styles.removedPayeeAvatar]}>
+                              <Text style={styles.editPayeeAvatarText}>
+                                {(payee.name || payee.mailId).charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                            <View style={styles.removedPayeeDetails}>
+                              <Text style={styles.removedPayeeName} numberOfLines={1}>{payee.name}</Text>
+                              {parseFloat(payee.amount) > 0 && (
+                                <Text style={styles.removedPayeeAmount}>₹{parseFloat(payee.amount).toFixed(2)}</Text>
+                              )}
+                            </View>
+                          </View>
+                          <TouchableOpacity 
+                            style={styles.addBackButton}
+                            onPress={() => handleAddBackPayee(payee)}
+                          >
+                            <Ionicons name="add-circle-outline" size={18} color="#28A745" />
+                            <Text style={styles.addBackButtonText}>Add back</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </ScrollView>
+
+              <View style={styles.editExpenseButtons}>
+                <TouchableOpacity
+                  style={styles.editExpenseCancelButton}
+                  onPress={() => setEditExpenseModalVisible(false)}
+                  disabled={savingExpense}
+                >
+                  <Text style={styles.editExpenseCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.editExpenseSaveButton,
+                    (!editExpenseName.trim() || editPayees.length === 0 || !hasExpenseChanges()) && styles.editExpenseSaveButtonDisabled
+                  ]}
+                  onPress={handleShowSaveConfirm}
+                  disabled={savingExpense || !editExpenseName.trim() || editPayees.length === 0 || !hasExpenseChanges()}
+                >
+                  {savingExpense ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.editExpenseSaveText}>Save Changes</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Save Confirmation Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showSaveConfirmModal}
+          onRequestClose={() => setShowSaveConfirmModal(false)}
+        >
+          <Pressable 
+            style={styles.saveConfirmModalOverlay}
+            onPress={() => setShowSaveConfirmModal(false)}
+          >
+            <View style={styles.saveConfirmModalContent}>
+              <View style={styles.saveConfirmModalHeader}>
+                <Ionicons name="help-circle" size={48} color="#FF6B35" />
+                <Text style={styles.saveConfirmModalTitle}>Save Changes?</Text>
+                <Text style={styles.saveConfirmModalSubtitle}>
+                  Are you sure you want to save these changes to the expense?
+                </Text>
+              </View>
+              <View style={styles.saveConfirmModalButtonsRow}>
+                <TouchableOpacity
+                  style={styles.saveConfirmCancelButtonRow}
+                  onPress={() => setShowSaveConfirmModal(false)}
+                >
+                  <Text style={styles.saveConfirmCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveConfirmSaveButtonRow}
+                  onPress={handleConfirmSave}
+                >
+                  <Ionicons name="checkmark" size={18} color="#FFF" />
+                  <Text style={styles.saveConfirmSaveText}>Confirm</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Expense Actions Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={expandedExpenseIndex !== null}
+          onRequestClose={() => setExpandedExpenseIndex(null)}
+        >
+          <Pressable 
+            style={styles.expenseActionsModalOverlay}
+            onPress={() => setExpandedExpenseIndex(null)}
+          >
+            <View style={styles.expenseActionsModalContent}>
+              <View style={styles.expenseActionsModalHeader}>
+                <Text style={styles.expenseActionsModalTitle}>
+                  {selectedExpense?.name || 'Expense Options'}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.expenseActionsCloseButton}
+                  onPress={() => setExpandedExpenseIndex(null)}
+                >
+                  <Ionicons name="close" size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity 
+                style={styles.expenseActionRow}
+                onPress={() => {
+                  const index = expandedExpenseIndex;
+                  setExpandedExpenseIndex(null);
+                  handleViewExpense(selectedExpense, index);
+                }}
+              >
+                <Ionicons name="eye-outline" size={20} color="#666" />
+                <Text style={styles.expenseActionText}>View Details</Text>
+              </TouchableOpacity>
+              {isGroupEditable() && (
+                <>
+                  <TouchableOpacity 
+                    style={styles.expenseActionRow}
+                    onPress={() => {
+                      setExpandedExpenseIndex(null);
+                      handleEditExpense(selectedExpense);
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={20} color="#FF6B35" />
+                    <Text style={[styles.expenseActionText, styles.expenseActionTextEdit]}>Edit Expense</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.expenseActionRow, styles.expenseActionRowLast]}
+                    onPress={() => {
+                      setExpandedExpenseIndex(null);
+                      handleDeleteExpenseConfirm(selectedExpense);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#DC3545" />
+                    <Text style={[styles.expenseActionText, styles.expenseActionTextDelete]}>Delete</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Delete Expense Confirmation Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={deleteExpenseModalVisible}
+          onRequestClose={() => setDeleteExpenseModalVisible(false)}
+        >
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.deleteModalContent}>
+              <View style={styles.deleteModalIcon}>
+                <Ionicons name="receipt-outline" size={40} color="#DC3545" />
+              </View>
+              <Text style={styles.deleteModalTitle}>Delete Expense?</Text>
+              <Text style={styles.deleteModalText}>
+                Are you sure you want to delete "{selectedExpense?.name}"? This will recalculate all settlements.
+              </Text>
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancelButton}
+                  onPress={() => setDeleteExpenseModalVisible(false)}
+                  disabled={deletingExpense}
+                >
+                  <Text style={styles.deleteModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteModalConfirmButton}
+                  onPress={handleDeleteExpense}
+                  disabled={deletingExpense}
+                >
+                  {deletingExpense ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
+  // Original layout for Web/iOS
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -3348,5 +3897,62 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFF',
+  },
+});
+
+// Android-specific styles
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerRight: {
+    width: 44,
+  },
+  decorativeIconContainer: {
+    alignItems: 'center',
+    marginTop: -20,
+    marginBottom: 10,
+  },
+  decorativeIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteContentArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    paddingTop: 30,
   },
 });
