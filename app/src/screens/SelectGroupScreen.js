@@ -15,8 +15,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { authGet } from '../utils/apiHelper';
 import WebPullToRefresh from '../components/WebPullToRefresh';
+
+const isAndroid = Platform.OS === 'android';
 
 export default function SelectGroupScreen() {
   const navigation = useNavigation();
@@ -130,6 +133,117 @@ export default function SelectGroupScreen() {
     );
   }
 
+  // Android Layout - Orange header with white content area
+  if (isAndroid) {
+    return (
+      <View style={androidStyles.container}>
+        <StatusBar style="light" />
+        
+        {/* Orange Header */}
+        <LinearGradient
+          colors={['#F57C3A', '#E85A24', '#D84315']}
+          style={androidStyles.headerGradient}
+        >
+          <View style={androidStyles.header}>
+            <Pressable onPress={handleBack} style={androidStyles.backButton}>
+              <Ionicons name="arrow-back" size={22} color="#E85A24" />
+            </Pressable>
+            <Text style={androidStyles.headerTitle}>Select Group</Text>
+            <View style={androidStyles.headerRight} />
+          </View>
+          
+          {/* Decorative icon */}
+          <View style={androidStyles.headerIconContainer}>
+            <View style={androidStyles.headerIconCircle}>
+              <Ionicons name="people-outline" size={40} color="#E85A24" />
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* White Content Area with curved top */}
+        <View style={androidStyles.contentWrapper}>
+          {/* Search Bar */}
+          <View style={androidStyles.searchContainer}>
+            <View style={androidStyles.searchInputWrapper}>
+              <Ionicons name="search" size={20} color="#999" style={androidStyles.searchIcon} />
+              <TextInput
+                style={androidStyles.searchInput}
+                placeholder="Search active groups..."
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {loading ? (
+            <View style={androidStyles.loadingState}>
+              <ActivityIndicator size="large" color="#E85A24" />
+              <Text style={androidStyles.loadingText}>Loading groups...</Text>
+            </View>
+          ) : filteredGroups.length === 0 ? (
+            <View style={androidStyles.emptyState}>
+              <View style={androidStyles.emptyIconCircle}>
+                <Ionicons name="folder-open-outline" size={50} color="#E85A24" />
+              </View>
+              <Text style={androidStyles.emptyTitle}>
+                {searchQuery ? 'No groups found' : 'No active groups'}
+              </Text>
+              <Text style={androidStyles.emptySubtext}>
+                {searchQuery 
+                  ? `No active groups matching "${searchQuery}"`
+                  : 'Create a new group first to add expenses'
+                }
+              </Text>
+              {!searchQuery && (
+                <TouchableOpacity 
+                  style={androidStyles.createButton}
+                  onPress={() => navigation.navigate('CreateGroup')}
+                >
+                  <Text style={androidStyles.createButtonText}>Create New Group</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <ScrollView 
+              style={androidStyles.groupsScrollView}
+              contentContainerStyle={androidStyles.groupsScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {filteredGroups.map((group, index) => (
+                <TouchableOpacity
+                  key={group._id || group.id}
+                  style={androidStyles.groupItem}
+                  onPress={() => handleSelectGroup(group)}
+                  activeOpacity={0.8}
+                >
+                  <View style={androidStyles.groupIcon}>
+                    <Text style={androidStyles.groupIconText}>
+                      {group.name.substring(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={androidStyles.groupInfo}>
+                    <Text style={androidStyles.groupName} numberOfLines={1}>{group.name}</Text>
+                    <Text style={androidStyles.groupStatus}>● Active</Text>
+                  </View>
+                  <View style={androidStyles.groupArrowCircle}>
+                    <Ionicons name="chevron-forward" size={20} color="#FFF" />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // Web/iOS Layout - Original design (unchanged)
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -268,6 +382,7 @@ export default function SelectGroupScreen() {
   );
 }
 
+// Web/iOS Styles - Original unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -279,7 +394,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 65 : (Platform.OS === 'web' ? 20 : 50),
+    paddingTop: Platform.OS === 'ios' ? 65 : 20,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
@@ -449,3 +564,205 @@ const styles = StyleSheet.create({
   },
 });
 
+// Android Styles - New design
+const androidStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#E85A24',
+  },
+  headerGradient: {
+    paddingTop: 40,
+    paddingBottom: 60,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  headerRight: {
+    width: 44,
+  },
+  headerIconContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  headerIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    marginTop: -30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: 'hidden',
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 25,
+    paddingBottom: 15,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  emptyIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#E85A24',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 22,
+  },
+  createButton: {
+    backgroundColor: '#E85A24',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    shadowColor: '#E85A24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  createButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  groupsScrollView: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  groupsScrollContent: {
+    paddingBottom: 20,
+  },
+  groupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  groupIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#E85A24',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  groupIconText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  groupStatus: {
+    fontSize: 13,
+    color: '#28A745',
+    fontWeight: '500',
+  },
+  groupArrowCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E85A24',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
