@@ -20,6 +20,7 @@ import { theme } from '../theme';
 import Logo from '../components/Logo';
 import { api } from '../api/client';
 import WebPullToRefresh from '../components/WebPullToRefresh';
+import { useAuth } from '../context/AuthContext';
 
 // Only import camera on native platforms
 let CameraView, useCameraPermissions;
@@ -41,7 +42,32 @@ const normalize = (size) => Math.round(PixelRatio.roundToNearestPixel(size * sca
 // Calculate bottom padding based on screen height percentage (more consistent across devices)
 const BOTTOM_BAR_PADDING = Math.max(normalize(40), SCREEN_HEIGHT * 0.06);
 
+// Helper function to get initials (max 2 characters)
+const getInitials = (name) => {
+  if (!name) return 'U';
+  const parts = name.trim().split(' ').filter(p => p.length > 0);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
+
+// Get last 6 months for dropdown
+const getLastSixMonths = () => {
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < 6; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+    });
+  }
+  return months;
+};
+
 export default function MainScreen({ navigation }) {
+  const { user } = useAuth();
   const [menuVisible, setMenuVisible] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
@@ -49,6 +75,13 @@ export default function MainScreen({ navigation }) {
   const [permissionChecked, setPermissionChecked] = useState(isWeb);
   const [refreshing, setRefreshing] = useState(false);
   const cameraRef = useRef(null);
+  
+  // Insights state
+  const [selectedMonth, setSelectedMonth] = useState(getLastSixMonths()[0].value);
+  const [monthDropdownVisible, setMonthDropdownVisible] = useState(false);
+  
+  // Analysis state
+  const [selectedRange, setSelectedRange] = useState(2); // Default: past 2 months
 
   // Pull to refresh handler for web
   const onRefresh = useCallback(() => {
@@ -230,114 +263,166 @@ export default function MainScreen({ navigation }) {
     );
   }
 
-  // Mobile - Permission not granted
-  if (!permissionGranted) {
-    return (
-      <LinearGradient
-        colors={[theme.colors.backgroundGradientStart, theme.colors.backgroundGradientEnd]}
-        style={styles.container}
-      >
-        <View style={styles.permissionContent}>
-          <Logo size="large" />
-          
-          <View style={styles.permissionBox}>
-            <Ionicons name="camera" size={48} color={theme.colors.background} />
-            <Text style={styles.permissionTitle}>Camera Access</Text>
-            <Text style={styles.permissionText}>
-              We need camera access to scan your receipts instantly
-            </Text>
-            <TouchableOpacity style={styles.permissionButton} onPress={handleRequestPermission}>
-              <Text style={styles.permissionButtonText}>Enable Camera</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.permissionDivider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
+  // Get selected month label
+  const selectedMonthLabel = getLastSixMonths().find(m => m.value === selectedMonth)?.label || 'Select Month';
 
-            <TouchableOpacity style={styles.altButton} onPress={pickImage}>
-              <Ionicons name="image-outline" size={20} color={theme.colors.primary} />
-              <Text style={styles.altButtonText}>Upload from Gallery</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.altButton} onPress={handleCustomSplit}>
-              <Ionicons name="calculator-outline" size={20} color={theme.colors.primary} />
-              <Text style={styles.altButtonText}>Add Custom Split</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
-    );
-  }
-
-  // Mobile - Camera view with scanning
+  // Android - New Dashboard Layout
   return (
     <View style={styles.container}>
-      {/* Camera */}
-      {CameraView && (
-        <CameraView
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill}
-          facing="back"
-        />
-      )}
-
-      {/* Overlay gradient */}
+      {/* Orange Header Section */}
       <LinearGradient
-        colors={['rgba(255, 107, 53, 0.9)', 'transparent', 'rgba(255, 107, 53, 0.9)']}
-        locations={[0, 0.5, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <Logo size="small" />
-        <TouchableOpacity style={styles.menuButton} onPress={toggleMenu}>
-          <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Scan frame */}
-      <View style={styles.scanContainer}>
-        <View style={styles.scanFrame}>
-          <View style={[styles.corner, styles.cornerTL]} />
-          <View style={[styles.corner, styles.cornerTR]} />
-          <View style={[styles.corner, styles.cornerBL]} />
-          <View style={[styles.corner, styles.cornerBR]} />
+        colors={['#FF8C5A', '#FF6B35', '#FF5722']}
+        style={styles.headerGradient}
+      >
+        {/* Top Bar */}
+        <View style={styles.topBar}>
+          <Text style={styles.appTitle}>SplitBill</Text>
+          <TouchableOpacity 
+            style={styles.profileButton}
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <Text style={styles.profileInitials}>{getInitials(user?.name)}</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.scanHint}>Position receipt in frame</Text>
-      </View>
+        
+        {/* Logo */}
+        <View style={styles.logoContainer}>
+          <Logo size="medium" />
+        </View>
+      </LinearGradient>
 
-      {/* Capture button */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-          <View style={styles.captureButtonInner}>
-            <Ionicons name="scan" size={28} color={theme.colors.background} />
+      {/* White Panel with Scrollable Content */}
+      <View style={styles.whitePanel}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Action Buttons Row */}
+          <View style={styles.actionButtonsRow}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleCustomSplit}>
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="calculator-outline" size={28} color="#FF6B35" />
+              </View>
+              <Text style={styles.actionButtonText}>Custom</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionButton} onPress={pickImage}>
+              <View style={styles.actionIconContainer}>
+                <Ionicons name="camera-outline" size={28} color="#FF6B35" />
+              </View>
+              <Text style={styles.actionButtonText}>Upload Photo</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-        <Text style={styles.captureHint}>Tap to scan</Text>
+
+          {/* Expense Insights Section */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Expense Insights</Text>
+              {/* Month Dropdown */}
+              <TouchableOpacity 
+                style={styles.dropdown}
+                onPress={() => setMonthDropdownVisible(true)}
+              >
+                <Text style={styles.dropdownText} numberOfLines={1}>
+                  {selectedMonthLabel.split(' ')[0].substring(0, 3)} {selectedMonthLabel.split(' ')[1]}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Pie Chart Placeholder */}
+            <View style={styles.chartContainer}>
+              <View style={styles.pieChartPlaceholder}>
+                <View style={styles.pieChartCircle} />
+              </View>
+              <Text style={styles.noDataText}>No data</Text>
+            </View>
+          </View>
+
+          {/* Analysis Section */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Analysis</Text>
+              {/* Range Selector */}
+              <TouchableOpacity 
+                style={styles.dropdown}
+                onPress={() => {
+                  // Cycle through options: 2 -> 3 -> 4 -> 5 -> 6 -> 2
+                  setSelectedRange(prev => prev >= 6 ? 2 : prev + 1);
+                }}
+              >
+                <Text style={styles.dropdownText}>Past {selectedRange} months</Text>
+                <Ionicons name="chevron-down" size={16} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Bar Chart Placeholder */}
+            <View style={styles.chartContainer}>
+              <View style={styles.barChartPlaceholder}>
+                <View style={[styles.bar, { height: 40 }]} />
+                <View style={[styles.bar, { height: 60 }]} />
+                <View style={[styles.bar, { height: 30 }]} />
+                <View style={[styles.bar, { height: 50 }]} />
+                <View style={[styles.bar, { height: 45 }]} />
+              </View>
+              <Text style={styles.noDataText}>No data</Text>
+            </View>
+          </View>
+
+          {/* Summary Section */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Summary</Text>
+            <View style={styles.summaryContent}>
+              <Ionicons name="analytics-outline" size={32} color="#CCC" />
+              <Text style={styles.noDataText}>No data</Text>
+              <Text style={styles.summaryHint}>
+                Your spending insights will appear here once you start tracking expenses
+              </Text>
+            </View>
+          </View>
+
+          {/* Bottom spacing for tab bar */}
+          <View style={{ height: 20 }} />
+        </ScrollView>
       </View>
 
-      {/* Menu Modal */}
+      {/* Month Selection Modal */}
       <Modal
-        visible={menuVisible}
+        visible={monthDropdownVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setMenuVisible(false)}
+        onRequestClose={() => setMonthDropdownVisible(false)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
-          <View style={styles.menuContainer}>
-            <TouchableOpacity style={styles.menuItem} onPress={handleCustomSplit}>
-              <Ionicons name="calculator" size={22} color={theme.colors.cardText} />
-              <Text style={styles.menuItemText}>Add Custom Split</Text>
-            </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={pickImage}>
-              <Ionicons name="image" size={22} color={theme.colors.cardText} />
-              <Text style={styles.menuItemText}>Upload Image</Text>
-            </TouchableOpacity>
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setMonthDropdownVisible(false)}
+        >
+          <View style={styles.dropdownModal}>
+            <Text style={styles.dropdownModalTitle}>Select Month</Text>
+            {getLastSixMonths().map((month) => (
+              <TouchableOpacity
+                key={month.value}
+                style={[
+                  styles.dropdownOption,
+                  selectedMonth === month.value && styles.dropdownOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedMonth(month.value);
+                  setMonthDropdownVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.dropdownOptionText,
+                  selectedMonth === month.value && styles.dropdownOptionTextSelected
+                ]}>
+                  {month.label}
+                </Text>
+                {selectedMonth === month.value && (
+                  <Ionicons name="checkmark" size={20} color="#FF6B35" />
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         </Pressable>
       </Modal>
@@ -361,7 +446,7 @@ export default function MainScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F5F5F5',
   },
   centerContent: {
     flex: 1,
@@ -416,213 +501,225 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Permission styles
-  permissionContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme.spacing.xl,
-    paddingBottom: SCREEN_HEIGHT * 0.12,
+  // Android Header styles
+  headerGradient: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  permissionBox: {
-    backgroundColor: theme.colors.cardBg,
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-    marginTop: theme.spacing.xl,
-    width: '100%',
-    maxWidth: 340,
-    ...theme.shadows.lg,
-  },
-  permissionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: theme.colors.cardText,
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-  },
-  permissionText: {
-    fontSize: 15,
-    color: theme.colors.cardTextSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: theme.spacing.lg,
-  },
-  permissionButton: {
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.full,
-  },
-  permissionButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.primary,
-  },
-  permissionDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: theme.spacing.lg,
-    width: '100%',
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E0E0E0',
-  },
-  dividerText: {
-    marginHorizontal: theme.spacing.md,
-    color: theme.colors.cardTextSecondary,
-    fontSize: 14,
-  },
-  altButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
-  },
-  altButtonText: {
-    fontSize: 16,
-    color: theme.colors.background,
-    fontWeight: '600',
-  },
-
-  // Camera view styles
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 60 : normalize(50),
-    paddingHorizontal: theme.spacing.lg,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
-  menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  appTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  profileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scanContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scanFrame: {
-    width: SCREEN_WIDTH * 0.8,
-    height: SCREEN_HEIGHT * 0.45,
-    position: 'relative',
-  },
-  corner: {
-    position: 'absolute',
-    width: 50,
-    height: 50,
-    borderColor: theme.colors.primary,
-  },
-  cornerTL: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 16,
-  },
-  cornerTR: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 16,
-  },
-  cornerBL: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 16,
-  },
-  cornerBR: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 16,
-  },
-  scanHint: {
-    marginTop: theme.spacing.lg,
+  profileInitials: {
     fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    fontWeight: '700',
+    color: '#FFF',
   },
-  bottomBar: {
+  logoContainer: {
     alignItems: 'center',
-    paddingBottom: BOTTOM_BAR_PADDING,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    marginTop: 5,
   },
-  captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.primary,
+
+  // White Panel styles
+  whitePanel: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    marginTop: -20,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 25,
+  },
+
+  // Action Buttons
+  actionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 15,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  actionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF5F0',
     justifyContent: 'center',
     alignItems: 'center',
-    ...theme.shadows.lg,
+    marginBottom: 10,
   },
-  captureButtonInner: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: theme.colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  captureHint: {
-    marginTop: theme.spacing.md,
+  actionButtonText: {
     fontSize: 14,
-    color: theme.colors.primaryMuted,
+    fontWeight: '600',
+    color: '#333',
+  },
+
+  // Section Card styles
+  sectionCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+
+  // Dropdown styles
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  dropdownText: {
+    fontSize: 13,
+    color: '#666',
     fontWeight: '500',
   },
 
-  // Menu modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: Platform.OS === 'ios' ? 110 : normalize(100),
-    paddingRight: theme.spacing.lg,
-  },
-  menuContainer: {
-    backgroundColor: theme.colors.cardBg,
-    borderRadius: theme.borderRadius.lg,
-    overflow: 'hidden',
-    minWidth: 200,
-    ...theme.shadows.lg,
-  },
-  menuItem: {
-    flexDirection: 'row',
+  // Chart placeholder styles
+  chartContainer: {
     alignItems: 'center',
-    gap: theme.spacing.md,
-    padding: theme.spacing.md,
+    paddingVertical: 20,
   },
-  menuItemText: {
+  pieChartPlaceholder: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  pieChartCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 20,
+    borderColor: '#E0E0E0',
+  },
+  barChartPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 80,
+    gap: 15,
+    marginBottom: 15,
+  },
+  bar: {
+    width: 30,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+  },
+  noDataText: {
     fontSize: 16,
-    color: theme.colors.cardText,
+    color: '#999',
     fontWeight: '500',
   },
-  menuDivider: {
-    height: 1,
-    backgroundColor: '#E0E0E0',
+
+  // Summary styles
+  summaryContent: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  summaryHint: {
+    fontSize: 13,
+    color: '#AAA',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 20,
+    lineHeight: 18,
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  dropdownModal: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 10,
+    width: '100%',
+    maxWidth: 320,
+  },
+  dropdownModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderRadius: 8,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: '#FFF5F0',
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  dropdownOptionTextSelected: {
+    color: '#FF6B35',
+    fontWeight: '600',
   },
 
   // Scanning overlay
