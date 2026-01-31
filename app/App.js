@@ -796,6 +796,50 @@ function HomeScreen({ navigation, route }) {
   const [selectedRange, setSelectedRange] = useState(2);
   const [rangeDropdownVisible, setRangeDropdownVisible] = useState(false);
 
+  // Category options for filtering
+  const categoryOptions = [
+    { id: 'food', label: 'Food', color: '#FF6B35' },
+    { id: 'travel', label: 'Travel', color: '#4CAF50' },
+    { id: 'entertainment', label: 'Entertainment', color: '#2196F3' },
+    { id: 'shopping', label: 'Shopping', color: '#9C27B0' },
+    { id: 'others', label: 'Others', color: '#607D8B' },
+  ];
+
+  // Category selection state for Expense Insights
+  const [insightCategories, setInsightCategories] = useState(['food', 'travel', 'entertainment', 'shopping', 'others']);
+  const [insightCategoryModalVisible, setInsightCategoryModalVisible] = useState(false);
+
+  // Category selection state for Analysis
+  const [analysisCategories, setAnalysisCategories] = useState(['food', 'travel', 'entertainment', 'shopping', 'others']);
+  const [analysisCategoryModalVisible, setAnalysisCategoryModalVisible] = useState(false);
+
+  // Toggle category selection
+  const toggleCategory = (categoryId, type) => {
+    if (type === 'insight') {
+      setInsightCategories(prev => 
+        prev.includes(categoryId) 
+          ? prev.filter(c => c !== categoryId)
+          : [...prev, categoryId]
+      );
+    } else {
+      setAnalysisCategories(prev => 
+        prev.includes(categoryId) 
+          ? prev.filter(c => c !== categoryId)
+          : [...prev, categoryId]
+      );
+    }
+  };
+
+  // Get category label for display
+  const getCategoryLabel = (categories) => {
+    if (categories.length === 0) return 'Select Categories';
+    if (categories.length === 5) return 'All Categories';
+    if (categories.length === 1) {
+      return categoryOptions.find(c => c.id === categories[0])?.label || 'Select';
+    }
+    return `${categories.length} Categories`;
+  };
+
   // Get last 6 months for dropdown
   const getLastSixMonths = () => {
     const months = [];
@@ -981,6 +1025,100 @@ function HomeScreen({ navigation, route }) {
           </Pressable>
         </Modal>
 
+        {/* Category Selection Modal for Expense Insights */}
+        <Modal
+          visible={insightCategoryModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setInsightCategoryModalVisible(false)}
+        >
+          <Pressable 
+            style={styles.androidModalOverlay} 
+            onPress={() => setInsightCategoryModalVisible(false)}
+          >
+            <View style={styles.androidDropdownModal}>
+              <Text style={styles.androidDropdownModalTitle}>Select Categories</Text>
+              <Text style={styles.androidCategorySubtitle}>Select one or more categories</Text>
+              {categoryOptions.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.androidDropdownOption,
+                    insightCategories.includes(category.id) && styles.androidDropdownOptionSelected
+                  ]}
+                  onPress={() => toggleCategory(category.id, 'insight')}
+                >
+                  <View style={styles.androidCategoryOptionRow}>
+                    <View style={[styles.androidCategoryDot, { backgroundColor: category.color }]} />
+                    <Text style={[
+                      styles.androidDropdownOptionText,
+                      insightCategories.includes(category.id) && styles.androidDropdownOptionTextSelected
+                    ]}>
+                      {category.label}
+                    </Text>
+                  </View>
+                  {insightCategories.includes(category.id) && (
+                    <Ionicons name="checkmark" size={20} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.androidCategoryDoneButton}
+                onPress={() => setInsightCategoryModalVisible(false)}
+              >
+                <Text style={styles.androidCategoryDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Category Selection Modal for Analysis */}
+        <Modal
+          visible={analysisCategoryModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAnalysisCategoryModalVisible(false)}
+        >
+          <Pressable 
+            style={styles.androidModalOverlay} 
+            onPress={() => setAnalysisCategoryModalVisible(false)}
+          >
+            <View style={styles.androidDropdownModal}>
+              <Text style={styles.androidDropdownModalTitle}>Select Categories</Text>
+              <Text style={styles.androidCategorySubtitle}>Select one or more categories</Text>
+              {categoryOptions.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.androidDropdownOption,
+                    analysisCategories.includes(category.id) && styles.androidDropdownOptionSelected
+                  ]}
+                  onPress={() => toggleCategory(category.id, 'analysis')}
+                >
+                  <View style={styles.androidCategoryOptionRow}>
+                    <View style={[styles.androidCategoryDot, { backgroundColor: category.color }]} />
+                    <Text style={[
+                      styles.androidDropdownOptionText,
+                      analysisCategories.includes(category.id) && styles.androidDropdownOptionTextSelected
+                    ]}>
+                      {category.label}
+                    </Text>
+                  </View>
+                  {analysisCategories.includes(category.id) && (
+                    <Ionicons name="checkmark" size={20} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.androidCategoryDoneButton}
+                onPress={() => setAnalysisCategoryModalVisible(false)}
+              >
+                <Text style={styles.androidCategoryDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+
         {/* White Panel with Scrollable Content */}
         <View style={styles.androidWhitePanel}>
           <ScrollView 
@@ -1009,15 +1147,27 @@ function HomeScreen({ navigation, route }) {
             <View style={styles.androidSectionCard}>
               <View style={styles.androidSectionHeader}>
                 <Text style={styles.androidSectionTitle}>Expense Insights</Text>
-                <TouchableOpacity 
-                  style={styles.androidDropdown}
-                  onPress={() => setMonthDropdownVisible(true)}
-                >
-                  <Text style={styles.androidDropdownText} numberOfLines={1}>
-                    {selectedMonthLabel.split(' ')[0].substring(0, 3)} {selectedMonthLabel.split(' ')[1]}
-                  </Text>
-                  <Ionicons name="chevron-down" size={16} color="#666" />
-                </TouchableOpacity>
+                <View style={styles.androidHeaderFilters}>
+                  <TouchableOpacity 
+                    style={styles.androidDropdown}
+                    onPress={() => setInsightCategoryModalVisible(true)}
+                  >
+                    <Ionicons name="filter-outline" size={14} color="#666" />
+                    <Text style={styles.androidDropdownText} numberOfLines={1}>
+                      {getCategoryLabel(insightCategories)}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color="#666" />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.androidDropdown}
+                    onPress={() => setMonthDropdownVisible(true)}
+                  >
+                    <Text style={styles.androidDropdownText} numberOfLines={1}>
+                      {selectedMonthLabel.split(' ')[0].substring(0, 3)} {selectedMonthLabel.split(' ')[1]}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color="#666" />
+                  </TouchableOpacity>
+                </View>
               </View>
               
               {/* Pie Chart with Categories */}
@@ -1070,13 +1220,25 @@ function HomeScreen({ navigation, route }) {
             <View style={styles.androidSectionCard}>
               <View style={styles.androidSectionHeader}>
                 <Text style={styles.androidSectionTitle}>Analysis</Text>
-                <TouchableOpacity 
-                  style={styles.androidDropdown}
-                  onPress={() => setRangeDropdownVisible(true)}
-                >
-                  <Text style={styles.androidDropdownText}>Past {selectedRange} months</Text>
-                  <Ionicons name="chevron-down" size={16} color="#666" />
-                </TouchableOpacity>
+                <View style={styles.androidHeaderFilters}>
+                  <TouchableOpacity 
+                    style={styles.androidDropdown}
+                    onPress={() => setAnalysisCategoryModalVisible(true)}
+                  >
+                    <Ionicons name="filter-outline" size={14} color="#666" />
+                    <Text style={styles.androidDropdownText} numberOfLines={1}>
+                      {getCategoryLabel(analysisCategories)}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color="#666" />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.androidDropdown}
+                    onPress={() => setRangeDropdownVisible(true)}
+                  >
+                    <Text style={styles.androidDropdownText}>Past {selectedRange} months</Text>
+                    <Ionicons name="chevron-down" size={14} color="#666" />
+                  </TouchableOpacity>
+                </View>
               </View>
               
               {/* Bar Chart Placeholder */}
@@ -1096,11 +1258,20 @@ function HomeScreen({ navigation, route }) {
             <View style={styles.androidSectionCard}>
               <Text style={styles.androidSectionTitle}>Summary</Text>
               <View style={styles.androidSummaryContent}>
-                <Ionicons name="analytics-outline" size={32} color="#CCC" />
-                <Text style={styles.androidNoDataText}>No data</Text>
-                <Text style={styles.androidSummaryHint}>
-                  Your spending insights will appear here once you start tracking expenses
+                <Ionicons name="sparkles" size={40} color="#FF6B35" />
+                <Text style={styles.androidSummaryDescription}>
+                  Get AI-powered insights about your spending patterns and habits
                 </Text>
+                <TouchableOpacity 
+                  style={styles.androidAISummaryButton}
+                  onPress={() => {
+                    // TODO: Implement AI Summary functionality
+                    alert('AI Summary feature coming soon!');
+                  }}
+                >
+                  <Ionicons name="flash" size={18} color="#FFF" />
+                  <Text style={styles.androidAISummaryButtonText}>Get AI Summary</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -2830,6 +3001,61 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 20,
     lineHeight: 18,
+  },
+  androidHeaderFilters: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  androidCategorySubtitle: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 12,
+  },
+  androidCategoryOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  androidCategoryDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  androidCategoryDoneButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  androidCategoryDoneText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  androidSummaryDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+    paddingHorizontal: 20,
+    lineHeight: 20,
+  },
+  androidAISummaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    gap: 8,
+  },
+  androidAISummaryButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   androidModalOverlay: {
     flex: 1,
