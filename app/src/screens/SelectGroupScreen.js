@@ -137,13 +137,13 @@ export default function SelectGroupScreen() {
   if (isAndroid) {
     return (
       <View style={androidStyles.container}>
+        <StatusBar style="light" />
+        
+        {/* Orange Header */}
         <LinearGradient
           colors={['#F57C3A', '#E85A24', '#D84315']}
-          style={androidStyles.gradient}
+          style={androidStyles.headerGradient}
         >
-          <StatusBar style="light" />
-          
-          {/* Header */}
           <View style={androidStyles.header}>
             <Pressable onPress={handleBack} style={androidStyles.backButton}>
               <Ionicons name="arrow-back" size={22} color="#E85A24" />
@@ -153,14 +153,15 @@ export default function SelectGroupScreen() {
           </View>
           
           {/* Decorative icon */}
-          <View style={androidStyles.decorativeIconContainer}>
-            <View style={androidStyles.decorativeIconCircle}>
+          <View style={androidStyles.headerIconContainer}>
+            <View style={androidStyles.headerIconCircle}>
               <Ionicons name="people-outline" size={26} color="#E85A24" />
             </View>
           </View>
+        </LinearGradient>
 
-          {/* White Content Area with curved top */}
-          <View style={androidStyles.whiteContentArea}>
+        {/* White Content Area with curved top */}
+        <View style={androidStyles.contentWrapper}>
           {/* Search Bar */}
           <View style={androidStyles.searchContainer}>
             <View style={androidStyles.searchInputWrapper}>
@@ -238,7 +239,6 @@ export default function SelectGroupScreen() {
             </ScrollView>
           )}
         </View>
-        </LinearGradient>
       </View>
     );
   }
@@ -264,13 +264,6 @@ export default function SelectGroupScreen() {
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Decorative icon */}
-          <View style={styles.decorativeIconContainer}>
-            <View style={styles.decorativeIconCircle}>
-              <Ionicons name="people-outline" size={28} color="#FF6B35" />
-            </View>
-          </View>
-          
           <View style={styles.card}>
             {/* Card Header with Search */}
             <View style={styles.cardHeader}>
@@ -432,30 +425,11 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 0,
   },
-  decorativeIconContainer: {
-    alignItems: 'center',
-    marginBottom: -35,
-    zIndex: 20,
-  },
-  decorativeIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   card: {
     flex: 1,
     backgroundColor: '#FFF',
     borderRadius: 24,
     padding: 20,
-    paddingTop: 50,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -629,13 +603,13 @@ const androidStyles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  decorativeIconContainer: {
+  headerIconContainer: {
     alignItems: 'center',
     marginTop: 5,
     marginBottom: -25,
     zIndex: 20,
   },
-  decorativeIconCircle: {
+  headerIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -648,11 +622,11 @@ const androidStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
-  whiteContentArea: {
+  contentWrapper: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     marginTop: 0,
-    paddingTop: 40,
+    paddingTop: 15,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
