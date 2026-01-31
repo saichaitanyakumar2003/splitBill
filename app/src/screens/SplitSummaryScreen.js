@@ -671,7 +671,7 @@ export default function SplitSummaryScreen() {
 
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
-            <Ionicons name="checkmark-done-outline" size={40} color="#E85A24" />
+            <Ionicons name="checkmark-done-outline" size={28} color="#E85A24" />
           </View>
         </LinearGradient>
 
@@ -1097,14 +1097,21 @@ const androidStyles = StyleSheet.create({
     marginBottom: 20,
   },
   decorativeIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginTop: 10,
+    marginTop: -10,
+    marginBottom: 5,
+    zIndex: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   whiteContentArea: {
     flex: 1,

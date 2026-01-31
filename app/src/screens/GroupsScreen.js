@@ -1520,7 +1520,7 @@ export default function GroupsScreen({ route }) {
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="people-outline" size={40} color="#E85A24" />
+              <Ionicons name="people-outline" size={28} color="#E85A24" />
             </View>
           </View>
 
@@ -3078,11 +3078,11 @@ const styles = StyleSheet.create({
   // Activity Tab Styles
   activityScrollFull: {
     flex: 1,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 16,
+    backgroundColor: Platform.OS === 'android' ? 'transparent' : '#F8F8F8',
+    borderRadius: Platform.OS === 'android' ? 0 : 16,
   },
   activityScrollContent: {
-    paddingVertical: 8,
+    paddingVertical: Platform.OS === 'android' ? 0 : 8,
   },
   activityRow: {
     flexDirection: 'row',
@@ -3090,6 +3090,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#EFEFEF',
     backgroundColor: '#FFF',
+    ...(Platform.OS === 'android' && {
+      marginHorizontal: 0,
+      borderLeftWidth: 0,
+      borderRightWidth: 0,
+    }),
   },
   activityIconContainer: {
     width: 36,
@@ -3131,8 +3136,8 @@ const styles = StyleSheet.create({
   },
   noActivityFull: {
     flex: 1,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 16,
+    backgroundColor: Platform.OS === 'android' ? 'transparent' : '#F8F8F8',
+    borderRadius: Platform.OS === 'android' ? 0 : 16,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 30,
@@ -4016,24 +4021,30 @@ const androidStyles = StyleSheet.create({
   },
   decorativeIconContainer: {
     alignItems: 'center',
-    marginTop: -20,
-    marginBottom: 10,
+    marginTop: -10,
+    marginBottom: 5,
+    zIndex: 10,
   },
   decorativeIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   whiteContentArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    marginTop: -30,
-    paddingTop: 20,
+    marginTop: -25,
+    paddingTop: 15,
     overflow: 'hidden',
   },
   listContainer: {
@@ -4051,6 +4062,7 @@ const androidStyles = StyleSheet.create({
   detailsContainer: {
     flex: 1,
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   detailsHeader: {
     flexDirection: 'row',

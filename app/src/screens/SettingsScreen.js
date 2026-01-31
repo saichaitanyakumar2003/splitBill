@@ -352,7 +352,7 @@ export default function SettingsScreen() {
           {/* Decorative icon */}
           <View style={androidStyles.decorativeIconContainer}>
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="settings-outline" size={40} color="#E85A24" />
+              <Ionicons name="settings-outline" size={28} color="#E85A24" />
             </View>
           </View>
 
@@ -641,21 +641,22 @@ const androidStyles = StyleSheet.create({
   },
   decorativeIconContainer: {
     alignItems: 'center',
-    marginTop: -20,
-    marginBottom: 20,
+    marginTop: -10,
+    marginBottom: 5,
+    zIndex: 10,
   },
   decorativeIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 4,
+    elevation: 4,
   },
   whiteContentArea: {
     flex: 1,

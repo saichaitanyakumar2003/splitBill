@@ -222,7 +222,7 @@ export default function AwaitingScreen({ route }) {
           {/* Decorative Icon in White Circle */}
           <View style={androidStyles.iconContainer}>
             <View style={androidStyles.iconCircle}>
-              <Ionicons name="time-outline" size={40} color="#E85A24" />
+              <Ionicons name="time-outline" size={28} color="#E85A24" />
             </View>
           </View>
 
@@ -736,21 +736,22 @@ const androidStyles = StyleSheet.create({
   },
   iconContainer: {
     alignItems: 'center',
-    marginTop: -20,
-    marginBottom: 20,
+    marginTop: -10,
+    marginBottom: 5,
+    zIndex: 10,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 4,
   },
   content: {
     flex: 1,

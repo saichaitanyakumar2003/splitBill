@@ -246,7 +246,7 @@ export default function GroupPreviewScreen() {
           {/* Decorative Icon */}
           <View style={androidStyles.iconContainer}>
             <View style={androidStyles.iconCircle}>
-              <Ionicons name="eye-outline" size={40} color="#E85A24" />
+              <Ionicons name="eye-outline" size={28} color="#E85A24" />
             </View>
           </View>
 
@@ -919,16 +919,22 @@ const androidStyles = StyleSheet.create({
   },
   iconContainer: {
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: -10,
+    marginBottom: 5,
+    zIndex: 10,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   whiteContent: {
     flex: 1,
