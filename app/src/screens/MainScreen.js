@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,14 +21,6 @@ import Logo from '../components/Logo';
 import { api } from '../api/client';
 import WebPullToRefresh from '../components/WebPullToRefresh';
 import { useAuth } from '../context/AuthContext';
-
-// Only import camera on native platforms
-let CameraView, useCameraPermissions;
-if (Platform.OS !== 'web') {
-  const CameraModule = require('expo-camera');
-  CameraView = CameraModule.CameraView;
-  useCameraPermissions = CameraModule.useCameraPermissions;
-}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -71,10 +63,7 @@ export default function MainScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
-  const [permissionGranted, setPermissionGranted] = useState(false);
-  const [permissionChecked, setPermissionChecked] = useState(isWeb);
   const [refreshing, setRefreshing] = useState(false);
-  const cameraRef = useRef(null);
   
   // Insights state
   const [selectedMonth, setSelectedMonth] = useState(getLastSixMonths()[0].value);
@@ -91,30 +80,6 @@ export default function MainScreen({ navigation }) {
       setRefreshing(false);
     }, 500);
   }, []);
-
-  // Only use camera permissions on native
-  const [permission, requestPermission] = !isWeb && useCameraPermissions ? useCameraPermissions() : [null, null];
-
-  React.useEffect(() => {
-    if (!isWeb && permission) {
-      setPermissionChecked(true);
-      setPermissionGranted(permission.granted);
-    }
-  }, [permission]);
-
-  const takePicture = async () => {
-    if (!cameraRef.current) return;
-    
-    try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
-        base64: false,
-      });
-      processImage(photo.uri);
-    } catch (error) {
-      console.error('Error taking picture:', error);
-    }
-  };
 
   const pickImage = async () => {
     setMenuVisible(false);
@@ -245,20 +210,6 @@ export default function MainScreen({ navigation }) {
             {webContent}
           </ScrollView>
         )}
-      </LinearGradient>
-    );
-  }
-
-  // Mobile - Loading state
-  if (!permissionChecked) {
-    return (
-      <LinearGradient
-        colors={[theme.colors.backgroundGradientStart, theme.colors.backgroundGradientEnd]}
-        style={styles.container}
-      >
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
       </LinearGradient>
     );
   }
