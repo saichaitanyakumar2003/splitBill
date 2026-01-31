@@ -1009,7 +1009,11 @@ export default function GroupsScreen({ route }) {
           >
             {expenses.map((expense, index) => (
               <View key={index} style={styles.expenseRow}>
-                <View style={styles.expenseMainContent}>
+                <TouchableOpacity 
+                  style={styles.expenseMainContent}
+                  onPress={() => handleViewExpense(expense, index)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.expenseTopRow}>
                     <Text style={styles.expenseTitle} numberOfLines={1}>
                       {expense.name || expense.title || 'Expense'}
@@ -1026,7 +1030,7 @@ export default function GroupsScreen({ route }) {
                       {expense.payees?.length || 0} member{(expense.payees?.length || 0) !== 1 ? 's' : ''}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
                 
                 {/* Menu Icon */}
                 <TouchableOpacity 
