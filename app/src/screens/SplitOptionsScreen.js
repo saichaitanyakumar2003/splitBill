@@ -39,7 +39,7 @@ export default function SplitOptionsScreen() {
   // Show loading while redirecting
   if (isRedirecting) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E85A24' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF6B35' }}>
         <Text style={{ color: '#FFF', fontSize: 16 }}>Redirecting...</Text>
       </View>
     );
@@ -82,54 +82,54 @@ export default function SplitOptionsScreen() {
   // Android Layout - Orange header with white content area
   if (isAndroid) {
     return (
-      <View style={styles.androidContainer}>
+      <View style={androidStyles.container}>
         <StatusBar style="light" />
         
         {/* Orange Header */}
         <LinearGradient
           colors={['#F57C3A', '#E85A24', '#D84315']}
-          style={styles.androidHeaderGradient}
+          style={androidStyles.headerGradient}
         >
-          <View style={styles.androidHeader}>
-            <Pressable onPress={handleBack} style={styles.androidBackButton}>
+          <View style={androidStyles.header}>
+            <Pressable onPress={handleBack} style={androidStyles.backButton}>
               <Ionicons name="arrow-back" size={22} color="#E85A24" />
             </Pressable>
-            <Text style={styles.androidHeaderTitle}>Split Options</Text>
-            <View style={styles.headerRight} />
+            <Text style={androidStyles.headerTitle}>Split Options</Text>
+            <View style={androidStyles.headerRight} />
           </View>
           
           {/* Decorative icon */}
-          <View style={styles.androidHeaderIconContainer}>
-            <View style={styles.androidHeaderIconCircle}>
+          <View style={androidStyles.headerIconContainer}>
+            <View style={androidStyles.headerIconCircle}>
               <Ionicons name="git-branch-outline" size={40} color="#E85A24" />
             </View>
           </View>
         </LinearGradient>
 
         {/* White Content Area with curved top */}
-        <View style={styles.androidContentWrapper}>
-          <View style={styles.androidContent}>
-            <Text style={styles.androidCardTitle}>What would you like to do?</Text>
-            <Text style={styles.androidCardSubtitle}>Choose an option to split your expenses</Text>
+        <View style={androidStyles.contentWrapper}>
+          <View style={androidStyles.content}>
+            <Text style={androidStyles.cardTitle}>What would you like to do?</Text>
+            <Text style={androidStyles.cardSubtitle}>Choose an option to split your expenses</Text>
 
             {/* Option 1: Existing Group */}
             <TouchableOpacity 
-              style={styles.androidOptionCard}
+              style={androidStyles.optionCard}
               onPress={handleExistingGroup}
               activeOpacity={0.85}
             >
               <LinearGradient
                 colors={['#FFF8F5', '#FFFFFF']}
-                style={styles.androidOptionGradient}
+                style={androidStyles.optionGradient}
               >
-                <View style={styles.androidOptionIconCircle}>
-                  <Text style={styles.optionEmoji}>📋</Text>
+                <View style={androidStyles.optionIconCircle}>
+                  <Text style={androidStyles.optionEmoji}>📋</Text>
                 </View>
-                <View style={styles.androidOptionTextContainer}>
-                  <Text style={styles.androidOptionTitle}>Existing Group</Text>
-                  <Text style={styles.androidOptionSubtitle}>Add expense to a group</Text>
+                <View style={androidStyles.optionTextContainer}>
+                  <Text style={androidStyles.optionTitle}>Existing Group</Text>
+                  <Text style={androidStyles.optionSubtitle}>Add expense to a group</Text>
                 </View>
-                <View style={styles.androidOptionArrowCircle}>
+                <View style={androidStyles.optionArrowCircle}>
                   <Ionicons name="chevron-forward" size={20} color="#FFF" />
                 </View>
               </LinearGradient>
@@ -137,22 +137,22 @@ export default function SplitOptionsScreen() {
 
             {/* Option 2: Create New Group */}
             <TouchableOpacity 
-              style={styles.androidOptionCard}
+              style={androidStyles.optionCard}
               onPress={handleCreateGroup}
               activeOpacity={0.85}
             >
               <LinearGradient
                 colors={['#FFF8F5', '#FFFFFF']}
-                style={styles.androidOptionGradient}
+                style={androidStyles.optionGradient}
               >
-                <View style={styles.androidOptionIconCircle}>
-                  <Text style={styles.optionEmoji}>✨</Text>
+                <View style={androidStyles.optionIconCircle}>
+                  <Text style={androidStyles.optionEmoji}>✨</Text>
                 </View>
-                <View style={styles.androidOptionTextContainer}>
-                  <Text style={styles.androidOptionTitle}>New Group</Text>
-                  <Text style={styles.androidOptionSubtitle}>Create a fresh group</Text>
+                <View style={androidStyles.optionTextContainer}>
+                  <Text style={androidStyles.optionTitle}>New Group</Text>
+                  <Text style={androidStyles.optionSubtitle}>Create a fresh group</Text>
                 </View>
-                <View style={styles.androidOptionArrowCircle}>
+                <View style={androidStyles.optionArrowCircle}>
                   <Ionicons name="chevron-forward" size={20} color="#FFF" />
                 </View>
               </LinearGradient>
@@ -163,11 +163,11 @@ export default function SplitOptionsScreen() {
     );
   }
 
-  // Web/iOS Layout - Original design with gradient background
+  // Web/iOS Layout - Original design (unchanged from yesterday)
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#F57C3A', '#E85A24', '#D84315', '#BF360C']}
+        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
         locations={[0, 0.3, 0.7, 1]}
         style={styles.gradient}
       >
@@ -223,8 +223,8 @@ export default function SplitOptionsScreen() {
   );
 }
 
+// Web/iOS Styles - Original unchanged
 const styles = StyleSheet.create({
-  // ==================== Web/iOS Styles ====================
   container: {
     flex: 1,
   },
@@ -325,28 +325,30 @@ const styles = StyleSheet.create({
   },
   optionArrow: {
     fontSize: 28,
-    color: '#E85A24',
+    color: '#FF6B35',
     fontWeight: '600',
     marginLeft: 8,
   },
+});
 
-  // ==================== Android Styles ====================
-  androidContainer: {
+// Android Styles - New design
+const androidStyles = StyleSheet.create({
+  container: {
     flex: 1,
     backgroundColor: '#E85A24',
   },
-  androidHeaderGradient: {
+  headerGradient: {
     paddingTop: 40,
     paddingBottom: 60,
   },
-  androidHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 10,
   },
-  androidBackButton: {
+  backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -359,17 +361,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  androidHeaderTitle: {
+  headerTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  androidHeaderIconContainer: {
+  headerRight: {
+    width: 44,
+  },
+  headerIconContainer: {
     alignItems: 'center',
     marginTop: 20,
   },
-  androidHeaderIconCircle: {
+  headerIconCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
@@ -382,7 +387,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  androidContentWrapper: {
+  contentWrapper: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     marginTop: -30,
@@ -390,25 +395,25 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     overflow: 'hidden',
   },
-  androidContent: {
+  content: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 40,
   },
-  androidCardTitle: {
+  cardTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1A1A1A',
     textAlign: 'center',
   },
-  androidCardSubtitle: {
+  cardSubtitle: {
     fontSize: 14,
     color: '#888',
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 35,
   },
-  androidOptionCard: {
+  optionCard: {
     borderRadius: 20,
     marginBottom: 16,
     shadowColor: '#E85A24',
@@ -418,7 +423,7 @@ const styles = StyleSheet.create({
     elevation: 6,
     overflow: 'hidden',
   },
-  androidOptionGradient: {
+  optionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
@@ -426,7 +431,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFE0D0',
   },
-  androidOptionIconCircle: {
+  optionIconCircle: {
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -442,20 +447,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  androidOptionTextContainer: {
+  optionEmoji: {
+    fontSize: 28,
+  },
+  optionTextContainer: {
     flex: 1,
   },
-  androidOptionTitle: {
+  optionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1A1A1A',
   },
-  androidOptionSubtitle: {
+  optionSubtitle: {
     fontSize: 13,
     color: '#888',
     marginTop: 4,
   },
-  androidOptionArrowCircle: {
+  optionArrowCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
