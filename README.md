@@ -87,6 +87,8 @@ Track your spending patterns and get AI-powered insights — all for free!
 - Receive actionable saving tips based on your patterns
 - Powered by Google Gemini AI (2 summaries per day)
 
+> 💡 **Tip:** For accurate analytics, use descriptive expense titles like "Uber to Airport", "Pizza Dinner", "Movie Tickets" instead of generic names like "Expense 1" or "Payment". The AI categorizes expenses based on the title!
+
 ## 🚀 Quick Start
 
 ### Prerequisites
