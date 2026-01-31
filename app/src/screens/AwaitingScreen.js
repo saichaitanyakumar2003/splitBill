@@ -764,6 +764,23 @@ const androidStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
+  card: {
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  cardRefreshButton: {
+    padding: 8,
+  },
   cardContent: {
     flex: 1,
   },
