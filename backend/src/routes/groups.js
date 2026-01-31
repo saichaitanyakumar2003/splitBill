@@ -1217,16 +1217,40 @@ router.delete('/:id', async (req, res) => {
       }).catch(err => console.error('Failed to record edit history:', err));
     }
     
+    // Remove all expenses from Analysis table for all members
+    const expenses = group.getExpenses();
+    if (expenses && expenses.length > 0) {
+      console.log(`📊 Removing ${expenses.length} expenses from Analysis table...`);
+      for (const expense of expenses) {
+        try {
+          await onExpenseDeleted(expense);
+        } catch (err) {
+          console.error(`Failed to remove expense "${expense.title}" from analysis:`, err.message);
+        }
+      }
+      console.log(`✅ Analysis table updated for all group members`);
+    }
+    
+    // Clear all pending edges (so they don't appear in Awaiting/Settle Up)
+    const edgesDoc = await ConsolidatedEdges.findOne({ groupId: req.params.id });
+    if (edgesDoc) {
+      // Mark all edges as resolved or clear them entirely
+      const currentEdges = edgesDoc.edges || [];
+      const clearedEdges = currentEdges.map(edge => ({
+        ...edge,
+        resolved: true,
+        resolvedAt: new Date(),
+        resolvedReason: 'group_deleted'
+      }));
+      edgesDoc.edges = clearedEdges;
+      edgesDoc.setTTL(7);
+      await edgesDoc.save();
+      console.log(`✅ Cleared ${currentEdges.length} pending edges from Awaiting/Settle Up`);
+    }
+    
     // Mark group as deleted with 7-day TTL
     group.markDeleted();
     await group.save();
-    
-    // Also set TTL on consolidated edges
-    const edgesDoc = await ConsolidatedEdges.findOne({ groupId: req.params.id });
-    if (edgesDoc) {
-      edgesDoc.setTTL(7);
-      await edgesDoc.save();
-    }
     
     // Also set TTL on history
     const historyDoc = await History.findOne({ groupId: req.params.id });
