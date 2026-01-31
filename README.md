@@ -14,6 +14,8 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 > ⏳ **Server Cold Start:** The backend is hosted on Render's free tier, which spins down after 15 minutes of inactivity. Your first request may take **~50 seconds** while the server wakes up. Subsequent requests will be fast. Please be patient on first load!
 
+> 🔄 **App Updates:** If you see an update banner in the app, please update immediately to get the latest bug fixes and features. Updates are pushed frequently to improve your experience.
+
 ---
 
 ## 🆓 Why SplitBill?
