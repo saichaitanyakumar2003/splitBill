@@ -1048,7 +1048,12 @@ function HomeScreen({ navigation, route }) {
                   ]}
                   onPress={() => toggleCategory(category.id, 'insight')}
                 >
-                  <View style={styles.androidCategoryOptionRow}>
+                  <View style={styles.androidCheckboxRow}>
+                    <Ionicons 
+                      name={insightCategories.includes(category.id) ? "checkbox" : "square-outline"} 
+                      size={22} 
+                      color={insightCategories.includes(category.id) ? "#FF6B35" : "#CCC"} 
+                    />
                     <View style={[styles.androidCategoryDot, { backgroundColor: category.color }]} />
                     <Text style={[
                       styles.androidDropdownOptionText,
@@ -1057,9 +1062,6 @@ function HomeScreen({ navigation, route }) {
                       {category.label}
                     </Text>
                   </View>
-                  {insightCategories.includes(category.id) && (
-                    <Ionicons name="checkmark" size={20} color="#FF6B35" />
-                  )}
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
@@ -1095,7 +1097,12 @@ function HomeScreen({ navigation, route }) {
                   ]}
                   onPress={() => toggleCategory(category.id, 'analysis')}
                 >
-                  <View style={styles.androidCategoryOptionRow}>
+                  <View style={styles.androidCheckboxRow}>
+                    <Ionicons 
+                      name={analysisCategories.includes(category.id) ? "checkbox" : "square-outline"} 
+                      size={22} 
+                      color={analysisCategories.includes(category.id) ? "#FF6B35" : "#CCC"} 
+                    />
                     <View style={[styles.androidCategoryDot, { backgroundColor: category.color }]} />
                     <Text style={[
                       styles.androidDropdownOptionText,
@@ -1104,9 +1111,6 @@ function HomeScreen({ navigation, route }) {
                       {category.label}
                     </Text>
                   </View>
-                  {analysisCategories.includes(category.id) && (
-                    <Ionicons name="checkmark" size={20} color="#FF6B35" />
-                  )}
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
@@ -3036,6 +3040,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  androidCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
   androidCategoryDot: {
     width: 12,
