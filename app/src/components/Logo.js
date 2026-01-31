@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../theme';
 
-export default function Logo({ size = 'large' }) {
+export default function Logo({ size = 'large', hideText = false }) {
   const isLarge = size === 'large';
   const containerSize = isLarge ? 120 : 60;
   const fontSize = isLarge ? 48 : 24;
@@ -33,7 +33,7 @@ export default function Logo({ size = 'large' }) {
         <View style={[styles.decorDot, styles.dotBottomLeft, { width: isLarge ? 8 : 4, height: isLarge ? 8 : 4 }]} />
       </View>
 
-      {isLarge && (
+      {isLarge && !hideText && (
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Split<Text style={styles.titleBold}>Bill</Text></Text>
           <Text style={styles.subtitle}>Split smart. Pay fair.</Text>

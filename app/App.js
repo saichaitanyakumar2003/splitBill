@@ -790,6 +790,7 @@ function HomeScreen({ navigation, route }) {
   });
   const [monthDropdownVisible, setMonthDropdownVisible] = useState(false);
   const [selectedRange, setSelectedRange] = useState(2);
+  const [rangeDropdownVisible, setRangeDropdownVisible] = useState(false);
 
   // Get last 6 months for dropdown
   const getLastSixMonths = () => {
@@ -804,6 +805,15 @@ function HomeScreen({ navigation, route }) {
     }
     return months;
   };
+
+  // Range options for Analysis dropdown
+  const rangeOptions = [
+    { label: 'Past 2 months', value: 2 },
+    { label: 'Past 3 months', value: 3 },
+    { label: 'Past 4 months', value: 4 },
+    { label: 'Past 5 months', value: 5 },
+    { label: 'Past 6 months', value: 6 },
+  ];
 
   const selectedMonthLabel = getLastSixMonths().find(m => m.value === selectedMonth)?.label || 'Select Month';
 
@@ -828,9 +838,9 @@ function HomeScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
           
-          {/* Logo */}
+          {/* Logo - without text */}
           <View style={styles.androidLogoContainer}>
-            <Logo isMobile={true} />
+            <Logo size="large" hideText={true} />
           </View>
         </LinearGradient>
 
@@ -927,6 +937,46 @@ function HomeScreen({ navigation, route }) {
           </Pressable>
         </Modal>
 
+        {/* Range Selection Modal for Analysis */}
+        <Modal
+          visible={rangeDropdownVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setRangeDropdownVisible(false)}
+        >
+          <Pressable 
+            style={styles.androidModalOverlay} 
+            onPress={() => setRangeDropdownVisible(false)}
+          >
+            <View style={styles.androidDropdownModal}>
+              <Text style={styles.androidDropdownModalTitle}>Select Duration</Text>
+              {rangeOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.androidDropdownOption,
+                    selectedRange === option.value && styles.androidDropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedRange(option.value);
+                    setRangeDropdownVisible(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.androidDropdownOptionText,
+                    selectedRange === option.value && styles.androidDropdownOptionTextSelected
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {selectedRange === option.value && (
+                    <Ionicons name="checkmark" size={20} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
+
         {/* White Panel with Scrollable Content */}
         <View style={styles.androidWhitePanel}>
           <ScrollView 
@@ -966,13 +1016,50 @@ function HomeScreen({ navigation, route }) {
                 </TouchableOpacity>
               </View>
               
-              {/* Pie Chart Placeholder */}
-              <View style={styles.androidChartContainer}>
-                <View style={styles.androidPieChartPlaceholder}>
-                  <View style={styles.androidPieChartCircle} />
+              {/* Pie Chart with Categories */}
+              <View style={styles.androidPieChartSection}>
+                {/* Donut Chart */}
+                <View style={styles.androidDonutChart}>
+                  {/* Colored segments - placeholder ring */}
+                  <View style={styles.androidDonutOuter}>
+                    <View style={[styles.androidDonutSegment, { backgroundColor: '#FF6B35', transform: [{ rotate: '0deg' }] }]} />
+                    <View style={[styles.androidDonutSegment, { backgroundColor: '#4CAF50', transform: [{ rotate: '72deg' }] }]} />
+                    <View style={[styles.androidDonutSegment, { backgroundColor: '#2196F3', transform: [{ rotate: '144deg' }] }]} />
+                    <View style={[styles.androidDonutSegment, { backgroundColor: '#9C27B0', transform: [{ rotate: '216deg' }] }]} />
+                    <View style={[styles.androidDonutSegment, { backgroundColor: '#607D8B', transform: [{ rotate: '288deg' }] }]} />
+                  </View>
+                  {/* Center circle with total */}
+                  <View style={styles.androidDonutCenter}>
+                    <Text style={styles.androidDonutTotalLabel}>Total</Text>
+                    <Text style={styles.androidDonutTotalAmount}>₹0</Text>
+                  </View>
                 </View>
-                <Text style={styles.androidNoDataText}>No data</Text>
+
+                {/* Category Legend */}
+                <View style={styles.androidCategoryLegend}>
+                  <View style={styles.androidLegendItem}>
+                    <View style={[styles.androidLegendDot, { backgroundColor: '#FF6B35' }]} />
+                    <Text style={styles.androidLegendText}>Food</Text>
+                  </View>
+                  <View style={styles.androidLegendItem}>
+                    <View style={[styles.androidLegendDot, { backgroundColor: '#4CAF50' }]} />
+                    <Text style={styles.androidLegendText}>Travel</Text>
+                  </View>
+                  <View style={styles.androidLegendItem}>
+                    <View style={[styles.androidLegendDot, { backgroundColor: '#2196F3' }]} />
+                    <Text style={styles.androidLegendText}>Entertainment</Text>
+                  </View>
+                  <View style={styles.androidLegendItem}>
+                    <View style={[styles.androidLegendDot, { backgroundColor: '#9C27B0' }]} />
+                    <Text style={styles.androidLegendText}>Shopping</Text>
+                  </View>
+                  <View style={styles.androidLegendItem}>
+                    <View style={[styles.androidLegendDot, { backgroundColor: '#607D8B' }]} />
+                    <Text style={styles.androidLegendText}>Other</Text>
+                  </View>
+                </View>
               </View>
+              <Text style={styles.androidNoDataText}>No data</Text>
             </View>
 
             {/* Analysis Section */}
@@ -981,7 +1068,7 @@ function HomeScreen({ navigation, route }) {
                 <Text style={styles.androidSectionTitle}>Analysis</Text>
                 <TouchableOpacity 
                   style={styles.androidDropdown}
-                  onPress={() => setSelectedRange(prev => prev >= 6 ? 2 : prev + 1)}
+                  onPress={() => setRangeDropdownVisible(true)}
                 >
                   <Text style={styles.androidDropdownText}>Past {selectedRange} months</Text>
                   <Ionicons name="chevron-down" size={16} color="#666" />
@@ -2510,9 +2597,7 @@ const styles = StyleSheet.create({
   // Android Dashboard Styles
   androidHeader: {
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 30,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingBottom: 60,
     zIndex: 1,
   },
   androidTopBar: {
@@ -2520,7 +2605,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 10,
+    marginBottom: 15,
   },
   androidAppTitle: {
     fontSize: 24,
@@ -2528,17 +2613,22 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   androidProfileButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
   },
   androidProfileInitials: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#FF6B35',
   },
   androidLogoContainer: {
     alignItems: 'center',
@@ -2546,17 +2636,23 @@ const styles = StyleSheet.create({
   },
   androidWhitePanel: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    marginTop: -20,
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
+    backgroundColor: '#FFFFFF',
+    marginTop: -30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   androidScrollView: {
     flex: 1,
   },
   androidScrollContent: {
     padding: 20,
-    paddingTop: 25,
+    paddingTop: 40,
+    backgroundColor: '#FFFFFF',
   },
   androidActionButtonsRow: {
     flexDirection: 'row',
@@ -2591,15 +2687,12 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   androidSectionCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#FAFAFA',
     borderRadius: 16,
     padding: 20,
     marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
   },
   androidSectionHeader: {
     flexDirection: 'row',
@@ -2630,19 +2723,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
   },
-  androidPieChartPlaceholder: {
-    width: 120,
-    height: 120,
+  androidPieChartSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+  },
+  androidDonutChart: {
+    width: 130,
+    height: 130,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    position: 'relative',
   },
-  androidPieChartCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 20,
-    borderColor: '#E0E0E0',
+  androidDonutOuter: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  androidDonutSegment: {
+    position: 'absolute',
+    width: 65,
+    height: 130,
+    left: 65,
+    transformOrigin: 'left center',
+  },
+  androidDonutCenter: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FAFAFA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  androidDonutTotalLabel: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
+  },
+  androidDonutTotalAmount: {
+    fontSize: 18,
+    color: '#333',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  androidCategoryLegend: {
+    flex: 1,
+    marginLeft: 20,
+  },
+  androidLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  androidLegendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  androidLegendText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
   },
   androidBarChartPlaceholder: {
     flexDirection: 'row',
