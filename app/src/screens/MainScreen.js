@@ -153,13 +153,6 @@ export default function MainScreen({ navigation }) {
     setMenuVisible(!menuVisible);
   };
 
-  const handleRequestPermission = async () => {
-    if (requestPermission) {
-      const result = await requestPermission();
-      setPermissionGranted(result.granted);
-    }
-  };
-
   // Web view - show options directly
   if (isWeb) {
     const webContent = (
