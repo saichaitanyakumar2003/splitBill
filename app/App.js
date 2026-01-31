@@ -1694,22 +1694,34 @@ function HomeScreen({ navigation, route }) {
                 </View>
               ) : aiSummary ? (
                 <View style={styles.androidSummaryResults}>
-                  {aiSummary.summary.map((point, index) => (
-                    <View key={index} style={styles.androidSummaryPoint}>
-                      <View style={styles.androidSummaryBullet}>
-                        <Ionicons 
-                          name={index === aiSummary.summary.length - 1 ? "sparkles" : "checkmark-circle"} 
-                          size={16} 
-                          color={index === aiSummary.summary.length - 1 ? "#FF6B35" : "#4CAF50"} 
-                        />
+                  {aiSummary.summary.map((point, index) => {
+                    // Different icons for each insight type
+                    const insightIcons = [
+                      { name: 'trending-up', color: '#2196F3' },      // Hidden Pattern
+                      { name: 'alert-circle', color: '#FF9800' },     // Surprising Fact
+                      { name: 'bulb', color: '#4CAF50' },             // Smart Saving Tip
+                      { name: 'analytics', color: '#9C27B0' },        // Prediction
+                    ];
+                    const icon = insightIcons[index] || { name: 'sparkles', color: '#FF6B35' };
+                    
+                    return (
+                      <View key={index} style={styles.androidSummaryPoint}>
+                        <View style={styles.androidSummaryBullet}>
+                          <Ionicons name={icon.name} size={18} color={icon.color} />
+                        </View>
+                        <Text style={styles.androidSummaryPointText}>{point}</Text>
                       </View>
-                      <Text style={styles.androidSummaryPointText}>{point}</Text>
-                    </View>
-                  ))}
+                    );
+                  })}
                   <View style={styles.androidSummaryFooter}>
-                    <Text style={styles.androidSummaryUsageText}>
-                      {aiSummaryUsage.remaining} of {aiSummaryUsage.limit} summaries remaining today
-                    </Text>
+                    <View>
+                      <Text style={styles.androidSummaryUsageText}>
+                        {aiSummaryUsage.remaining} of {aiSummaryUsage.limit} summaries remaining today
+                      </Text>
+                      <Text style={[styles.androidSummaryUsageText, { marginTop: 2 }]}>
+                        {aiSummary.source === 'ai' ? '✨ Powered by Gemini AI' : '📊 Based on your data patterns'}
+                      </Text>
+                    </View>
                     {aiSummaryUsage.remaining > 0 && (
                       <TouchableOpacity 
                         style={styles.androidRegenerateButton}
@@ -3414,7 +3426,7 @@ const styles = StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#F0F0F0',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -3448,23 +3460,27 @@ const styles = StyleSheet.create({
   },
   androidCategoryLegend: {
     flex: 1,
-    marginLeft: 20,
+    marginLeft: 15,
+    justifyContent: 'center',
   },
   androidLegendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    paddingRight: 5,
   },
   androidLegendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: 8,
+    flexShrink: 0,
   },
   androidLegendText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666',
     fontWeight: '500',
+    flex: 1,
   },
   androidLegendItemSelected: {
     backgroundColor: '#FFF5F0',
@@ -3476,8 +3492,9 @@ const styles = StyleSheet.create({
   androidLegendPercentage: {
     fontSize: 12,
     color: '#999',
-    marginLeft: 'auto',
     fontWeight: '600',
+    minWidth: 35,
+    textAlign: 'right',
   },
   androidDonutPercentage: {
     fontSize: 11,

@@ -460,7 +460,7 @@ router.post('/ai-summary', async (req, res) => {
     }
     
     // Generate AI summary
-    const aiSummary = await generateAISummary(monthlyData, categoryTotals, grandTotal);
+    const summaryResult = await generateAISummary(monthlyData, categoryTotals, grandTotal);
     
     // Record the API call
     const usageResult = await AISummaryUsage.recordCall(mailId);
@@ -468,7 +468,8 @@ router.post('/ai-summary', async (req, res) => {
     res.json({
       success: true,
       data: {
-        summary: aiSummary,
+        summary: summaryResult.points,
+        source: summaryResult.source, // 'ai' or 'fallback'
         hasData: true,
         generatedAt: new Date().toISOString()
       },
@@ -494,8 +495,11 @@ async function generateAISummary(monthlyData, categoryTotals, grandTotal) {
   const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
-    console.log('Gemini API key not configured, returning default summary');
-    return generateFallbackSummary(monthlyData, categoryTotals, grandTotal);
+    console.log('Gemini API key not configured, returning fallback summary');
+    return {
+      points: generateFallbackSummary(monthlyData, categoryTotals, grandTotal),
+      source: 'fallback'
+    };
   }
   
   try {
@@ -532,26 +536,29 @@ ${previousMonth ? `Previous Month (${previousMonth.month}):
 Grand Total (6 months): ₹${grandTotal.toLocaleString('en-IN')}
 `;
 
-    const prompt = `You are a helpful financial advisor analyzing a user's spending patterns. Based on the following spending data, provide personalized insights.
+    const prompt = `You are a smart financial analyst. Analyze this spending data and provide HIDDEN INSIGHTS that the user WON'T notice just by looking at pie/bar charts.
 
 ${spendingContext}
 
-Provide EXACTLY 5 short bullet points (each under 80 characters) covering:
-1. Where they spent the most last month
-2. Month-over-month change (if applicable)
-3. Their highest spending category overall
-4. One specific saving tip based on their spending pattern
-5. A positive observation or encouragement
+Provide EXACTLY 4 NON-OBVIOUS insights (each under 100 characters). Focus on:
+
+1. HIDDEN PATTERN: A trend the user might not notice (e.g., "Your food spending creeps up ₹500 every month" or "Travel always spikes after low entertainment months")
+
+2. SURPRISING FACT: Something unexpected (e.g., "Your 'Others' category is 3x your entertainment - worth reviewing what's in there" or "You spend more on travel than food+entertainment combined")
+
+3. SMART SAVING TIP: A specific, actionable tip based on THEIR data (e.g., "Cutting 'Others' by 20% saves ₹4,000/month" or "Your entertainment is already minimal - focus on food instead")
+
+4. PREDICTION/WARNING: Project future spending or warn about a trend (e.g., "At this rate, you'll spend ₹2L on travel this year" or "Food spending doubled in 3 months - watch out")
 
 Rules:
-- Keep each point concise (under 80 characters)
-- Use ₹ symbol for amounts
-- Be specific with numbers and percentages
-- Be encouraging, not judgmental
-- Focus on actionable insights
+- DO NOT state obvious facts visible in charts (like "Food is your top category")
+- DO NOT just repeat percentages the user can see
+- Be specific with ₹ amounts and percentages
+- Each insight should make the user think "I didn't realize that!"
+- Be direct and useful, not generic
 
-Format your response as a JSON array of 5 strings, nothing else. Example:
-["Point 1 here", "Point 2 here", "Point 3 here", "Point 4 here", "Point 5 here"]`;
+Format: JSON array of 4 strings only. Example:
+["Hidden pattern insight", "Surprising fact", "Specific saving tip", "Prediction or warning"]`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -572,7 +579,10 @@ Format your response as a JSON array of 5 strings, nothing else. Example:
 
     if (!response.ok) {
       console.error('Gemini API error:', response.status, response.statusText);
-      return generateFallbackSummary(monthlyData, categoryTotals, grandTotal);
+      return {
+        points: generateFallbackSummary(monthlyData, categoryTotals, grandTotal),
+        source: 'fallback'
+      };
     }
 
     const result = await response.json();
@@ -589,24 +599,34 @@ Format your response as a JSON array of 5 strings, nothing else. Example:
       const summaryPoints = JSON.parse(jsonStr);
       
       if (Array.isArray(summaryPoints) && summaryPoints.length > 0) {
-        return summaryPoints.slice(0, 5); // Ensure max 5 points
+        return {
+          points: summaryPoints.slice(0, 4), // Ensure max 4 points
+          source: 'ai'
+        };
       }
     } catch (parseError) {
       console.error('Error parsing Gemini response:', parseError);
       // Try to extract points manually
       const lines = textResponse.split('\n').filter(line => line.trim());
       if (lines.length >= 3) {
-        return lines.slice(0, 5).map(line => 
-          line.replace(/^[\d\.\-\*]\s*/, '').trim()
-        );
+        return {
+          points: lines.slice(0, 4).map(line => line.replace(/^[\d\.\-\*]\s*/, '').trim()),
+          source: 'ai'
+        };
       }
     }
     
-    return generateFallbackSummary(monthlyData, categoryTotals, grandTotal);
+    return {
+      points: generateFallbackSummary(monthlyData, categoryTotals, grandTotal),
+      source: 'fallback'
+    };
     
   } catch (error) {
     console.error('Error calling Gemini for summary:', error.message);
-    return generateFallbackSummary(monthlyData, categoryTotals, grandTotal);
+    return {
+      points: generateFallbackSummary(monthlyData, categoryTotals, grandTotal),
+      source: 'fallback'
+    };
   }
 }
 
@@ -616,68 +636,60 @@ Format your response as a JSON array of 5 strings, nothing else. Example:
 function generateFallbackSummary(monthlyData, categoryTotals, grandTotal) {
   const lastMonth = monthlyData[0];
   const previousMonth = monthlyData[1];
-  
-  // Find highest spending category
-  let highestCat = 'others';
-  let highestAmount = 0;
-  CATEGORIES.forEach(cat => {
-    if (categoryTotals[cat] > highestAmount) {
-      highestAmount = categoryTotals[cat];
-      highestCat = cat;
-    }
-  });
-  
-  // Find highest spending category last month
-  let highestLastMonth = 'others';
-  let highestLastAmount = 0;
-  CATEGORIES.forEach(cat => {
-    if (lastMonth.breakdown[cat] > highestLastAmount) {
-      highestLastAmount = lastMonth.breakdown[cat];
-      highestLastMonth = cat;
-    }
-  });
-  
   const summary = [];
   
-  // Point 1: Last month highest
-  if (lastMonth.total > 0) {
-    const percentage = Math.round((highestLastAmount / lastMonth.total) * 100);
-    summary.push(`${highestLastMonth.charAt(0).toUpperCase() + highestLastMonth.slice(1)} was your top spend last month (${percentage}%)`);
-  } else {
-    summary.push('No spending recorded last month');
+  // Calculate trends and patterns
+  const monthlyTotals = monthlyData.map(m => m.total);
+  const avgMonthly = grandTotal / monthlyData.filter(m => m.total > 0).length || 0;
+  
+  // Find categories with interesting patterns
+  let fastestGrowing = null;
+  let maxGrowth = 0;
+  
+  if (previousMonth && lastMonth.total > 0 && previousMonth.total > 0) {
+    CATEGORIES.forEach(cat => {
+      const lastAmt = lastMonth.breakdown[cat] || 0;
+      const prevAmt = previousMonth.breakdown[cat] || 0;
+      if (prevAmt > 0) {
+        const growth = ((lastAmt - prevAmt) / prevAmt) * 100;
+        if (growth > maxGrowth && growth > 20) {
+          maxGrowth = growth;
+          fastestGrowing = cat;
+        }
+      }
+    });
   }
   
-  // Point 2: Month comparison
-  if (previousMonth && previousMonth.total > 0 && lastMonth.total > 0) {
-    const change = lastMonth.total - previousMonth.total;
-    const changePercent = Math.round((change / previousMonth.total) * 100);
-    if (change > 0) {
-      summary.push(`Spending increased by ${changePercent}% from previous month`);
-    } else if (change < 0) {
-      summary.push(`Great! Spending decreased by ${Math.abs(changePercent)}% from last month`);
-    } else {
-      summary.push('Spending remained stable compared to previous month');
-    }
+  // Point 1: Hidden Pattern
+  if (fastestGrowing) {
+    summary.push(`${fastestGrowing.charAt(0).toUpperCase() + fastestGrowing.slice(1)} spending jumped ${Math.round(maxGrowth)}% - a trend to watch`);
+  } else if (categoryTotals.others > categoryTotals.food + categoryTotals.entertainment) {
+    summary.push(`Your 'Others' exceeds Food + Entertainment combined - review what's in there`);
   } else {
-    summary.push('Keep tracking to see monthly trends');
+    const variation = Math.round((Math.max(...monthlyTotals) - Math.min(...monthlyTotals.filter(t => t > 0))) / avgMonthly * 100);
+    summary.push(`Your monthly spending varies by ${variation}% - budgeting could help stabilize`);
   }
   
-  // Point 3: Overall category
-  const overallPercent = Math.round((highestAmount / grandTotal) * 100);
-  summary.push(`${highestCat.charAt(0).toUpperCase() + highestCat.slice(1)} is your biggest expense category (${overallPercent}%)`);
+  // Point 2: Surprising Fact
+  const sortedCats = CATEGORIES.map(cat => ({ cat, amount: categoryTotals[cat] }))
+    .sort((a, b) => b.amount - a.amount);
+  if (sortedCats[0].amount > sortedCats[1].amount + sortedCats[2].amount) {
+    summary.push(`${sortedCats[0].cat.charAt(0).toUpperCase() + sortedCats[0].cat.slice(1)} alone is more than ${sortedCats[1].cat} + ${sortedCats[2].cat} combined!`);
+  } else {
+    const lowestCat = sortedCats[sortedCats.length - 1];
+    const highestCat = sortedCats[0];
+    const ratio = Math.round(highestCat.amount / (lowestCat.amount || 1));
+    summary.push(`You spend ${ratio}x more on ${highestCat.cat} than ${lowestCat.cat}`);
+  }
   
-  // Point 4: Saving tip based on highest category
-  const savingTips = {
-    food: 'Try meal planning to reduce food expenses',
-    travel: 'Consider carpooling or public transport to save',
-    entertainment: 'Look for free events or subscription bundles',
-    shopping: 'Make a wishlist and wait 48hrs before buying',
-    others: 'Review recurring bills for potential savings'
-  };
-  summary.push(savingTips[highestCat]);
+  // Point 3: Smart Saving Tip
+  const highestCat = sortedCats[0];
+  const savingAmount = Math.round(highestCat.amount * 0.15);
+  summary.push(`Cutting ${highestCat.cat} by 15% saves ₹${savingAmount.toLocaleString('en-IN')} over 6 months`);
   
-  // Point 5: Encouragement
-  summary.push('Tracking expenses is the first step to financial health!');
+  // Point 4: Prediction
+  const yearProjection = Math.round(avgMonthly * 12);
+  summary.push(`At current pace, you'll spend ₹${yearProjection.toLocaleString('en-IN')} this year`);
   
   return summary;
 }
