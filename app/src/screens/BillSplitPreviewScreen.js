@@ -280,16 +280,26 @@ export default function BillSplitPreviewScreen() {
       const data = await response.json();
       
       if (data.success) {
+        // Build splits from item selections for display
+        const memberTotalsForDisplay = getMemberTotals();
+        const splitsForDisplay = {};
+        Object.entries(memberTotalsForDisplay).forEach(([mailId, amount]) => {
+          splitsForDisplay[mailId] = amount.toFixed(2);
+        });
+        
         navigation.navigate('SplitSummary', {
           groupId: data.data.groupId,
           groupName: data.data.groupName,
           consolidatedExpenses: data.data.consolidatedExpenses,
-          // Pass the expense that was added
+          // Pass the expense with full split details for display
           expenses: [{
             title: expenseTitle,
             totalAmount: billData.total,
+            paidBy: paidBy.mailId,
             paidByName: paidBy.name,
             memberCount: allMembers.length,
+            splits: splitsForDisplay,
+            members: allMembers,
           }],
         });
       } else {

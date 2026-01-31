@@ -460,17 +460,62 @@ export default function SplitSummaryScreen() {
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}
             >
-              {expenses.map((exp, index) => (
-                <View key={index} style={styles.addedExpenseRow}>
-                  <View style={styles.addedExpenseInfo}>
-                    <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
-                    <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
-                      Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
-                    </Text>
+              {expenses.map((exp, index) => {
+                // Get member name helper
+                const getMemberName = (mailId) => {
+                  const member = exp.members?.find(m => m.mailId === mailId);
+                  if (member?.name) return member.name;
+                  // Extract name from email (part before @)
+                  return mailId.split('@')[0];
+                };
+                
+                // Calculate edges for this expense (who owes whom)
+                const expenseEdges = [];
+                if (exp.splits && exp.paidBy) {
+                  Object.entries(exp.splits).forEach(([mailId, amount]) => {
+                    const amountNum = parseFloat(amount) || 0;
+                    // Only show edge if person owes money and is not the payer
+                    if (mailId !== exp.paidBy && amountNum > 0.01) {
+                      expenseEdges.push({
+                        from: getMemberName(mailId),
+                        to: getMemberName(exp.paidBy),
+                        amount: amountNum,
+                      });
+                    }
+                  });
+                }
+                
+                return (
+                  <View key={index} style={styles.expenseCard}>
+                    {/* Expense Header */}
+                    <View style={styles.expenseCardHeader}>
+                      <View style={styles.addedExpenseInfo}>
+                        <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
+                        <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
+                          Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
+                    </View>
+                    
+                    {/* Expense Edges - Who owes whom for this expense */}
+                    {expenseEdges.length > 0 && (
+                      <View style={styles.expenseEdgesContainer}>
+                        {expenseEdges.map((edge, edgeIndex) => (
+                          <View key={edgeIndex} style={styles.expenseEdgeRow}>
+                            <View style={styles.expenseEdgeNames}>
+                              <Text style={styles.expenseEdgeFrom} numberOfLines={1}>{edge.from}</Text>
+                              <Text style={styles.expenseEdgeArrow}>→</Text>
+                              <Text style={styles.expenseEdgeTo} numberOfLines={1}>{edge.to}</Text>
+                            </View>
+                            <Text style={styles.expenseEdgeAmount}>₹{edge.amount.toFixed(2)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
           ) : (
             <View style={styles.settledContainer}>
@@ -570,17 +615,62 @@ export default function SplitSummaryScreen() {
                 showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
               >
-                {expenses.map((exp, index) => (
-                  <View key={index} style={styles.addedExpenseRow}>
-                    <View style={styles.addedExpenseInfo}>
-                      <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
-                      <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
-                        Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
-                      </Text>
+                {expenses.map((exp, index) => {
+                  // Get member name helper
+                  const getMemberName = (mailId) => {
+                    const member = exp.members?.find(m => m.mailId === mailId);
+                    if (member?.name) return member.name;
+                    // Extract name from email (part before @)
+                    return mailId.split('@')[0];
+                  };
+                  
+                  // Calculate edges for this expense (who owes whom)
+                  const expenseEdges = [];
+                  if (exp.splits && exp.paidBy) {
+                    Object.entries(exp.splits).forEach(([mailId, amount]) => {
+                      const amountNum = parseFloat(amount) || 0;
+                      // Only show edge if person owes money and is not the payer
+                      if (mailId !== exp.paidBy && amountNum > 0.01) {
+                        expenseEdges.push({
+                          from: getMemberName(mailId),
+                          to: getMemberName(exp.paidBy),
+                          amount: amountNum,
+                        });
+                      }
+                    });
+                  }
+                  
+                  return (
+                    <View key={index} style={styles.expenseCard}>
+                      {/* Expense Header */}
+                      <View style={styles.expenseCardHeader}>
+                        <View style={styles.addedExpenseInfo}>
+                          <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
+                          <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
+                            Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
+                      </View>
+                      
+                      {/* Expense Edges - Who owes whom for this expense */}
+                      {expenseEdges.length > 0 && (
+                        <View style={styles.expenseEdgesContainer}>
+                          {expenseEdges.map((edge, edgeIndex) => (
+                            <View key={edgeIndex} style={styles.expenseEdgeRow}>
+                              <View style={styles.expenseEdgeNames}>
+                                <Text style={styles.expenseEdgeFrom} numberOfLines={1}>{edge.from}</Text>
+                                <Text style={styles.expenseEdgeArrow}>→</Text>
+                                <Text style={styles.expenseEdgeTo} numberOfLines={1}>{edge.to}</Text>
+                              </View>
+                              <Text style={styles.expenseEdgeAmount}>₹{edge.amount.toFixed(2)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
-                    <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
             ) : (
               <View style={styles.settledContainer}>
@@ -1032,6 +1122,63 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FF6B35',
     flexShrink: 0,
+  },
+  // Expense card with edges styles
+  expenseCard: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  expenseCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  expenseEdgesContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E8E8E8',
+  },
+  expenseEdgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  expenseEdgeNames: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  expenseEdgeFrom: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#555',
+    flexShrink: 1,
+  },
+  expenseEdgeArrow: {
+    fontSize: 12,
+    color: '#FF6B35',
+    marginHorizontal: 6,
+    fontWeight: '600',
+  },
+  expenseEdgeTo: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#555',
+    flexShrink: 1,
+  },
+  expenseEdgeAmount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF6B35',
+    minWidth: 60,
+    textAlign: 'right',
   },
   viewSettlementsLink: {
     marginTop: 16,

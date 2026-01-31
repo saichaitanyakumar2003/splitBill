@@ -164,8 +164,9 @@ export default function GroupPreviewScreen() {
     const expense = expenses[activeExpenseIndex];
     const total = Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
     
-    if (Math.abs(total - expense.totalAmount) > 0.01) {
-      setSplitError(`Total must equal ₹${expense.totalAmount.toFixed(2)} (Current: ₹${total.toFixed(2)})`);
+    // Validate using integer comparison (rounded values)
+    if (Math.round(total) !== Math.round(expense.totalAmount)) {
+      setSplitError(`Total must equal ₹${Math.round(expense.totalAmount)} (Current: ₹${Math.round(total)})`);
       return;
     }
     
@@ -200,12 +201,15 @@ export default function GroupPreviewScreen() {
           groupId: data.data.groupId,
           groupName: data.data.groupName,
           consolidatedExpenses: data.data.consolidatedExpenses,
-          // Pass the expenses with readable names for display
+          // Pass the expenses with full split details for display
           expenses: expenses.map(exp => ({
             title: exp.title,
             totalAmount: exp.totalAmount,
+            paidBy: exp.paidBy,
             paidByName: exp.paidByName,
             memberCount: exp.members?.length || Object.keys(exp.splits || {}).length,
+            splits: exp.splits,
+            members: exp.members,
           })),
         });
       } else {
@@ -365,7 +369,7 @@ export default function GroupPreviewScreen() {
                     <Text style={androidStyles.summaryLabel}>Current Total:</Text>
                     <Text style={[
                       androidStyles.summaryValue,
-                      Math.abs(Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) - expenses[activeExpenseIndex].totalAmount) > 0.01 && androidStyles.summaryValueError
+                      Math.round(Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)) !== Math.round(expenses[activeExpenseIndex].totalAmount) && androidStyles.summaryValueError
                     ]}>
                       ₹{Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0).toFixed(2)}
                     </Text>
@@ -554,7 +558,7 @@ export default function GroupPreviewScreen() {
                   <Text style={styles.summaryLabel}>Current Total:</Text>
                   <Text style={[
                     styles.summaryValue,
-                    Math.abs(Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) - expenses[activeExpenseIndex].totalAmount) > 0.01 && styles.summaryValueError
+                    Math.round(Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0)) !== Math.round(expenses[activeExpenseIndex].totalAmount) && styles.summaryValueError
                   ]}>
                     ₹{Object.values(memberAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0).toFixed(2)}
                   </Text>
@@ -803,9 +807,9 @@ const styles = StyleSheet.create({
   },
   memberInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
   },
   memberName: {
     fontSize: 15,
@@ -1120,9 +1124,9 @@ const androidStyles = StyleSheet.create({
   },
   memberInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
   },
   memberName: {
     fontSize: 15,

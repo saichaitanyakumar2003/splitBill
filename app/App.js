@@ -1418,7 +1418,24 @@ function HomeScreen({ navigation, route }) {
                             );
                             const filteredTotal = filteredCategories.reduce((sum, cat) => sum + cat.amount, 0);
                             
-                            return filteredCategories.map((cat, index) => {
+                            // Create segments - render in reverse order so first category is on top
+                            const segments = [];
+                            
+                            // Add base circle with last category's color to prevent white gaps
+                            if (filteredCategories.length > 0) {
+                              const lastCat = filteredCategories[filteredCategories.length - 1];
+                              segments.push(
+                                <View
+                                  key="base-circle"
+                                  style={[
+                                    styles.androidDonutBaseCircle,
+                                    { backgroundColor: lastCat.color }
+                                  ]}
+                                />
+                              );
+                            }
+                            
+                            filteredCategories.forEach((cat, index) => {
                               const percentage = filteredTotal > 0 ? (cat.amount / filteredTotal) * 100 : 0;
                               const angle = (percentage / 100) * 360;
                               const startAngle = cumulativeAngle;
@@ -1426,7 +1443,7 @@ function HomeScreen({ navigation, route }) {
                               
                               const isSelected = selectedPieSlice === cat.name;
                               
-                              return (
+                              segments.push(
                                 <TouchableOpacity
                                   key={cat.name}
                                   style={[
@@ -1446,6 +1463,8 @@ function HomeScreen({ navigation, route }) {
                                 />
                               );
                             });
+                            
+                            return segments;
                           })()}
                         </View>
                         {/* Center circle with total or selected amount */}
@@ -3464,10 +3483,16 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: '#E8E8E8',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+  },
+  androidDonutBaseCircle: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
   },
   androidDonutSegment: {
     position: 'absolute',
