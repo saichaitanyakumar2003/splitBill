@@ -912,14 +912,14 @@ function HomeScreen({ navigation, route }) {
 
   // Fetch user analysis data from API (used for both Expense Insights and Analysis)
   const fetchUserAnalysisData = async () => {
-    if (!user?.token) return;
+    if (!token) return;
     
     setAnalysisLoading(true);
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/analysis/user-data`, {
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -942,11 +942,11 @@ function HomeScreen({ navigation, route }) {
 
   // Fetch analysis data when user logs in
   useEffect(() => {
-    if (user?.token) {
+    if (token) {
       fetchUserAnalysisData();
       fetchAISummaryUsage(); // Also fetch AI summary usage
     }
-  }, [user?.token]);
+  }, [token]);
 
   // Reset pie slice selection when month or categories change
   useEffect(() => {
@@ -955,12 +955,12 @@ function HomeScreen({ navigation, route }) {
 
   // Fetch AI summary usage stats
   const fetchAISummaryUsage = async () => {
-    if (!user?.token) return;
+    if (!token) return;
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/analysis/ai-summary/usage`, {
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -976,7 +976,7 @@ function HomeScreen({ navigation, route }) {
 
   // Generate AI summary
   const generateAISummary = async () => {
-    if (!user?.token || aiSummaryLoading) return;
+    if (!token || aiSummaryLoading) return;
     
     // Check if user can make call
     if (aiSummaryUsage.remaining <= 0) {
@@ -990,7 +990,7 @@ function HomeScreen({ navigation, route }) {
       const response = await fetch(`${API_BASE_URL}/api/analysis/ai-summary`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
