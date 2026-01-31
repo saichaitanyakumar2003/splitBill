@@ -826,6 +826,7 @@ function HomeScreen({ navigation, route }) {
   const [aiSummary, setAiSummary] = useState(null); // { summary: [], hasData: boolean, generatedAt: string, date: string }
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryUsage, setAiSummaryUsage] = useState({ remaining: 2, used: 0, limit: 2 }); // Daily usage tracking
+  const [showLimitReachedPopup, setShowLimitReachedPopup] = useState(false); // Show limit reached message inline
 
   // AsyncStorage key for AI summary
   const AI_SUMMARY_STORAGE_KEY = '@splitbill_ai_summary';
@@ -980,7 +981,7 @@ function HomeScreen({ navigation, route }) {
     
     // Check if user can make call
     if (aiSummaryUsage.remaining <= 0) {
-      alert(`Daily limit reached. You have used all ${aiSummaryUsage.limit} AI summaries for today. Try again tomorrow.`);
+      setShowLimitReachedPopup(true);
       return;
     }
     
@@ -1472,7 +1473,12 @@ function HomeScreen({ navigation, route }) {
                                     {selectedPieSlice.charAt(0).toUpperCase() + selectedPieSlice.slice(1)}
                                   </Text>
                                   <Text style={styles.androidDonutTotalAmount}>
-                                    ₹{selectedCat?.amount.toLocaleString('en-IN') || 0}
+                                    ₹{(() => {
+                                      const amt = selectedCat?.amount || 0;
+                                      if (amt >= 100000) return `${(amt/100000).toFixed(1)}L`;
+                                      if (amt >= 1000) return `${(amt/1000).toFixed(1)}K`;
+                                      return amt.toFixed(0);
+                                    })()}
                                   </Text>
                                   <Text style={styles.androidDonutPercentage}>
                                     {filteredPercentage}%
@@ -1481,11 +1487,18 @@ function HomeScreen({ navigation, route }) {
                               );
                             }
                             
+                            // Format amount compactly for large numbers
+                            const formatCompact = (amount) => {
+                              if (amount >= 100000) return `${(amount/100000).toFixed(1)}L`;
+                              if (amount >= 1000) return `${(amount/1000).toFixed(1)}K`;
+                              return amount.toFixed(0);
+                            };
+                            
                             return (
                               <>
                                 <Text style={styles.androidDonutTotalLabel}>Total</Text>
                                 <Text style={styles.androidDonutTotalAmount}>
-                                  ₹{filteredTotal.toLocaleString('en-IN')}
+                                  ₹{formatCompact(filteredTotal)}
                                 </Text>
                               </>
                             );
@@ -1732,6 +1745,31 @@ function HomeScreen({ navigation, route }) {
                       </TouchableOpacity>
                     )}
                   </View>
+                </View>
+              ) : showLimitReachedPopup ? (
+                <View style={styles.androidLimitPopup}>
+                  <View style={styles.androidLimitPopupHeader}>
+                    <Ionicons name="time-outline" size={24} color="#FF6B35" />
+                    <Text style={styles.androidLimitPopupTitle}>Daily Limit Reached</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowLimitReachedPopup(false)}
+                      style={styles.androidLimitPopupClose}
+                    >
+                      <Ionicons name="close" size={20} color="#666" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.androidLimitPopupText}>
+                    You've used all {aiSummaryUsage.limit} AI summaries for today. Come back tomorrow for fresh insights!
+                  </Text>
+                  {aiSummary && (
+                    <TouchableOpacity 
+                      style={styles.androidLimitPopupButton}
+                      onPress={() => setShowLimitReachedPopup(false)}
+                    >
+                      <Ionicons name="eye-outline" size={16} color="#FF6B35" />
+                      <Text style={styles.androidLimitPopupButtonText}>View Previous Summary</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : (
                 <View style={styles.androidSummaryContent}>
@@ -3416,47 +3454,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   androidDonutChart: {
-    width: 130,
-    height: 130,
+    width: 140,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   androidDonutOuter: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: '#F0F0F0',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#E8E8E8',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   androidDonutSegment: {
     position: 'absolute',
-    width: 65,
-    height: 130,
-    left: 65,
+    width: 70,
+    height: 140,
+    left: 70,
     transformOrigin: 'left center',
   },
   androidDonutCenter: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: '#FAFAFA',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 5,
   },
   androidDonutTotalLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#999',
     fontWeight: '500',
   },
   androidDonutTotalAmount: {
-    fontSize: 18,
+    fontSize: 14,
     color: '#333',
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: 1,
+    textAlign: 'center',
   },
   androidCategoryLegend: {
     flex: 1,
@@ -3737,6 +3777,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 8,
+  },
+  androidLimitPopup: {
+    backgroundColor: '#FFF5F0',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FFE0D0',
+  },
+  androidLimitPopupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  androidLimitPopupTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginLeft: 8,
+    flex: 1,
+  },
+  androidLimitPopupClose: {
+    padding: 4,
+  },
+  androidLimitPopupText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  androidLimitPopupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#FFE0D0',
+    gap: 6,
+  },
+  androidLimitPopupButtonText: {
+    fontSize: 14,
+    color: '#FF6B35',
+    fontWeight: '500',
   },
   androidModalOverlay: {
     flex: 1,
