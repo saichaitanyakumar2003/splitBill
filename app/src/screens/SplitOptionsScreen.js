@@ -83,13 +83,13 @@ export default function SplitOptionsScreen() {
   if (isAndroid) {
     return (
       <View style={androidStyles.container}>
-        <StatusBar style="light" />
-        
-        {/* Orange Header */}
         <LinearGradient
           colors={['#F57C3A', '#E85A24', '#D84315']}
-          style={androidStyles.headerGradient}
+          style={androidStyles.gradient}
         >
+          <StatusBar style="light" />
+          
+          {/* Header */}
           <View style={androidStyles.header}>
             <Pressable onPress={handleBack} style={androidStyles.backButton}>
               <Ionicons name="arrow-back" size={22} color="#E85A24" />
@@ -99,16 +99,15 @@ export default function SplitOptionsScreen() {
           </View>
           
           {/* Decorative icon */}
-          <View style={androidStyles.headerIconContainer}>
-            <View style={androidStyles.headerIconCircle}>
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
               <Ionicons name="git-branch-outline" size={26} color="#E85A24" />
             </View>
           </View>
-        </LinearGradient>
 
-        {/* White Content Area with curved top */}
-        <View style={androidStyles.contentWrapper}>
-          <View style={androidStyles.content}>
+          {/* White Content Area with curved top */}
+          <View style={androidStyles.whiteContentArea}>
+            <View style={androidStyles.content}>
             <Text style={androidStyles.cardTitle}>What would you like to do?</Text>
             <Text style={androidStyles.cardSubtitle}>Choose an option to split your expenses</Text>
 
@@ -159,6 +158,7 @@ export default function SplitOptionsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </LinearGradient>
       </View>
     );
   }
@@ -184,6 +184,13 @@ export default function SplitOptionsScreen() {
 
         {/* Content */}
         <View style={styles.content}>
+          {/* Decorative icon */}
+          <View style={styles.decorativeIconContainer}>
+            <View style={styles.decorativeIconCircle}>
+              <Ionicons name="git-branch-outline" size={28} color="#FF6B35" />
+            </View>
+          </View>
+          
           <View style={styles.card}>
             <Text style={styles.cardTitle}>What would you like to do?</Text>
 
@@ -269,11 +276,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingBottom: 100,
   },
+  decorativeIconContainer: {
+    alignItems: 'center',
+    marginBottom: -35,
+    zIndex: 20,
+  },
+  decorativeIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 24,
     padding: 30,
-    paddingVertical: 40,
+    paddingTop: 50,
+    paddingBottom: 40,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -337,16 +363,16 @@ const androidStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E85A24',
   },
-  headerGradient: {
-    paddingTop: 40,
-    paddingBottom: 60,
+  gradient: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 50,
+    paddingBottom: 20,
   },
   backButton: {
     width: 44,
@@ -370,13 +396,13 @@ const androidStyles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  headerIconContainer: {
+  decorativeIconContainer: {
     alignItems: 'center',
     marginTop: 5,
     marginBottom: -25,
     zIndex: 20,
   },
-  headerIconCircle: {
+  decorativeIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -389,11 +415,11 @@ const androidStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
-  contentWrapper: {
+  whiteContentArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     marginTop: 0,
-    paddingTop: 15,
+    paddingTop: 40,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
