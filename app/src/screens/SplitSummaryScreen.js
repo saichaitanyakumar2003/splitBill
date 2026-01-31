@@ -653,6 +653,9 @@ export default function SplitSummaryScreen() {
           style={androidStyles.gradient}
         >
           <StatusBar style="light" />
+          
+          {/* Party Animations - Balloons and Bombs */}
+          <PartyAnimations isAnimating={isAnimating} />
 
           {/* Header Title */}
           <Text style={androidStyles.headerTitle}>Summary</Text>

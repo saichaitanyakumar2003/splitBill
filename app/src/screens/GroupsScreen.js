@@ -1392,6 +1392,9 @@ export default function GroupsScreen({ route }) {
                 )}
               </View>
               <Text style={styles.groupNameText} numberOfLines={1}>{selectedGroup?.name}</Text>
+              <Text style={styles.groupCreatedTimestamp}>
+                Created on {formatTimestamp(groupDetails?.createdAt || selectedGroup?.createdAt)}
+              </Text>
               {(groupStatus === 'completed' || groupStatus === 'deleted') && (
                 <Text style={styles.groupTimestamp}>
                   {groupStatus === 'completed' ? 'Completed' : 'Deleted'} on {formatTimestamp(groupDetails?.updatedAt || selectedGroup?.updatedAt)}
@@ -1452,6 +1455,9 @@ export default function GroupsScreen({ route }) {
                 )}
               </View>
               <Text style={styles.groupNameText} numberOfLines={1}>{selectedGroup?.name}</Text>
+              <Text style={styles.groupCreatedTimestamp}>
+                Created on {formatTimestamp(groupDetails?.createdAt || selectedGroup?.createdAt)}
+              </Text>
               {(groupStatus === 'completed' || groupStatus === 'deleted') && (
                 <Text style={styles.groupTimestamp}>
                   {groupStatus === 'completed' ? 'Completed' : 'Deleted'} on {formatTimestamp(groupDetails?.updatedAt || selectedGroup?.updatedAt)}
@@ -1560,6 +1566,15 @@ export default function GroupsScreen({ route }) {
 
               {currentExpense && (
                 <>
+                  <View style={styles.modalExpenseHeader}>
+                    <Text style={styles.modalExpenseTitle} numberOfLines={1}>
+                      {currentExpense.title || currentExpense.name || 'Expense'}
+                    </Text>
+                    <Text style={styles.modalExpenseTimestamp}>
+                      Created on {formatTimestamp(currentExpense.createdAt)}
+                    </Text>
+                  </View>
+
                   <View style={styles.modalTotalRow}>
                     <Text style={styles.modalTotalLabel}>Total Amount:</Text>
                     <Text style={styles.modalTotalValue}>
@@ -2097,6 +2112,15 @@ export default function GroupsScreen({ route }) {
 
             {currentExpense && (
               <>
+                <View style={styles.modalExpenseHeader}>
+                  <Text style={styles.modalExpenseTitle} numberOfLines={1}>
+                    {currentExpense.title || currentExpense.name || 'Expense'}
+                  </Text>
+                  <Text style={styles.modalExpenseTimestamp}>
+                    Created on {formatTimestamp(currentExpense.createdAt)}
+                  </Text>
+                </View>
+
                 <View style={styles.modalTotalRow}>
                   <Text style={styles.modalTotalLabel}>Total Amount:</Text>
                   <Text style={styles.modalTotalValue}>
@@ -2844,6 +2868,11 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 4,
   },
+  groupCreatedTimestamp: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
   expensesSection: {
     marginBottom: 24,
   },
@@ -3382,6 +3411,22 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#999',
     padding: 5,
+  },
+  modalExpenseHeader: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalExpenseTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  modalExpenseTimestamp: {
+    fontSize: 12,
+    color: '#888',
   },
   modalTotalRow: {
     flexDirection: 'row',
