@@ -759,11 +759,9 @@ const androidStyles = StyleSheet.create({
     borderTopRightRadius: 30,
     marginTop: -30,
     overflow: 'hidden',
-    padding: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
     paddingBottom: 20,
-  },
-  card: {
-    flex: 1,
   },
   cardContent: {
     flex: 1,

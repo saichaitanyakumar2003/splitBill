@@ -627,6 +627,7 @@ const androidStyles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
+    paddingHorizontal: 20,
   },
   searchContainer: {
     paddingHorizontal: 20,

@@ -243,13 +243,12 @@ export default function PendingExpensesScreen({ route }) {
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="checkmark-circle-outline" size={40} color="#FFFFFF" />
+              <Ionicons name="checkmark-circle-outline" size={40} color="#E85A24" />
             </View>
           </View>
 
           {/* White Content Area with Curved Top */}
           <View style={androidStyles.content}>
-          <View style={styles.card}>
             {/* Card Header with Refresh - Always visible */}
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Pending Payments</Text>
@@ -475,7 +474,6 @@ export default function PendingExpensesScreen({ route }) {
                 )}
               </>
             )}
-          </View>
           </View>
 
           {/* Confirm Settle Modal */}
@@ -1574,7 +1572,8 @@ const androidStyles = StyleSheet.create({
     borderTopRightRadius: 30,
     marginTop: -30,
     overflow: 'hidden',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 20,
   },
 });

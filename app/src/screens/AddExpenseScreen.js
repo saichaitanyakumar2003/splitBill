@@ -406,7 +406,7 @@ export default function AddExpenseScreen() {
           {/* Decorative Icon */}
           <View style={androidStyles.iconContainer}>
             <View style={androidStyles.iconCircle}>
-              <Ionicons name="receipt-outline" size={40} color="#FFFFFF" />
+              <Ionicons name="receipt-outline" size={40} color="#E85A24" />
             </View>
           </View>
 
@@ -423,7 +423,6 @@ export default function AddExpenseScreen() {
                 keyboardShouldPersistTaps="handled"
                 nestedScrollEnabled={true}
               >
-                <View style={androidStyles.card}>
                   {/* Group Name - Fixed/Read-only */}
                   <View style={androidStyles.inputGroup}>
                     <Text style={androidStyles.label}>Group Name</Text>
@@ -767,7 +766,6 @@ export default function AddExpenseScreen() {
                   >
                     <Text style={androidStyles.createButtonText}>Continue</Text>
                   </TouchableOpacity>
-                </View>
               </ScrollView>
             </KeyboardAvoidingView>
           </View>
@@ -1997,7 +1995,7 @@ const androidStyles = StyleSheet.create({
     flex: 1,
   },
   cardScrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 40,
     paddingTop: 20,
   },

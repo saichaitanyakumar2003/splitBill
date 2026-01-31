@@ -838,161 +838,170 @@ export default function GroupsScreen({ route }) {
   };
 
   // Render group list view
-  const renderGroupList = () => (
-    <View style={styles.content}>
-      <View style={styles.card}>
-        {/* Card Header with Search and Refresh */}
-        <View style={styles.cardHeader}>
-          <View style={styles.searchInputWrapper}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search groups..."
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Text style={styles.clearIcon}>✕</Text>
-              </TouchableOpacity>
-            )}
+  const renderGroupList = () => {
+    // Shared content for the list
+    const listContent = (
+      <>
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="#FF6B35" />
+            <Text style={styles.loadingText}>Loading groups...</Text>
           </View>
-          <TouchableOpacity 
-            onPress={handleRefresh} 
-            style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
-            disabled={refreshing || loading}
-          >
-            {refreshing ? (
-              <ActivityIndicator size="small" color="#FF6B35" />
-            ) : (
-              <>
-                <Ionicons name="refresh" size={20} color="#FF6B35" />
-                {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Groups List */}
-        {isMobileWeb ? (
-          <WebPullToRefresh
-            onRefresh={handleRefresh}
-            refreshing={refreshing}
-            style={styles.cardScrollView}
-            contentContainerStyle={styles.cardScrollContent}
-            scrollViewProps={{
-              showsVerticalScrollIndicator: true,
-            }}
-          >
-            {loading ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator size="large" color="#FF6B35" />
-                <Text style={styles.loadingText}>Loading groups...</Text>
-              </View>
-            ) : filteredGroups.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>🔍</Text>
-                <Text style={styles.emptyTitle}>
-                  {searchQuery ? 'No groups found' : 'Search for a group'}
-                </Text>
-                <Text style={styles.emptySubtext}>
-                  {searchQuery 
-                    ? `No groups matching "${searchQuery}"`
-                    : 'Search for a group to view expenses'
-                  }
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.groupsList}>
-                {filteredGroups.map((group, index) => (
-                  <TouchableOpacity
-                    key={group._id || group.id}
-                    style={[
-                      styles.groupItem,
-                      index < filteredGroups.length - 1 && styles.groupItemBorder
-                    ]}
-                    onPress={() => handleSelectGroup(group)}
-                  >
-                    <View style={styles.groupIcon}>
-                      <Text style={styles.groupIconText}>
-                        {group.name.substring(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.groupInfo}>
-                      <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
-                      <Text style={[
-                        styles.groupStatus,
-                        group.status === 'completed' && styles.groupStatusCompleted
-                      ]}>
-                        {group.status === 'active' ? '● Active' : '✓ Completed'}
-                      </Text>
-                    </View>
-                    <Text style={styles.groupArrow}>›</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </WebPullToRefresh>
+        ) : filteredGroups.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🔍</Text>
+            <Text style={styles.emptyTitle}>
+              {searchQuery ? 'No groups found' : 'Search for a group'}
+            </Text>
+            <Text style={styles.emptySubtext}>
+              {searchQuery 
+                ? `No groups matching "${searchQuery}"`
+                : 'Search for a group to view expenses'
+              }
+            </Text>
+          </View>
         ) : (
+          <View style={styles.groupsList}>
+            {filteredGroups.map((group, index) => (
+              <TouchableOpacity
+                key={group._id || group.id}
+                style={[
+                  styles.groupItem,
+                  index < filteredGroups.length - 1 && styles.groupItemBorder
+                ]}
+                onPress={() => handleSelectGroup(group)}
+              >
+                <View style={styles.groupIcon}>
+                  <Text style={styles.groupIconText}>
+                    {group.name.substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.groupInfo}>
+                  <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
+                  <Text style={[
+                    styles.groupStatus,
+                    group.status === 'completed' && styles.groupStatusCompleted
+                  ]}>
+                    {group.status === 'active' ? '● Active' : '✓ Completed'}
+                  </Text>
+                </View>
+                <Text style={styles.groupArrow}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </>
+    );
+
+    // Android layout - no card wrapper, content touches edges
+    if (isAndroid) {
+      return (
+        <View style={androidStyles.listContainer}>
+          {/* Search and Refresh Header */}
+          <View style={androidStyles.listHeader}>
+            <View style={styles.searchInputWrapper}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search groups..."
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Text style={styles.clearIcon}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity 
+              onPress={handleRefresh} 
+              style={styles.cardRefreshButton}
+              disabled={refreshing || loading}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#FF6B35" />
+              ) : (
+                <Ionicons name="refresh" size={20} color="#FF6B35" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Groups List */}
           <ScrollView 
             style={styles.cardScrollView}
             contentContainerStyle={styles.cardScrollContent}
             showsVerticalScrollIndicator={true}
           >
-            {loading ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator size="large" color="#FF6B35" />
-                <Text style={styles.loadingText}>Loading groups...</Text>
-              </View>
-            ) : filteredGroups.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>🔍</Text>
-                <Text style={styles.emptyTitle}>
-                  {searchQuery ? 'No groups found' : 'Search for a group'}
-                </Text>
-                <Text style={styles.emptySubtext}>
-                  {searchQuery 
-                    ? `No groups matching "${searchQuery}"`
-                    : 'Search for a group to view expenses'
-                  }
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.groupsList}>
-                {filteredGroups.map((group, index) => (
-                  <TouchableOpacity
-                    key={group._id || group.id}
-                    style={[
-                      styles.groupItem,
-                      index < filteredGroups.length - 1 && styles.groupItemBorder
-                    ]}
-                    onPress={() => handleSelectGroup(group)}
-                  >
-                    <View style={styles.groupIcon}>
-                      <Text style={styles.groupIconText}>
-                        {group.name.substring(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.groupInfo}>
-                      <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
-                      <Text style={[
-                        styles.groupStatus,
-                        group.status === 'completed' && styles.groupStatusCompleted
-                      ]}>
-                        {group.status === 'active' ? '● Active' : '✓ Completed'}
-                      </Text>
-                    </View>
-                    <Text style={styles.groupArrow}>›</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+            {listContent}
           </ScrollView>
-        )}
+        </View>
+      );
+    }
+
+    // Web/iOS layout - with card wrapper
+    return (
+      <View style={styles.content}>
+        <View style={styles.card}>
+          {/* Card Header with Search and Refresh */}
+          <View style={styles.cardHeader}>
+            <View style={styles.searchInputWrapper}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search groups..."
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Text style={styles.clearIcon}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity 
+              onPress={handleRefresh} 
+              style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
+              disabled={refreshing || loading}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#FF6B35" />
+              ) : (
+                <>
+                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                  {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Groups List */}
+          {isMobileWeb ? (
+            <WebPullToRefresh
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+              style={styles.cardScrollView}
+              contentContainerStyle={styles.cardScrollContent}
+              scrollViewProps={{
+                showsVerticalScrollIndicator: true,
+              }}
+            >
+              {listContent}
+            </WebPullToRefresh>
+          ) : (
+            <ScrollView 
+              style={styles.cardScrollView}
+              contentContainerStyle={styles.cardScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {listContent}
+            </ScrollView>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   // Render Expenses Tab Content
   const renderExpensesTab = () => {
@@ -1258,6 +1267,168 @@ export default function GroupsScreen({ route }) {
     const groupStatus = selectedGroup?.status || groupDetails?.status;
     const isEditable = isGroupEditable();
     
+    // Shared tab bar component
+    const tabBar = (
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[
+            styles.tab, 
+            activeTab === 'expenses' && styles.tabActive,
+            isAndroid ? styles.tabMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile)
+          ]}
+          onPress={() => setActiveTab('expenses')}
+        >
+          <Ionicons 
+            name="receipt-outline" 
+            size={isAndroid ? 20 : ((Platform.OS === 'web' && !isMobileWeb) ? 16 : 20)} 
+            color={activeTab === 'expenses' ? '#FF6B35' : '#888'} 
+          />
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'expenses' && styles.tabTextActive,
+            isAndroid ? styles.tabTextMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile)
+          ]}>
+            Expenses
+          </Text>
+          <Text style={[
+            styles.tabCount, 
+            activeTab === 'expenses' && styles.tabCountActive,
+            isAndroid ? styles.tabCountMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabCountDesktop : styles.tabCountMobile)
+          ]}>
+            ({expenses.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab, 
+            activeTab === 'settlements' && styles.tabActive,
+            isAndroid ? styles.tabMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile)
+          ]}
+          onPress={() => setActiveTab('settlements')}
+        >
+          <Ionicons 
+            name="swap-horizontal-outline" 
+            size={isAndroid ? 20 : ((Platform.OS === 'web' && !isMobileWeb) ? 16 : 20)} 
+            color={activeTab === 'settlements' ? '#FF6B35' : '#888'} 
+          />
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'settlements' && styles.tabTextActive,
+            isAndroid ? styles.tabTextMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile)
+          ]}>
+            Settle
+          </Text>
+          <Text style={[
+            styles.tabCount, 
+            activeTab === 'settlements' && styles.tabCountActive,
+            isAndroid ? styles.tabCountMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabCountDesktop : styles.tabCountMobile)
+          ]}>
+            ({consolidatedEdges.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab, 
+            activeTab === 'activity' && styles.tabActive,
+            isAndroid ? styles.tabMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile)
+          ]}
+          onPress={() => {
+            setActiveTab('activity');
+            const groupId = selectedGroup?._id || selectedGroup?.id;
+            if (groupId) fetchEditHistory(groupId);
+          }}
+        >
+          <Ionicons 
+            name="time-outline" 
+            size={isAndroid ? 20 : ((Platform.OS === 'web' && !isMobileWeb) ? 16 : 20)} 
+            color={activeTab === 'activity' ? '#FF6B35' : '#888'} 
+          />
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'activity' && styles.tabTextActive,
+            isAndroid ? styles.tabTextMobile : ((Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile)
+          ]}>
+            Activity
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+
+    // Shared tab content
+    const tabContent = loadingDetails || (activeTab === 'activity' && loadingHistory) ? (
+      <View style={styles.loadingState}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    ) : (
+      <View style={styles.detailsContent}>
+        {activeTab === 'expenses' && renderExpensesTab()}
+        {activeTab === 'settlements' && renderSettlementsTab()}
+        {activeTab === 'activity' && renderActivityTab()}
+      </View>
+    );
+
+    // Android layout - no card wrapper
+    if (isAndroid) {
+      return (
+        <View style={androidStyles.detailsContainer}>
+          {/* Header with Group Name, Refresh and Delete */}
+          <View style={androidStyles.detailsHeader}>
+            <View style={styles.groupNameSection}>
+              <View style={styles.groupNameRow}>
+                <Text style={styles.groupNameLabel}>GROUP</Text>
+                {(groupStatus === 'completed' || groupStatus === 'deleted') && (
+                  <View style={[
+                    styles.groupStatusBadge,
+                    groupStatus === 'deleted' && styles.groupStatusBadgeDeleted
+                  ]}>
+                    <Text style={[
+                      styles.groupStatusBadgeText,
+                      groupStatus === 'deleted' && styles.groupStatusBadgeTextDeleted
+                    ]}>
+                      {groupStatus === 'completed' ? 'Completed' : 'Deleted'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.groupNameText} numberOfLines={1}>{selectedGroup?.name}</Text>
+              {(groupStatus === 'completed' || groupStatus === 'deleted') && (
+                <Text style={styles.groupTimestamp}>
+                  {groupStatus === 'completed' ? 'Completed' : 'Deleted'} on {formatTimestamp(groupDetails?.updatedAt || selectedGroup?.updatedAt)}
+                </Text>
+              )}
+            </View>
+            <View style={styles.headerActions}>
+              <TouchableOpacity 
+                onPress={handleRefresh} 
+                style={styles.cardRefreshButton}
+                disabled={refreshing || loadingDetails}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                ) : (
+                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                )}
+              </TouchableOpacity>
+              {isEditable && (
+                <TouchableOpacity 
+                  onPress={() => setDeleteModalVisible(true)} 
+                  style={styles.cardDeleteButton}
+                  disabled={deleting}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#DC3545" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {tabBar}
+          {tabContent}
+        </View>
+      );
+    }
+
+    // Web/iOS layout - with card wrapper
     return (
       <View style={styles.content}>
         <View style={styles.card}>
@@ -1314,103 +1485,8 @@ export default function GroupsScreen({ route }) {
             </View>
           </View>
 
-          {/* Tab Bar */}
-          <View style={styles.tabBar}>
-            <TouchableOpacity
-              style={[
-                styles.tab, 
-                activeTab === 'expenses' && styles.tabActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile
-              ]}
-              onPress={() => setActiveTab('expenses')}
-            >
-              <Ionicons 
-                name="receipt-outline" 
-                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 20} 
-                color={activeTab === 'expenses' ? '#FF6B35' : '#888'} 
-              />
-              <Text style={[
-                styles.tabText, 
-                activeTab === 'expenses' && styles.tabTextActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile
-              ]}>
-                Expenses
-              </Text>
-              <Text style={[
-                styles.tabCount, 
-                activeTab === 'expenses' && styles.tabCountActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabCountDesktop : styles.tabCountMobile
-              ]}>
-                ({expenses.length})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tab, 
-                activeTab === 'settlements' && styles.tabActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile
-              ]}
-              onPress={() => setActiveTab('settlements')}
-            >
-              <Ionicons 
-                name="swap-horizontal-outline" 
-                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 20} 
-                color={activeTab === 'settlements' ? '#FF6B35' : '#888'} 
-              />
-              <Text style={[
-                styles.tabText, 
-                activeTab === 'settlements' && styles.tabTextActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile
-              ]}>
-                Settle
-              </Text>
-              <Text style={[
-                styles.tabCount, 
-                activeTab === 'settlements' && styles.tabCountActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabCountDesktop : styles.tabCountMobile
-              ]}>
-                ({consolidatedEdges.length})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tab, 
-                activeTab === 'activity' && styles.tabActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabDesktop : styles.tabMobile
-              ]}
-              onPress={() => {
-                setActiveTab('activity');
-                const groupId = selectedGroup?._id || selectedGroup?.id;
-                if (groupId) fetchEditHistory(groupId);
-              }}
-            >
-              <Ionicons 
-                name="time-outline" 
-                size={(Platform.OS === 'web' && !isMobileWeb) ? 16 : 20} 
-                color={activeTab === 'activity' ? '#FF6B35' : '#888'} 
-              />
-              <Text style={[
-                styles.tabText, 
-                activeTab === 'activity' && styles.tabTextActive,
-                (Platform.OS === 'web' && !isMobileWeb) ? styles.tabTextDesktop : styles.tabTextMobile
-              ]}>
-                Activity
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {loadingDetails || (activeTab === 'activity' && loadingHistory) ? (
-            <View style={styles.loadingState}>
-              <ActivityIndicator size="large" color="#FF6B35" />
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
-          ) : (
-            <View style={styles.detailsContent}>
-              {activeTab === 'expenses' && renderExpensesTab()}
-              {activeTab === 'settlements' && renderSettlementsTab()}
-              {activeTab === 'activity' && renderActivityTab()}
-            </View>
-          )}
+          {tabBar}
+          {tabContent}
         </View>
       </View>
     );
@@ -1444,7 +1520,7 @@ export default function GroupsScreen({ route }) {
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="people-outline" size={40} color="#FFF" />
+              <Ionicons name="people-outline" size={40} color="#E85A24" />
             </View>
           </View>
 
@@ -3957,6 +4033,32 @@ const androidStyles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     marginTop: -30,
-    paddingTop: 30,
+    paddingTop: 20,
+    overflow: 'hidden',
+  },
+  listContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 8,
+  },
+  detailsContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 8,
   },
 });

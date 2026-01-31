@@ -127,7 +127,7 @@ export default function HelpCenterScreen() {
             ]}
           >
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="help-circle-outline" size={40} color="#FFF" />
+              <Ionicons name="help-circle-outline" size={40} color="#E85A24" />
             </View>
           </Animated.View>
 
@@ -141,7 +141,7 @@ export default function HelpCenterScreen() {
               {/* Customer Care Card */}
               <Animated.View
                 style={[
-                  androidStyles.card,
+                  androidStyles.section,
                   {
                     opacity: fadeAnim,
                     transform: [{ translateY: slideAnim }],
@@ -163,7 +163,7 @@ export default function HelpCenterScreen() {
               {/* Email Support Card */}
               <Animated.View
                 style={[
-                  androidStyles.card,
+                  androidStyles.section,
                   {
                     opacity: fadeAnim,
                     transform: [{ translateY: slideAnim }],
@@ -185,7 +185,7 @@ export default function HelpCenterScreen() {
               {/* FAQ Section */}
               <Animated.View
                 style={[
-                  androidStyles.card,
+                  androidStyles.section,
                   {
                     opacity: fadeAnim,
                     transform: [{ translateY: slideAnim }],
@@ -646,6 +646,10 @@ const androidStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 32,
+    paddingVertical: 8,
   },
   card: {
     backgroundColor: '#FFF',

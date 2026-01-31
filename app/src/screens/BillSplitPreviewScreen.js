@@ -315,13 +315,11 @@ export default function BillSplitPreviewScreen() {
     }
   };
   
-  // Main content to be wrapped conditionally
-  const mainContent = (
+  // Inner content (without card wrapper)
+  const innerContent = (
     <>
-      {/* Main Content Card - Contains Summary, Items, Taxes, Split Summary, and Checkout */}
-      <View style={styles.mainContentCard}>
-            {/* Summary Section */}
-            <View style={styles.summarySection}>
+      {/* Summary Section */}
+      <View style={styles.summarySection}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Group</Text>
                 <Text style={styles.summaryValue} numberOfLines={1}>{groupName}</Text>
@@ -560,8 +558,16 @@ export default function BillSplitPreviewScreen() {
                 </>
               )}
             </TouchableOpacity>
-          </View>
     </>
+  );
+
+  // Main content - wrapped in card for Web/iOS, unwrapped for Android
+  const mainContent = isAndroid ? (
+    innerContent
+  ) : (
+    <View style={styles.mainContentCard}>
+      {innerContent}
+    </View>
   );
   
   // Android-specific layout
@@ -586,7 +592,7 @@ export default function BillSplitPreviewScreen() {
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="git-network-outline" size={40} color="#FFF" />
+              <Ionicons name="git-network-outline" size={40} color="#E85A24" />
             </View>
           </View>
           
@@ -1138,7 +1144,7 @@ const androidStyles = StyleSheet.create({
     flex: 1,
   },
   mainScrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
 });

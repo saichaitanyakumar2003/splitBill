@@ -305,18 +305,15 @@ export default function BillScanScreen() {
 
           {/* White Content Area with Curved Top */}
           <View style={androidStyles.androidContentArea}>
-            <View style={androidStyles.androidContentInner}>
-              {/* Main Card - Contains Everything */}
-              {hasItems ? (
-                <View style={androidStyles.mainCard}>
-                  {/* Scrollable Content */}
-                  <ScrollView 
-                    style={androidStyles.cardScrollView}
-                    contentContainerStyle={androidStyles.cardScrollContent}
-                    showsVerticalScrollIndicator={true}
-                    bounces={true}
-                    nestedScrollEnabled={true}
-                  >
+            {/* Scrollable Content */}
+            {hasItems ? (
+              <ScrollView 
+                style={androidStyles.cardScrollView}
+                contentContainerStyle={androidStyles.cardScrollContent}
+                showsVerticalScrollIndicator={true}
+                bounces={true}
+                nestedScrollEnabled={true}
+              >
                     {/* Restaurant Header */}
                     {billData.restaurantName && (
                       <View style={androidStyles.restaurantHeader}>
@@ -394,18 +391,16 @@ export default function BillScanScreen() {
                       </TouchableOpacity>
                     </View>
                   </ScrollView>
-                </View>
-              ) : (
-                <View style={androidStyles.noItemsCard}>
-                  <Ionicons name="warning-outline" size={48} color="#FF9800" />
-                  <Text style={androidStyles.noItemsTitle}>No Items Detected</Text>
-                  <Text style={androidStyles.noItemsText}>
-                    We couldn't extract items from this image.{'\n'}
-                    Please try with a clearer image.
-                  </Text>
-                </View>
-              )}
-            </View>
+            ) : (
+              <View style={androidStyles.noItemsCard}>
+                <Ionicons name="warning-outline" size={48} color="#FF9800" />
+                <Text style={androidStyles.noItemsTitle}>No Items Detected</Text>
+                <Text style={androidStyles.noItemsText}>
+                  We couldn't extract items from this image.{'\n'}
+                  Please try with a clearer image.
+                </Text>
+              </View>
+            )}
           </View>
         </LinearGradient>
       </View>
@@ -1019,11 +1014,7 @@ const androidStyles = StyleSheet.create({
     borderTopRightRadius: 30,
     marginTop: -30,
     overflow: 'hidden',
-  },
-  androidContentInner: {
-    flex: 1,
-    padding: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
   
   // Error State

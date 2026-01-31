@@ -246,7 +246,7 @@ export default function GroupPreviewScreen() {
           {/* Decorative Icon */}
           <View style={androidStyles.iconContainer}>
             <View style={androidStyles.iconCircle}>
-              <Ionicons name="eye-outline" size={40} color="#FFFFFF" />
+              <Ionicons name="eye-outline" size={40} color="#E85A24" />
             </View>
           </View>
 

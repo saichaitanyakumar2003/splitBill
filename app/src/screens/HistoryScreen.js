@@ -231,9 +231,213 @@ export default function HistoryScreen({ route }) {
   };
 
   // Render content area (card with history list) - reusable for both platforms
-  const renderContent = (contentStyle, cardStyle) => (
-    <View style={contentStyle}>
-      <View style={cardStyle}>
+  const renderContent = (contentStyle, cardStyle) => {
+    const content = (
+      <>
+        {/* Card Header with Refresh - Always visible */}
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Groups History</Text>
+          <TouchableOpacity 
+            onPress={handleRefresh} 
+            style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
+            disabled={refreshing || loading}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color="#FF6B35" />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={20} color="#FF6B35" />
+                {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="#FF6B35" />
+            <Text style={styles.loadingText}>Loading history...</Text>
+          </View>
+        ) : historyRecords.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📜</Text>
+            <Text style={styles.emptyTitle}>No History Yet</Text>
+            <Text style={styles.emptySubtext}>
+              Your groups and their history will appear here
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Summary Info */}
+            <View style={styles.summaryInfo}>
+              <Text style={styles.summaryCount}>
+                {historyRecords.length} group{historyRecords.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+
+            {/* Scrollable History List */}
+            {isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                style={styles.groupsList}
+                contentContainerStyle={styles.groupsListContent}
+                scrollViewProps={{
+                  showsVerticalScrollIndicator: true,
+                }}
+              >
+                {historyRecords.map((record) => {
+                  const isDeleted = record.groupStatus === 'deleted';
+                  const ItemWrapper = isDeleted ? View : TouchableOpacity;
+                  const itemWrapperProps = isDeleted 
+                    ? { style: styles.historyItemLeft }
+                    : { 
+                        style: styles.historyItemLeft,
+                        onPress: () => handleGroupPress(record),
+                        activeOpacity: 0.7
+                      };
+                  
+                  return (
+                  <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
+                    <ItemWrapper {...itemWrapperProps}>
+                      <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
+                        <Text style={styles.groupIconText}>
+                          {record.groupName.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <View style={styles.groupNameRow}>
+                          <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
+                          {record.groupStatus && (
+                            <View style={[
+                              styles.statusBadge,
+                              record.groupStatus === 'active' && styles.statusBadgeActive,
+                              record.groupStatus === 'completed' && styles.statusBadgeCompleted,
+                              record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
+                            ]}>
+                              <Text style={[
+                                styles.statusBadgeText,
+                                record.groupStatus === 'active' && styles.statusBadgeTextActive,
+                                record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
+                                record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
+                              ]}>
+                                {record.groupStatus === 'active' ? 'Active' : 
+                                 record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.settledCount}>
+                          {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
+                        </Text>
+                        {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
+                          <Text style={styles.groupTimestamp}>
+                            {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
+                          </Text>
+                        )}
+                      </View>
+                    </ItemWrapper>
+                    
+                    {/* Three-dot menu */}
+                    <TouchableOpacity 
+                      style={styles.menuButton}
+                      onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  );
+                })}
+              </WebPullToRefresh>
+            ) : (
+              <ScrollView 
+                style={styles.groupsList}
+                contentContainerStyle={styles.groupsListContent}
+                showsVerticalScrollIndicator={true}
+              >
+                {historyRecords.map((record) => {
+                  const isDeleted = record.groupStatus === 'deleted';
+                  const ItemWrapper = isDeleted ? View : TouchableOpacity;
+                  const itemWrapperProps = isDeleted 
+                    ? { style: styles.historyItemLeft }
+                    : { 
+                        style: styles.historyItemLeft,
+                        onPress: () => handleGroupPress(record),
+                        activeOpacity: 0.7
+                      };
+                  
+                  return (
+                  <View key={record.id} style={[styles.historyItem, menuVisible === record.id && styles.historyItemActive]}>
+                    <ItemWrapper {...itemWrapperProps}>
+                      <View style={[styles.groupIcon, isDeleted && styles.groupIconDeleted]}>
+                        <Text style={styles.groupIconText}>
+                          {record.groupName.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <View style={styles.groupNameRow}>
+                          <Text style={[styles.groupName, isDeleted && styles.groupNameDeleted]} numberOfLines={1}>{record.groupName}</Text>
+                          {record.groupStatus && (
+                            <View style={[
+                              styles.statusBadge,
+                              record.groupStatus === 'active' && styles.statusBadgeActive,
+                              record.groupStatus === 'completed' && styles.statusBadgeCompleted,
+                              record.groupStatus === 'deleted' && styles.statusBadgeDeleted,
+                            ]}>
+                              <Text style={[
+                                styles.statusBadgeText,
+                                record.groupStatus === 'active' && styles.statusBadgeTextActive,
+                                record.groupStatus === 'completed' && styles.statusBadgeTextCompleted,
+                                record.groupStatus === 'deleted' && styles.statusBadgeTextDeleted,
+                              ]}>
+                                {record.groupStatus === 'active' ? 'Active' : 
+                                 record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.settledCount}>
+                          {record.settledEdges?.length || 0} settlement{(record.settledEdges?.length || 0) !== 1 ? 's' : ''} • ₹{getTotalSettled(record.settledEdges).toFixed(0)}
+                        </Text>
+                        {(record.groupStatus === 'completed' || record.groupStatus === 'deleted') && record.updatedAt && (
+                          <Text style={styles.groupTimestamp}>
+                            {record.groupStatus === 'completed' ? 'Completed' : 'Deleted'}: {formatDate(record.updatedAt)}
+                          </Text>
+                        )}
+                      </View>
+                    </ItemWrapper>
+                    
+                    {/* Three-dot menu */}
+                    <TouchableOpacity 
+                      style={styles.menuButton}
+                      onPress={() => setMenuVisible(menuVisible === record.id ? null : record.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={20} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </>
+        )}
+      </>
+    );
+
+    return (
+      <View style={contentStyle}>
+        {cardStyle ? (
+          <View style={cardStyle}>
+            {content}
+          </View>
+        ) : (
+          content
+        )}
+      </View>
+    );
+  };
         {/* Card Header with Refresh - Always visible */}
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Groups History</Text>
@@ -449,13 +653,13 @@ export default function HistoryScreen({ route }) {
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
             <View style={androidStyles.decorativeIconCircle}>
-              <Ionicons name="document-text-outline" size={40} color="#FFFFFF" />
+              <Ionicons name="document-text-outline" size={40} color="#E85A24" />
             </View>
           </View>
 
           {/* White Content Area with Curved Top */}
           <View style={androidStyles.whiteContentArea}>
-            {renderContent(androidStyles.content, androidStyles.card)}
+            {renderContent(androidStyles.content, null)}
           </View>
         </LinearGradient>
 
@@ -1554,7 +1758,8 @@ const androidStyles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 20,
   },
   card: {

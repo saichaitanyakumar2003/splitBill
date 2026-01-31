@@ -693,15 +693,12 @@ export default function ProfileScreen() {
                   showsVerticalScrollIndicator: false,
                 }}
               >
-                {/* Profile Info Card */}
+                {/* Profile Content */}
                 <Animated.View
-                  style={[
-                    androidStyles.infoCard,
-                    {
-                      opacity: fadeAnim,
-                      transform: [{ translateY: slideAnim }],
-                    },
-                  ]}
+                  style={{
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  }}
                 >
                   {renderProfileContent()}
                 </Animated.View>
@@ -717,15 +714,12 @@ export default function ProfileScreen() {
                 contentContainerStyle={androidStyles.scrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Profile Info Card */}
+                {/* Profile Content */}
                 <Animated.View
-                  style={[
-                    androidStyles.infoCard,
-                    {
-                      opacity: fadeAnim,
-                      transform: [{ translateY: slideAnim }],
-                    },
-                  ]}
+                  style={{
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  }}
                 >
                   {renderProfileContent()}
                 </Animated.View>
@@ -2011,7 +2005,7 @@ const androidStyles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 40,
     paddingTop: 20,
   },

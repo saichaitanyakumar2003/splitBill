@@ -409,6 +409,115 @@ export default function SplitSummaryScreen() {
     return null;
   }
 
+  // Content without card wrapper (for Android)
+  const contentWithoutCard = (
+    <>
+      {/* Action Icons - Top Right */}
+      <View style={androidStyles.cardActions}>
+        <TouchableOpacity 
+          style={[styles.cardActionIcon, copied && styles.cardActionIconCopied]} 
+          onPress={handleCopy}
+        >
+          {copied ? (
+            <Text style={styles.copiedText}>Copied!</Text>
+          ) : (
+            <View style={styles.copyIcon}>
+              <View style={styles.copyRect} />
+              <View style={styles.copyRectBack} />
+            </View>
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.cardActionIcon} onPress={handleShare}>
+          <View style={styles.shareIconContainer}>
+            {/* Arrow pointing up */}
+            <View style={styles.shareArrow} />
+            <View style={styles.shareArrowHead} />
+            {/* Box base */}
+            <View style={styles.shareBox} />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {!showSettlements ? (
+        <>
+          <Text style={styles.cardTitle}>Expenses Added ({expenses.length})</Text>
+          
+          {expenses.length > 0 ? (
+            <ScrollView 
+              style={styles.expensesScrollView}
+              contentContainerStyle={styles.expensesScrollContent}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              {expenses.map((exp, index) => (
+                <View key={index} style={styles.addedExpenseRow}>
+                  <View style={styles.addedExpenseInfo}>
+                    <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
+                    <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
+                      Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.settledContainer}>
+              <Text style={styles.settledEmoji}>📝</Text>
+              <Text style={styles.settledText}>No expenses added</Text>
+            </View>
+          )}
+
+          {/* Link to view settlements */}
+          <TouchableOpacity 
+            style={styles.viewSettlementsLink}
+            onPress={() => setShowSettlements(true)}
+          >
+            <Text style={styles.viewSettlementsText}>View Final Settlements →</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={styles.cardTitle}>Who Owes Whom</Text>
+          
+          {consolidatedExpenses.length > 0 ? (
+            <ScrollView 
+              style={styles.expensesScrollView}
+              contentContainerStyle={styles.expensesScrollContent}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              {consolidatedExpenses.map((exp, index) => (
+                <View key={index} style={styles.expenseRow}>
+                  <View style={styles.expenseNames}>
+                    <Text style={styles.fromName} numberOfLines={1}>{exp.fromName}</Text>
+                    <Text style={styles.arrow}>→</Text>
+                    <Text style={styles.toName} numberOfLines={1}>{exp.toName}</Text>
+                  </View>
+                  <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.settledContainer}>
+              <Text style={styles.settledEmoji}>✅</Text>
+              <Text style={styles.settledText}>Everyone is settled up!</Text>
+            </View>
+          )}
+
+          {/* Link to go back to expenses */}
+          <TouchableOpacity 
+            style={styles.viewSettlementsLink}
+            onPress={() => setShowSettlements(false)}
+          >
+            <Text style={styles.viewSettlementsText}>← View Expenses Added</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </>
+  );
+
   // Scroll content to be shared between WebPullToRefresh and ScrollView
   const scrollContent = (
     <>
@@ -562,7 +671,7 @@ export default function SplitSummaryScreen() {
 
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
-            <Ionicons name="checkmark-done-outline" size={40} color="#FFFFFF" />
+            <Ionicons name="checkmark-done-outline" size={40} color="#E85A24" />
           </View>
         </LinearGradient>
 
@@ -578,7 +687,13 @@ export default function SplitSummaryScreen() {
                 showsVerticalScrollIndicator: false,
               }}
             >
-              {scrollContent}
+              <Animated.View style={{ opacity: fadeAnim }}>
+                {contentWithoutCard}
+              </Animated.View>
+              {/* Go to Home Button */}
+              <TouchableOpacity style={styles.homeButton} onPress={handleGoHome}>
+                <Text style={styles.homeButtonText}>Go to Home Page</Text>
+              </TouchableOpacity>
             </WebPullToRefresh>
           ) : (
             <ScrollView 
@@ -586,7 +701,13 @@ export default function SplitSummaryScreen() {
               contentContainerStyle={androidStyles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {scrollContent}
+              <Animated.View style={{ opacity: fadeAnim }}>
+                {contentWithoutCard}
+              </Animated.View>
+              {/* Go to Home Button */}
+              <TouchableOpacity style={styles.homeButton} onPress={handleGoHome}>
+                <Text style={styles.homeButtonText}>Go to Home Page</Text>
+              </TouchableOpacity>
             </ScrollView>
           )}
         </View>
@@ -1001,6 +1122,13 @@ const androidStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
     alignItems: 'center',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 12,
+    alignSelf: 'flex-end',
+    marginBottom: 20,
+    zIndex: 10,
   },
 });
 

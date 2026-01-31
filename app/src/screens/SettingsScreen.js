@@ -686,14 +686,7 @@ const androidStyles = StyleSheet.create({
     marginLeft: 4,
   },
   sectionCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    // No card wrapper for Android - whiteContentArea already provides the background
   },
   settingItem: {
     flexDirection: 'row',
