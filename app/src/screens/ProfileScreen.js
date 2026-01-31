@@ -660,24 +660,20 @@ export default function ProfileScreen() {
             <Text style={androidStyles.headerTitle}>My Profile</Text>
           </Animated.View>
 
-          {/* Profile Photo Section in Header */}
+          {/* Decorative icon */}
           <Animated.View
             style={[
-              androidStyles.photoSection,
+              androidStyles.decorativeIconContainer,
               {
                 opacity: fadeAnim,
                 transform: [{ scale: scaleAnim }],
               },
             ]}
           >
-            <View style={androidStyles.photoContainer}>
-              <View style={androidStyles.photoWrapper}>
-                <View style={androidStyles.photoPlaceholder}>
-                  <Text style={androidStyles.photoInitials}>
-                    {getInitials(userName)}
-                  </Text>
-                </View>
-              </View>
+            <View style={androidStyles.decorativeIconCircle}>
+              <Text style={androidStyles.decorativeInitials}>
+                {getInitials(userName)}
+              </Text>
             </View>
           </Animated.View>
 
@@ -1966,38 +1962,36 @@ const androidStyles = StyleSheet.create({
     color: '#FFF',
     marginLeft: 12,
   },
-  photoSection: {
+  decorativeIconContainer: {
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: 5,
+    marginBottom: -25,
+    zIndex: 20,
   },
-  photoContainer: {
-    alignItems: 'center',
-  },
-  photoWrapper: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  photoPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  decorativeIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  photoInitials: {
-    fontSize: 40,
+  decorativeInitials: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#E85A24',
   },
   whiteContentArea: {
     backgroundColor: '#FFF',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    marginTop: -30,
+    marginTop: 0,
+    paddingTop: 15,
     overflow: 'hidden',
     flex: 1,
   },
