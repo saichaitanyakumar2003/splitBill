@@ -783,6 +783,251 @@ function HomeScreen({ navigation, route }) {
     return 'U';
   };
 
+  // Insights state for Android dashboard
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [monthDropdownVisible, setMonthDropdownVisible] = useState(false);
+  const [selectedRange, setSelectedRange] = useState(2);
+
+  // Get last 6 months for dropdown
+  const getLastSixMonths = () => {
+    const months = [];
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      });
+    }
+    return months;
+  };
+
+  const selectedMonthLabel = getLastSixMonths().find(m => m.value === selectedMonth)?.label || 'Select Month';
+
+  // Android/iOS Native - New Dashboard Layout
+  if (isNativeMobile) {
+    return (
+      <View style={styles.container}>
+        {/* Orange Header Section */}
+        <LinearGradient
+          colors={['#FF8C5A', '#FF6B35', '#FF5722']}
+          style={styles.androidHeader}
+        >
+          <StatusBar style="light" />
+          {/* Top Bar */}
+          <View style={styles.androidTopBar}>
+            <Text style={styles.androidAppTitle}>SplitBill</Text>
+            <TouchableOpacity 
+              style={styles.androidProfileButton}
+              onPress={() => setShowSettingsPanel(true)}
+            >
+              <Text style={styles.androidProfileInitials}>{getUserInitials()}</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Logo */}
+          <View style={styles.androidLogoContainer}>
+            <Logo isMobile={true} />
+          </View>
+        </LinearGradient>
+
+        {/* Native Mobile: Settings Panel */}
+        <MobileSettingsPanel
+          visible={showSettingsPanel}
+          onClose={() => setShowSettingsPanel(false)}
+          onViewProfile={handleMobileViewProfile}
+          onHelpCenter={handleHelpCenter}
+          onLogout={handleLogoutPress}
+        />
+
+        {/* Logout Confirmation Modal */}
+        <LogoutModal
+          visible={showLogoutModal}
+          onCancel={handleLogoutCancel}
+          onConfirm={handleLogoutConfirm}
+        />
+
+        {/* Image Processing Modal */}
+        <Modal
+          visible={isProcessingImage || !!processingError}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            if (processingError) {
+              setProcessingError(null);
+            }
+          }}
+        >
+          <View style={styles.processingModalOverlay}>
+            <View style={styles.processingModalContent}>
+              {isProcessingImage && !processingError && (
+                <>
+                  <ActivityIndicator size="large" color="#FF6B35" />
+                  <Text style={styles.processingModalTitle}>Please wait a moment</Text>
+                  <Text style={styles.processingModalText}>The image is processing....</Text>
+                </>
+              )}
+              {processingError && (
+                <>
+                  <Ionicons name="warning-outline" size={48} color="#E53935" />
+                  <Text style={styles.processingModalTitle}>Processing Failed</Text>
+                  <Text style={styles.processingModalText}>{processingError}</Text>
+                  <TouchableOpacity 
+                    style={styles.processingModalButton}
+                    onPress={() => setProcessingError(null)}
+                  >
+                    <Text style={styles.processingModalButtonText}>OK</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Month Selection Modal */}
+        <Modal
+          visible={monthDropdownVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMonthDropdownVisible(false)}
+        >
+          <Pressable 
+            style={styles.androidModalOverlay} 
+            onPress={() => setMonthDropdownVisible(false)}
+          >
+            <View style={styles.androidDropdownModal}>
+              <Text style={styles.androidDropdownModalTitle}>Select Month</Text>
+              {getLastSixMonths().map((month) => (
+                <TouchableOpacity
+                  key={month.value}
+                  style={[
+                    styles.androidDropdownOption,
+                    selectedMonth === month.value && styles.androidDropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedMonth(month.value);
+                    setMonthDropdownVisible(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.androidDropdownOptionText,
+                    selectedMonth === month.value && styles.androidDropdownOptionTextSelected
+                  ]}>
+                    {month.label}
+                  </Text>
+                  {selectedMonth === month.value && (
+                    <Ionicons name="checkmark" size={20} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* White Panel with Scrollable Content */}
+        <View style={styles.androidWhitePanel}>
+          <ScrollView 
+            style={styles.androidScrollView}
+            contentContainerStyle={styles.androidScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Action Buttons Row */}
+            <View style={styles.androidActionButtonsRow}>
+              <TouchableOpacity style={styles.androidActionButton} onPress={handleCustomSplit}>
+                <View style={styles.androidActionIconContainer}>
+                  <Ionicons name="calculator-outline" size={28} color="#FF6B35" />
+                </View>
+                <Text style={styles.androidActionButtonText}>Custom</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.androidActionButton} onPress={handleUploadImage}>
+                <View style={styles.androidActionIconContainer}>
+                  <Ionicons name="camera-outline" size={28} color="#FF6B35" />
+                </View>
+                <Text style={styles.androidActionButtonText}>Upload Photo</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Expense Insights Section */}
+            <View style={styles.androidSectionCard}>
+              <View style={styles.androidSectionHeader}>
+                <Text style={styles.androidSectionTitle}>Expense Insights</Text>
+                <TouchableOpacity 
+                  style={styles.androidDropdown}
+                  onPress={() => setMonthDropdownVisible(true)}
+                >
+                  <Text style={styles.androidDropdownText} numberOfLines={1}>
+                    {selectedMonthLabel.split(' ')[0].substring(0, 3)} {selectedMonthLabel.split(' ')[1]}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Pie Chart Placeholder */}
+              <View style={styles.androidChartContainer}>
+                <View style={styles.androidPieChartPlaceholder}>
+                  <View style={styles.androidPieChartCircle} />
+                </View>
+                <Text style={styles.androidNoDataText}>No data</Text>
+              </View>
+            </View>
+
+            {/* Analysis Section */}
+            <View style={styles.androidSectionCard}>
+              <View style={styles.androidSectionHeader}>
+                <Text style={styles.androidSectionTitle}>Analysis</Text>
+                <TouchableOpacity 
+                  style={styles.androidDropdown}
+                  onPress={() => setSelectedRange(prev => prev >= 6 ? 2 : prev + 1)}
+                >
+                  <Text style={styles.androidDropdownText}>Past {selectedRange} months</Text>
+                  <Ionicons name="chevron-down" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Bar Chart Placeholder */}
+              <View style={styles.androidChartContainer}>
+                <View style={styles.androidBarChartPlaceholder}>
+                  <View style={[styles.androidBar, { height: 40 }]} />
+                  <View style={[styles.androidBar, { height: 60 }]} />
+                  <View style={[styles.androidBar, { height: 30 }]} />
+                  <View style={[styles.androidBar, { height: 50 }]} />
+                  <View style={[styles.androidBar, { height: 45 }]} />
+                </View>
+                <Text style={styles.androidNoDataText}>No data</Text>
+              </View>
+            </View>
+
+            {/* Summary Section */}
+            <View style={styles.androidSectionCard}>
+              <Text style={styles.androidSectionTitle}>Summary</Text>
+              <View style={styles.androidSummaryContent}>
+                <Ionicons name="analytics-outline" size={32} color="#CCC" />
+                <Text style={styles.androidNoDataText}>No data</Text>
+                <Text style={styles.androidSummaryHint}>
+                  Your spending insights will appear here once you start tracking expenses
+                </Text>
+              </View>
+            </View>
+
+            {/* Bottom spacing for tab bar */}
+            <View style={{ height: 100 }} />
+          </ScrollView>
+        </View>
+
+        {/* Native Mobile: Bottom Tab Bar */}
+        <MobileBottomTabBar 
+          navigation={navigation}
+          onScanImage={handleScanImage}
+        />
+      </View>
+    );
+  }
+
+  // Web Layout (desktop and mobile web)
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -2260,5 +2505,211 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+
+  // Android Dashboard Styles
+  androidHeader: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  androidTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  androidAppTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  androidProfileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  androidProfileInitials: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  androidLogoContainer: {
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  androidWhitePanel: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    marginTop: -20,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+  },
+  androidScrollView: {
+    flex: 1,
+  },
+  androidScrollContent: {
+    padding: 20,
+    paddingTop: 25,
+  },
+  androidActionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 15,
+  },
+  androidActionButton: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  androidActionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  androidActionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  androidSectionCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  androidSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  androidSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  androidDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  androidDropdownText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  androidChartContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  androidPieChartPlaceholder: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  androidPieChartCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 20,
+    borderColor: '#E0E0E0',
+  },
+  androidBarChartPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 80,
+    gap: 15,
+    marginBottom: 15,
+  },
+  androidBar: {
+    width: 30,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+  },
+  androidNoDataText: {
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
+  },
+  androidSummaryContent: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  androidSummaryHint: {
+    fontSize: 13,
+    color: '#AAA',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 20,
+    lineHeight: 18,
+  },
+  androidModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  androidDropdownModal: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 10,
+    width: '100%',
+    maxWidth: 320,
+  },
+  androidDropdownModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  androidDropdownOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderRadius: 8,
+  },
+  androidDropdownOptionSelected: {
+    backgroundColor: '#FFF5F0',
+  },
+  androidDropdownOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  androidDropdownOptionTextSelected: {
+    color: '#FF6B35',
+    fontWeight: '600',
   },
 });
