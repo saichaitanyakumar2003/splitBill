@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Dimensions, Animated, Easing, ActivityIndicator, Alert, Modal, AppState, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -813,6 +814,58 @@ function HomeScreen({ navigation, route }) {
   const [analysisCategories, setAnalysisCategories] = useState(['food', 'travel', 'entertainment', 'shopping', 'others']);
   const [analysisCategoryModalVisible, setAnalysisCategoryModalVisible] = useState(false);
 
+  // User analysis data state (used for both Expense Insights and Analysis sections)
+  const [userAnalysisData, setUserAnalysisData] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [selectedPieSlice, setSelectedPieSlice] = useState(null); // Selected category for highlighting in pie chart
+
+  // AI Summary state (persistent across app restarts via AsyncStorage)
+  const [aiSummary, setAiSummary] = useState(null); // { summary: [], hasData: boolean, generatedAt: string, date: string }
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryUsage, setAiSummaryUsage] = useState({ remaining: 2, used: 0, limit: 2 }); // Daily usage tracking
+
+  // AsyncStorage key for AI summary
+  const AI_SUMMARY_STORAGE_KEY = '@splitbill_ai_summary';
+
+  // Get today's date string (YYYY-MM-DD)
+  const getTodayString = () => new Date().toISOString().split('T')[0];
+
+  // Load AI summary from AsyncStorage on mount
+  useEffect(() => {
+    const loadAISummary = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(AI_SUMMARY_STORAGE_KEY);
+        if (stored) {
+          const data = JSON.parse(stored);
+          // Check if the stored summary is from today
+          if (data.date === getTodayString()) {
+            setAiSummary(data);
+          } else {
+            // Clear old summary
+            await AsyncStorage.removeItem(AI_SUMMARY_STORAGE_KEY);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading AI summary from storage:', error);
+      }
+    };
+    loadAISummary();
+  }, []);
+
+  // Save AI summary to AsyncStorage whenever it changes
+  const saveAISummaryToStorage = async (summaryData) => {
+    try {
+      if (summaryData) {
+        const dataWithDate = { ...summaryData, date: getTodayString() };
+        await AsyncStorage.setItem(AI_SUMMARY_STORAGE_KEY, JSON.stringify(dataWithDate));
+      } else {
+        await AsyncStorage.removeItem(AI_SUMMARY_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error('Error saving AI summary to storage:', error);
+    }
+  };
+
   // Toggle category selection
   const toggleCategory = (categoryId, type) => {
     if (type === 'insight') {
@@ -852,6 +905,139 @@ function HomeScreen({ navigation, route }) {
       });
     }
     return months;
+  };
+
+  // Fetch user analysis data from API (used for both Expense Insights and Analysis)
+  const fetchUserAnalysisData = async () => {
+    if (!user?.token) return;
+    
+    setAnalysisLoading(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/user-data`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setUserAnalysisData(data.data);
+      } else {
+        console.error('Failed to fetch analysis data:', data.error);
+        setUserAnalysisData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching analysis data:', error);
+      setUserAnalysisData(null);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  // Fetch analysis data when user logs in
+  useEffect(() => {
+    if (user?.token) {
+      fetchUserAnalysisData();
+      fetchAISummaryUsage(); // Also fetch AI summary usage
+    }
+  }, [user?.token]);
+
+  // Reset pie slice selection when month or categories change
+  useEffect(() => {
+    setSelectedPieSlice(null);
+  }, [selectedMonth, insightCategories]);
+
+  // Fetch AI summary usage stats
+  const fetchAISummaryUsage = async () => {
+    if (!user?.token) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/ai-summary/usage`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setAiSummaryUsage(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching AI summary usage:', error);
+    }
+  };
+
+  // Generate AI summary
+  const generateAISummary = async () => {
+    if (!user?.token || aiSummaryLoading) return;
+    
+    // Check if user can make call
+    if (aiSummaryUsage.remaining <= 0) {
+      alert(`Daily limit reached. You have used all ${aiSummaryUsage.limit} AI summaries for today. Try again tomorrow.`);
+      return;
+    }
+    
+    setAiSummaryLoading(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/ai-summary`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const summaryData = data.data;
+        setAiSummary(summaryData);
+        // Save to AsyncStorage for persistence
+        saveAISummaryToStorage(summaryData);
+        
+        if (data.usage) {
+          setAiSummaryUsage(prev => ({
+            ...prev,
+            remaining: data.usage.remaining,
+            used: data.usage.used
+          }));
+        }
+      } else {
+        if (response.status === 429) {
+          alert(data.message || 'Daily limit reached. Try again tomorrow.');
+          if (data.usage) {
+            setAiSummaryUsage(data.usage);
+          }
+        } else {
+          alert('Failed to generate summary. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      alert('Something went wrong. Please try again.');
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
+
+  // Clear AI summary (also clears from storage)
+  const clearAISummary = async () => {
+    setAiSummary(null);
+    await saveAISummaryToStorage(null);
+  };
+
+  // Check if AI summary button should be enabled
+  const canGenerateAISummary = userAnalysisData?.grandTotal > 0 && aiSummaryUsage.remaining > 0;
+
+  // Get monthly data for selected month (for Expense Insights pie chart)
+  const getSelectedMonthData = () => {
+    if (!userAnalysisData?.monthlyData) return null;
+    return userAnalysisData.monthlyData.find(m => m.month === selectedMonth) || null;
   };
 
   // Range options for Analysis dropdown
@@ -1149,7 +1335,23 @@ function HomeScreen({ navigation, route }) {
 
             {/* Expense Insights Section */}
             <View style={styles.androidSectionCard}>
-              <Text style={styles.androidSectionTitle}>Expense Insights</Text>
+              <View style={styles.androidSectionTitleRow}>
+                <Text style={styles.androidSectionTitle}>Expense Insights</Text>
+                <TouchableOpacity 
+                  style={styles.androidRefreshButton}
+                  onPress={() => {
+                    setSelectedPieSlice(null);
+                    fetchUserAnalysisData();
+                  }}
+                  disabled={analysisLoading}
+                >
+                  {analysisLoading ? (
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              </View>
               <View style={styles.androidFiltersRow}>
                 <TouchableOpacity 
                   style={styles.androidFilterDropdown}
@@ -1175,53 +1377,186 @@ function HomeScreen({ navigation, route }) {
               
               {/* Pie Chart with Categories */}
               <View style={styles.androidPieChartSection}>
-                {/* Donut Chart */}
-                <View style={styles.androidDonutChart}>
-                  {/* Colored segments - placeholder ring */}
-                  <View style={styles.androidDonutOuter}>
-                    <View style={[styles.androidDonutSegment, { backgroundColor: '#FF6B35', transform: [{ rotate: '0deg' }] }]} />
-                    <View style={[styles.androidDonutSegment, { backgroundColor: '#4CAF50', transform: [{ rotate: '72deg' }] }]} />
-                    <View style={[styles.androidDonutSegment, { backgroundColor: '#2196F3', transform: [{ rotate: '144deg' }] }]} />
-                    <View style={[styles.androidDonutSegment, { backgroundColor: '#9C27B0', transform: [{ rotate: '216deg' }] }]} />
-                    <View style={[styles.androidDonutSegment, { backgroundColor: '#607D8B', transform: [{ rotate: '288deg' }] }]} />
+                {analysisLoading ? (
+                  <View style={styles.androidPieChartLoading}>
+                    <ActivityIndicator size="large" color="#FF6B35" />
+                    <Text style={styles.androidLoadingText}>Loading insights...</Text>
                   </View>
-                  {/* Center circle with total */}
-                  <View style={styles.androidDonutCenter}>
-                    <Text style={styles.androidDonutTotalLabel}>Total</Text>
-                    <Text style={styles.androidDonutTotalAmount}>₹0</Text>
-                  </View>
-                </View>
+                ) : (() => {
+                  const monthData = getSelectedMonthData();
+                  
+                  // Check if there's data for selected categories
+                  const filteredTotal = monthData?.categories
+                    ?.filter(cat => insightCategories.includes(cat.name))
+                    ?.reduce((sum, cat) => sum + cat.amount, 0) || 0;
+                  
+                  if (!monthData || filteredTotal === 0) {
+                    return (
+                      <View style={styles.androidNoDataContainer}>
+                        <Ionicons name="pie-chart-outline" size={48} color="#CCC" />
+                        <Text style={styles.androidNoDataText}>
+                          {!monthData ? 'No expense data for this month' : 'No data for selected categories'}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  
+                  return (
+                    <>
+                      {/* Donut Chart */}
+                      <View style={styles.androidDonutChart}>
+                        {/* Colored segments - using SVG-like approach with Views */}
+                        <View style={styles.androidDonutOuter}>
+                          {(() => {
+                            let cumulativeAngle = 0;
+                            const filteredCategories = monthData.categories.filter(
+                              cat => insightCategories.includes(cat.name) && cat.amount > 0
+                            );
+                            const filteredTotal = filteredCategories.reduce((sum, cat) => sum + cat.amount, 0);
+                            
+                            return filteredCategories.map((cat, index) => {
+                              const percentage = filteredTotal > 0 ? (cat.amount / filteredTotal) * 100 : 0;
+                              const angle = (percentage / 100) * 360;
+                              const startAngle = cumulativeAngle;
+                              cumulativeAngle += angle;
+                              
+                              const isSelected = selectedPieSlice === cat.name;
+                              
+                              return (
+                                <TouchableOpacity
+                                  key={cat.name}
+                                  style={[
+                                    styles.androidDonutSegment,
+                                    {
+                                      backgroundColor: cat.color,
+                                      transform: [
+                                        { rotate: `${startAngle}deg` },
+                                        { scale: isSelected ? 1.08 : 1 }
+                                      ],
+                                      opacity: selectedPieSlice && !isSelected ? 0.5 : 1,
+                                      zIndex: isSelected ? 10 : 1,
+                                    }
+                                  ]}
+                                  onPress={() => setSelectedPieSlice(selectedPieSlice === cat.name ? null : cat.name)}
+                                  activeOpacity={0.8}
+                                />
+                              );
+                            });
+                          })()}
+                        </View>
+                        {/* Center circle with total or selected amount */}
+                        <TouchableOpacity 
+                          style={styles.androidDonutCenter}
+                          onPress={() => setSelectedPieSlice(null)}
+                          activeOpacity={0.9}
+                        >
+                          {(() => {
+                            // Calculate filtered total for correct percentages
+                            const filteredCategories = monthData.categories.filter(
+                              cat => insightCategories.includes(cat.name)
+                            );
+                            const filteredTotal = filteredCategories.reduce((sum, cat) => sum + cat.amount, 0);
+                            
+                            if (selectedPieSlice) {
+                              const selectedCat = monthData.categories.find(c => c.name === selectedPieSlice);
+                              const filteredPercentage = filteredTotal > 0 && selectedCat
+                                ? Math.round((selectedCat.amount / filteredTotal) * 100)
+                                : 0;
+                              
+                              return (
+                                <>
+                                  <Text style={[styles.androidDonutTotalLabel, { color: selectedCat?.color }]}>
+                                    {selectedPieSlice.charAt(0).toUpperCase() + selectedPieSlice.slice(1)}
+                                  </Text>
+                                  <Text style={styles.androidDonutTotalAmount}>
+                                    ₹{selectedCat?.amount.toLocaleString('en-IN') || 0}
+                                  </Text>
+                                  <Text style={styles.androidDonutPercentage}>
+                                    {filteredPercentage}%
+                                  </Text>
+                                </>
+                              );
+                            }
+                            
+                            return (
+                              <>
+                                <Text style={styles.androidDonutTotalLabel}>Total</Text>
+                                <Text style={styles.androidDonutTotalAmount}>
+                                  ₹{filteredTotal.toLocaleString('en-IN')}
+                                </Text>
+                              </>
+                            );
+                          })()}
+                        </TouchableOpacity>
+                      </View>
 
-                {/* Category Legend */}
-                <View style={styles.androidCategoryLegend}>
-                  <View style={styles.androidLegendItem}>
-                    <View style={[styles.androidLegendDot, { backgroundColor: '#FF6B35' }]} />
-                    <Text style={styles.androidLegendText}>Food</Text>
-                  </View>
-                  <View style={styles.androidLegendItem}>
-                    <View style={[styles.androidLegendDot, { backgroundColor: '#4CAF50' }]} />
-                    <Text style={styles.androidLegendText}>Travel</Text>
-                  </View>
-                  <View style={styles.androidLegendItem}>
-                    <View style={[styles.androidLegendDot, { backgroundColor: '#2196F3' }]} />
-                    <Text style={styles.androidLegendText}>Entertainment</Text>
-                  </View>
-                  <View style={styles.androidLegendItem}>
-                    <View style={[styles.androidLegendDot, { backgroundColor: '#9C27B0' }]} />
-                    <Text style={styles.androidLegendText}>Shopping</Text>
-                  </View>
-                  <View style={styles.androidLegendItem}>
-                    <View style={[styles.androidLegendDot, { backgroundColor: '#607D8B' }]} />
-                    <Text style={styles.androidLegendText}>Other</Text>
-                  </View>
-                </View>
+                      {/* Category Legend - Clickable */}
+                      <View style={styles.androidCategoryLegend}>
+                        {(() => {
+                          // Calculate filtered total for correct percentages
+                          const filteredCategories = monthData.categories.filter(
+                            cat => insightCategories.includes(cat.name)
+                          );
+                          const filteredTotal = filteredCategories.reduce((sum, cat) => sum + cat.amount, 0);
+                          
+                          return filteredCategories.map(cat => {
+                            const filteredPercentage = filteredTotal > 0 
+                              ? Math.round((cat.amount / filteredTotal) * 100) 
+                              : 0;
+                            
+                            return (
+                              <TouchableOpacity 
+                                key={cat.name}
+                                style={[
+                                  styles.androidLegendItem,
+                                  selectedPieSlice === cat.name && styles.androidLegendItemSelected
+                                ]}
+                                onPress={() => setSelectedPieSlice(selectedPieSlice === cat.name ? null : cat.name)}
+                              >
+                                <View style={[
+                                  styles.androidLegendDot, 
+                                  { backgroundColor: cat.color },
+                                  selectedPieSlice && selectedPieSlice !== cat.name && { opacity: 0.4 }
+                                ]} />
+                                <Text style={[
+                                  styles.androidLegendText,
+                                  selectedPieSlice && selectedPieSlice !== cat.name && { opacity: 0.4 }
+                                ]}>
+                                  {cat.name.charAt(0).toUpperCase() + cat.name.slice(1)}
+                                </Text>
+                                <Text style={[
+                                  styles.androidLegendPercentage,
+                                  selectedPieSlice && selectedPieSlice !== cat.name && { opacity: 0.4 }
+                                ]}>
+                                  {filteredPercentage}%
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          });
+                        })()}
+                      </View>
+                    </>
+                  );
+                })()}
               </View>
-              <Text style={styles.androidNoDataText}>No data</Text>
             </View>
 
             {/* Analysis Section */}
             <View style={styles.androidSectionCard}>
-              <Text style={styles.androidSectionTitle}>Analysis</Text>
+              <View style={styles.androidSectionTitleRow}>
+                <Text style={styles.androidSectionTitle}>Analysis</Text>
+                <TouchableOpacity 
+                  style={styles.androidRefreshButton}
+                  onPress={() => fetchUserAnalysisData()}
+                  disabled={analysisLoading}
+                >
+                  {analysisLoading ? (
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color="#FF6B35" />
+                  )}
+                </TouchableOpacity>
+              </View>
               <View style={styles.androidFiltersRow}>
                 <TouchableOpacity 
                   style={styles.androidFilterDropdown}
@@ -1243,38 +1578,180 @@ function HomeScreen({ navigation, route }) {
                 </TouchableOpacity>
               </View>
               
-              {/* Bar Chart Placeholder */}
+              {/* Bar Chart with Real Data */}
               <View style={styles.androidChartContainer}>
-                <View style={styles.androidBarChartPlaceholder}>
-                  <View style={[styles.androidBar, { height: 40 }]} />
-                  <View style={[styles.androidBar, { height: 60 }]} />
-                  <View style={[styles.androidBar, { height: 30 }]} />
-                  <View style={[styles.androidBar, { height: 50 }]} />
-                  <View style={[styles.androidBar, { height: 45 }]} />
-                </View>
-                <Text style={styles.androidNoDataText}>No data</Text>
+                {analysisLoading ? (
+                  <View style={styles.androidPieChartLoading}>
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  </View>
+                ) : (() => {
+                  // Get data for selected range of months
+                  const rangeData = userAnalysisData?.monthlyData?.slice(0, selectedRange) || [];
+                  
+                  // Calculate totals per category for the selected range
+                  const rangeCategoryTotals = {};
+                  analysisCategories.forEach(cat => {
+                    rangeCategoryTotals[cat] = rangeData.reduce((sum, month) => {
+                      const catData = month.categories.find(c => c.name === cat);
+                      return sum + (catData?.amount || 0);
+                    }, 0);
+                  });
+                  
+                  const maxAmount = Math.max(...Object.values(rangeCategoryTotals), 1);
+                  const rangeTotal = Object.values(rangeCategoryTotals).reduce((sum, val) => sum + val, 0);
+                  
+                  if (rangeTotal === 0) {
+                    return (
+                      <View style={styles.androidNoDataContainer}>
+                        <Ionicons name="bar-chart-outline" size={48} color="#CCC" />
+                        <Text style={styles.androidNoDataText}>
+                          {rangeData.length === 0 ? 'No data for selected range' : 'No data for selected categories'}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  
+                  return (
+                    <>
+                      <View style={styles.androidBarChart}>
+                        {analysisCategories.map(cat => {
+                          const amount = rangeCategoryTotals[cat] || 0;
+                          const heightPercent = (amount / maxAmount) * 100;
+                          const color = categoryOptions.find(c => c.id === cat)?.color || '#607D8B';
+                          
+                          return (
+                            <View key={cat} style={styles.androidBarItem}>
+                              <Text style={styles.androidBarAmount}>
+                                ₹{amount >= 1000 ? `${(amount/1000).toFixed(1)}k` : amount.toFixed(0)}
+                              </Text>
+                              <View style={styles.androidBarWrapper}>
+                                <View 
+                                  style={[
+                                    styles.androidBar, 
+                                    { 
+                                      height: `${Math.max(heightPercent, 5)}%`,
+                                      backgroundColor: color 
+                                    }
+                                  ]} 
+                                />
+                              </View>
+                              <Text style={styles.androidBarLabel}>
+                                {cat.substring(0, 4).charAt(0).toUpperCase() + cat.substring(1, 4)}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                      <View style={styles.androidRangeTotalRow}>
+                        <Text style={styles.androidRangeTotalLabel}>
+                          Total ({selectedRange} months)
+                        </Text>
+                        <Text style={styles.androidRangeTotalAmount}>
+                          ₹{rangeTotal.toLocaleString('en-IN')}
+                        </Text>
+                      </View>
+                    </>
+                  );
+                })()}
               </View>
             </View>
 
             {/* Summary Section */}
             <View style={styles.androidSectionCard}>
-              <Text style={styles.androidSectionTitle}>Summary</Text>
-              <View style={styles.androidSummaryContent}>
-                <Ionicons name="sparkles" size={40} color="#FF6B35" />
-                <Text style={styles.androidSummaryDescription}>
-                  Get AI-powered insights about your spending patterns and habits
-                </Text>
+              <View style={styles.androidSectionTitleRow}>
+                <Text style={styles.androidSectionTitle}>Summary</Text>
                 <TouchableOpacity 
-                  style={styles.androidAISummaryButton}
+                  style={styles.androidRefreshButton}
                   onPress={() => {
-                    // TODO: Implement AI Summary functionality
-                    alert('AI Summary feature coming soon!');
+                    if (aiSummary) {
+                      // If summary exists, clear it first then regenerate
+                      clearAISummary();
+                      if (aiSummaryUsage.remaining > 0) {
+                        generateAISummary();
+                      }
+                    } else {
+                      // If no summary, just fetch usage stats
+                      fetchAISummaryUsage();
+                    }
                   }}
+                  disabled={aiSummaryLoading}
                 >
-                  <Ionicons name="flash" size={18} color="#FFF" />
-                  <Text style={styles.androidAISummaryButtonText}>Get AI Summary</Text>
+                  {aiSummaryLoading ? (
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color="#FF6B35" />
+                  )}
                 </TouchableOpacity>
               </View>
+              
+              {aiSummaryLoading ? (
+                <View style={styles.androidSummaryLoading}>
+                  <ActivityIndicator size="large" color="#FF6B35" />
+                  <Text style={styles.androidLoadingText}>Analyzing your spending...</Text>
+                </View>
+              ) : aiSummary ? (
+                <View style={styles.androidSummaryResults}>
+                  {aiSummary.summary.map((point, index) => (
+                    <View key={index} style={styles.androidSummaryPoint}>
+                      <View style={styles.androidSummaryBullet}>
+                        <Ionicons 
+                          name={index === aiSummary.summary.length - 1 ? "sparkles" : "checkmark-circle"} 
+                          size={16} 
+                          color={index === aiSummary.summary.length - 1 ? "#FF6B35" : "#4CAF50"} 
+                        />
+                      </View>
+                      <Text style={styles.androidSummaryPointText}>{point}</Text>
+                    </View>
+                  ))}
+                  <View style={styles.androidSummaryFooter}>
+                    <Text style={styles.androidSummaryUsageText}>
+                      {aiSummaryUsage.remaining} of {aiSummaryUsage.limit} summaries remaining today
+                    </Text>
+                    {aiSummaryUsage.remaining > 0 && (
+                      <TouchableOpacity 
+                        style={styles.androidRegenerateButton}
+                        onPress={generateAISummary}
+                      >
+                        <Ionicons name="refresh" size={14} color="#FF6B35" />
+                        <Text style={styles.androidRegenerateText}>Regenerate</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.androidSummaryContent}>
+                  <Ionicons name="sparkles" size={40} color={canGenerateAISummary ? "#FF6B35" : "#CCC"} />
+                  <Text style={[
+                    styles.androidSummaryDescription,
+                    !canGenerateAISummary && { color: '#999' }
+                  ]}>
+                    {userAnalysisData?.grandTotal > 0 
+                      ? 'Get AI-powered insights about your spending patterns and habits'
+                      : 'Start tracking expenses to get AI-powered insights'}
+                  </Text>
+                  <TouchableOpacity 
+                    style={[
+                      styles.androidAISummaryButton,
+                      !canGenerateAISummary && styles.androidAISummaryButtonDisabled
+                    ]}
+                    onPress={generateAISummary}
+                    disabled={!canGenerateAISummary}
+                  >
+                    <Ionicons name="flash" size={18} color={canGenerateAISummary ? "#FFF" : "#999"} />
+                    <Text style={[
+                      styles.androidAISummaryButtonText,
+                      !canGenerateAISummary && { color: '#999' }
+                    ]}>
+                      {aiSummaryUsage.remaining > 0 
+                        ? `Get AI Summary (${aiSummaryUsage.remaining}/${aiSummaryUsage.limit})`
+                        : 'Limit Reached Today'}
+                    </Text>
+                  </TouchableOpacity>
+                  {aiSummaryUsage.remaining === 0 && (
+                    <Text style={styles.androidLimitText}>Try again tomorrow</Text>
+                  )}
+                </View>
+              )}
             </View>
 
             {/* Bottom spacing for tab bar */}
@@ -2887,6 +3364,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#333',
   },
+  androidSectionTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  androidRefreshButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+  },
   androidDropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2975,6 +3463,41 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
   },
+  androidLegendItemSelected: {
+    backgroundColor: '#FFF5F0',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginHorizontal: -8,
+  },
+  androidLegendPercentage: {
+    fontSize: 12,
+    color: '#999',
+    marginLeft: 'auto',
+    fontWeight: '600',
+  },
+  androidDonutPercentage: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+  },
+  androidPieChartLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  androidLoadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#666',
+  },
+  androidNoDataContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
   androidBarChartPlaceholder: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -2982,10 +3505,62 @@ const styles = StyleSheet.create({
     gap: 15,
     marginBottom: 15,
   },
+  androidBarChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
+    height: 140,
+    width: '100%',
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  androidBarItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  androidBarWrapper: {
+    height: 100,
+    width: 36,
+    justifyContent: 'flex-end',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   androidBar: {
-    width: 30,
+    width: '100%',
     backgroundColor: '#E0E0E0',
-    borderRadius: 4,
+    borderRadius: 6,
+  },
+  androidBarAmount: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  androidBarLabel: {
+    fontSize: 10,
+    color: '#999',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  androidRangeTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  androidRangeTotalLabel: {
+    fontSize: 13,
+    color: '#666',
+  },
+  androidRangeTotalAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
   },
   androidNoDataText: {
     fontSize: 16,
@@ -3086,6 +3661,62 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  androidAISummaryButtonDisabled: {
+    backgroundColor: '#E0E0E0',
+  },
+  androidSummaryLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    gap: 12,
+  },
+  androidSummaryResults: {
+    paddingTop: 5,
+  },
+  androidSummaryPoint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    paddingRight: 10,
+  },
+  androidSummaryBullet: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  androidSummaryPointText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  androidSummaryFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  androidSummaryUsageText: {
+    fontSize: 12,
+    color: '#999',
+  },
+  androidRegenerateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  androidRegenerateText: {
+    fontSize: 13,
+    color: '#FF6B35',
+    fontWeight: '500',
+  },
+  androidLimitText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 8,
   },
   androidModalOverlay: {
     flex: 1,

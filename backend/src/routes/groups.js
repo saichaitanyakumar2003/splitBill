@@ -8,6 +8,7 @@ const History = require('../models/History');
 const EditHistory = require('../models/EditHistory');
 const { consolidateExpenses, mergeAndConsolidate } = require('../utils/splitBill');
 const { sendExpenseNotifications, sendPushNotification, sendPushNotifications } = require('../utils/pushNotifications');
+const { onExpenseAdded, onExpenseDeleted, onExpenseEdited, onCheckout } = require('../utils/analysisHelper');
 
 // Helper: Calculate consolidated edges from expenses and resolved payments
 function calculateConsolidatedEdges(expenses, resolvedPayments = []) {
@@ -442,6 +443,11 @@ router.post('/checkout', async (req, res) => {
       sendExpenseNotifications(payersToNotify, expenseTitle, group.name).catch(() => {});
     }
     
+    // Update analysis for all members (async, don't wait)
+    onCheckout(formattedNewExpenses).catch(err => 
+      console.error('Failed to update analysis on checkout:', err)
+    );
+    
     res.json({
       success: true,
       data: {
@@ -811,6 +817,19 @@ router.post('/:id/expenses', async (req, res) => {
     console.log(`➕ Expense "${name}" added to group "${group.name}"`);
     console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
     
+    // Update analysis for all members (async, don't wait)
+    const newExpense = {
+      name,
+      payer: payer.toLowerCase().trim(),
+      payees: (payees || []).map(p => typeof p === 'object' ? p : p.toLowerCase().trim()),
+      amount: parseFloat(amount),
+      totalAmount: parseFloat(amount),
+      createdAt: new Date().toISOString()
+    };
+    onExpenseAdded(newExpense).catch(err => 
+      console.error('Failed to update analysis on expense add:', err)
+    );
+    
     res.json(json);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -880,6 +899,11 @@ router.delete('/:id/expenses/:expenseId', async (req, res) => {
     
     console.log(`🗑️ Expense "${expenseName}" deleted from group "${group.name}"`);
     console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
+    
+    // Update analysis for all members (async, don't wait)
+    onExpenseDeleted(expenseToDelete).catch(err => 
+      console.error('Failed to update analysis on expense delete:', err)
+    );
     
     res.json({ success: true, data: json });
   } catch (e) { 
@@ -984,6 +1008,16 @@ router.put('/:id/expenses/:expenseId', async (req, res) => {
     
     console.log(`✏️ Expense "${expenseName}" updated in group "${group.name}"`);
     console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${resolvedPayments.length} resolved`);
+    
+    // Update analysis for all members (async, don't wait)
+    // Build new expense object for analysis
+    const updatedExpense = details.expenses[expenseIndex];
+    onExpenseEdited(oldExpense, {
+      ...updatedExpense,
+      createdAt: updatedExpense.createdAt || oldExpense.createdAt || new Date().toISOString()
+    }).catch(err => 
+      console.error('Failed to update analysis on expense edit:', err)
+    );
     
     res.json({ success: true, data: json });
   } catch (e) { 

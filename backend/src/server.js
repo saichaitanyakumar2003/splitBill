@@ -14,6 +14,7 @@ const billRoutes = require('./routes/bills');
 const groupRoutes = require('./routes/groups');
 const authRoutes = require('./routes/auth');
 const configRoutes = require('./routes/config');
+const analysisRoutes = require('./routes/analysis');
 
 // Import middleware
 const { authenticate } = require('./middleware/auth');
@@ -50,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/config', configRoutes);  // Auth handled inside route (provides Gemini API key)
 app.use('/api/bills', authenticate, billRoutes);
 app.use('/api/groups', authenticate, groupRoutes);
+app.use('/api/analysis', authenticate, analysisRoutes);
 
 // Health check with DB status
 app.get('/health', (req, res) => {
@@ -71,6 +73,7 @@ app.get('/', (req, res) => {
       config: '/api/config',
       bills: '/api/bills',
       groups: '/api/groups',
+      analysis: '/api/analysis',
       health: '/health',
     },
   });
