@@ -261,20 +261,20 @@ function Logo({ isMobile = false, hideText = false }) {
         </Text>
       </Animated.View>
       
+      {/* Only hide "SplitBill" text, keep tagline and flow icons */}
       {!hideText && (
-        <>
-          <Text style={[styles.title, isMobile && styles.titleMobile]}>Split<Text style={styles.titleBold}>Bill</Text></Text>
-          <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>Split smart. Pay fair.</Text>
-          
-          <View style={styles.taglineRow}>
-            <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>🧾</Text>
-            <Text style={styles.taglineArrow}>→</Text>
-            <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>👥</Text>
-            <Text style={styles.taglineArrow}>→</Text>
-            <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>✅</Text>
-          </View>
-        </>
+        <Text style={[styles.title, isMobile && styles.titleMobile]}>Split<Text style={styles.titleBold}>Bill</Text></Text>
       )}
+      
+      <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>Split smart. Pay fair.</Text>
+      
+      <View style={styles.taglineRow}>
+        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>🧾</Text>
+        <Text style={styles.taglineArrow}>→</Text>
+        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>👥</Text>
+        <Text style={styles.taglineArrow}>→</Text>
+        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>✅</Text>
+      </View>
     </View>
   );
 }
@@ -2601,7 +2601,7 @@ const styles = StyleSheet.create({
   // Android Dashboard Styles
   androidHeader: {
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 80,
+    paddingBottom: 40,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
     zIndex: 1,
@@ -2643,7 +2643,7 @@ const styles = StyleSheet.create({
   androidWhitePanel: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginTop: -50,
+    marginTop: -30,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     zIndex: 0,
