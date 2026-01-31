@@ -821,8 +821,8 @@ function HomeScreen({ navigation, route }) {
 
   const selectedMonthLabel = getLastSixMonths().find(m => m.value === selectedMonth)?.label || 'Select Month';
 
-  // Android/iOS Native - New Dashboard Layout
-  if (isNativeMobile) {
+  // Android Only - New Dashboard Layout
+  if (Platform.OS === 'android') {
     return (
       <View style={[styles.container, { backgroundColor: '#FF6B35' }]}>
         {/* Orange Header Section */}
@@ -2644,8 +2644,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     marginTop: -30,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     zIndex: 0,
   },
   androidScrollView: {
