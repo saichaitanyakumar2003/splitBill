@@ -8,7 +8,7 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 📱 **Download Android App:** 
 
-[https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-63f45298-acb2-42f6-842e-38d52cf2d9e5.apk](https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-63f45298-acb2-42f6-842e-38d52cf2d9e5.apk)
+[https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-a98cb13e-024b-413f-8d42-9753152cdb42.apk](https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-a98cb13e-024b-413f-8d42-9753152cdb42.apk)
 
 > **Note:** Google OAuth SSO is available only for web users. Mobile users can sign up/login using email. For OAuth access, please reach out to the owner.
 
