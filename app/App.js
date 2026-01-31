@@ -1145,29 +1145,28 @@ function HomeScreen({ navigation, route }) {
 
             {/* Expense Insights Section */}
             <View style={styles.androidSectionCard}>
-              <View style={styles.androidSectionHeader}>
-                <Text style={styles.androidSectionTitle}>Expense Insights</Text>
-                <View style={styles.androidHeaderFilters}>
-                  <TouchableOpacity 
-                    style={styles.androidDropdown}
-                    onPress={() => setInsightCategoryModalVisible(true)}
-                  >
-                    <Ionicons name="filter-outline" size={14} color="#666" />
-                    <Text style={styles.androidDropdownText} numberOfLines={1}>
-                      {getCategoryLabel(insightCategories)}
-                    </Text>
-                    <Ionicons name="chevron-down" size={14} color="#666" />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.androidDropdown}
-                    onPress={() => setMonthDropdownVisible(true)}
-                  >
-                    <Text style={styles.androidDropdownText} numberOfLines={1}>
-                      {selectedMonthLabel.split(' ')[0].substring(0, 3)} {selectedMonthLabel.split(' ')[1]}
-                    </Text>
-                    <Ionicons name="chevron-down" size={14} color="#666" />
-                  </TouchableOpacity>
-                </View>
+              <Text style={styles.androidSectionTitle}>Expense Insights</Text>
+              <View style={styles.androidFiltersRow}>
+                <TouchableOpacity 
+                  style={styles.androidFilterDropdown}
+                  onPress={() => setInsightCategoryModalVisible(true)}
+                >
+                  <Ionicons name="filter-outline" size={14} color="#666" />
+                  <Text style={styles.androidFilterDropdownText} numberOfLines={1}>
+                    {getCategoryLabel(insightCategories)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color="#666" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.androidFilterDropdown}
+                  onPress={() => setMonthDropdownVisible(true)}
+                >
+                  <Ionicons name="calendar-outline" size={14} color="#666" />
+                  <Text style={styles.androidFilterDropdownText} numberOfLines={1}>
+                    {selectedMonthLabel.split(' ')[0].substring(0, 3)} {selectedMonthLabel.split(' ')[1]}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color="#666" />
+                </TouchableOpacity>
               </View>
               
               {/* Pie Chart with Categories */}
@@ -1218,27 +1217,26 @@ function HomeScreen({ navigation, route }) {
 
             {/* Analysis Section */}
             <View style={styles.androidSectionCard}>
-              <View style={styles.androidSectionHeader}>
-                <Text style={styles.androidSectionTitle}>Analysis</Text>
-                <View style={styles.androidHeaderFilters}>
-                  <TouchableOpacity 
-                    style={styles.androidDropdown}
-                    onPress={() => setAnalysisCategoryModalVisible(true)}
-                  >
-                    <Ionicons name="filter-outline" size={14} color="#666" />
-                    <Text style={styles.androidDropdownText} numberOfLines={1}>
-                      {getCategoryLabel(analysisCategories)}
-                    </Text>
-                    <Ionicons name="chevron-down" size={14} color="#666" />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.androidDropdown}
-                    onPress={() => setRangeDropdownVisible(true)}
-                  >
-                    <Text style={styles.androidDropdownText}>Past {selectedRange} months</Text>
-                    <Ionicons name="chevron-down" size={14} color="#666" />
-                  </TouchableOpacity>
-                </View>
+              <Text style={styles.androidSectionTitle}>Analysis</Text>
+              <View style={styles.androidFiltersRow}>
+                <TouchableOpacity 
+                  style={styles.androidFilterDropdown}
+                  onPress={() => setAnalysisCategoryModalVisible(true)}
+                >
+                  <Ionicons name="filter-outline" size={14} color="#666" />
+                  <Text style={styles.androidFilterDropdownText} numberOfLines={1}>
+                    {getCategoryLabel(analysisCategories)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color="#666" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.androidFilterDropdown}
+                  onPress={() => setRangeDropdownVisible(true)}
+                >
+                  <Ionicons name="time-outline" size={14} color="#666" />
+                  <Text style={styles.androidFilterDropdownText}>Past {selectedRange} months</Text>
+                  <Ionicons name="chevron-down" size={14} color="#666" />
+                </TouchableOpacity>
               </View>
               
               {/* Bar Chart Placeholder */}
@@ -3006,6 +3004,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  androidFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  androidFilterDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 6,
+    flex: 1,
+  },
+  androidFilterDropdownText: {
+    fontSize: 13,
+    color: '#666',
+    flex: 1,
   },
   androidCategorySubtitle: {
     fontSize: 13,
