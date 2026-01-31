@@ -12,7 +12,6 @@ import {
   Pressable,
   Animated,
   Dimensions,
-  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -372,14 +371,6 @@ export default function HistoryScreen({ route }) {
                     style={styles.groupsList}
                     contentContainerStyle={styles.groupsListContent}
                     showsVerticalScrollIndicator={true}
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        tintColor="#FF6B35"
-                        colors={['#FF6B35']}
-                      />
-                    }
                   >
                     {historyRecords.map((record) => {
                       const isDeleted = record.groupStatus === 'deleted';

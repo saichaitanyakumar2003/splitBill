@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Share,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { theme } from '../theme';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const AVATAR_COLORS = [
   '#FF6B35', '#4FFFB0', '#FFD93D', '#6B5BFF', '#FF8C42', '#00D9FF',
@@ -22,9 +24,30 @@ export default function SplitScreen({ route, navigation }) {
   const [splits, setSplits] = useState({});
   const [tipMode, setTipMode] = useState('proportional');
 
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
   useEffect(() => {
     calculateSplits();
   }, [tipMode]);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   const calculateSplits = () => {
     const personTotals = {};
@@ -142,118 +165,237 @@ export default function SplitScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.billName}>{bill.name}</Text>
-          <View style={styles.totalBadge}>
-            <Text style={styles.totalBadgeLabel}>Total Bill</Text>
-            <Text style={styles.totalBadgeValue}>${bill.total?.toFixed(2)}</Text>
-          </View>
-        </View>
-
-        {/* Tip Mode Toggle */}
-        <View style={styles.tipModeContainer}>
-          <Text style={styles.tipModeLabel}>Tax & Tip Split:</Text>
-          <View style={styles.tipModeButtons}>
-            <TouchableOpacity
-              style={[styles.tipModeButton, tipMode === 'equal' && styles.tipModeButtonActive]}
-              onPress={() => setTipMode('equal')}
-            >
-              <Text style={[styles.tipModeButtonText, tipMode === 'equal' && styles.tipModeButtonTextActive]}>
-                Equal
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tipModeButton, tipMode === 'proportional' && styles.tipModeButtonActive]}
-              onPress={() => setTipMode('proportional')}
-            >
-              <Text style={[styles.tipModeButtonText, tipMode === 'proportional' && styles.tipModeButtonTextActive]}>
-                Proportional
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Person Cards */}
-        {activeMembers.map(([personId, person], index) => {
-          const memberIdx = getMemberIndex(personId);
-          const color = AVATAR_COLORS[memberIdx % AVATAR_COLORS.length];
-          
-          return (
-            <View key={personId} style={styles.personCard}>
-              <View style={styles.personHeader}>
-                <View style={[styles.personAvatar, { backgroundColor: color }]}>
-                  <Text style={styles.personAvatarText}>{getInitials(person.name)}</Text>
-                </View>
-                <View style={styles.personInfo}>
-                  <Text style={styles.personName}>{person.name}</Text>
-                  <Text style={styles.personItemCount}>
-                    {person.itemsList.length} item{person.itemsList.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-                <View style={styles.personTotal}>
-                  <Text style={styles.personTotalLabel}>Owes</Text>
-                  <Text style={[styles.personTotalValue, { color }]}>
-                    ${person.total.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.itemBreakdown}>
-                {person.itemsList.map((item, idx) => (
-                  <View key={idx} style={styles.breakdownRow}>
-                    <View style={styles.breakdownLeft}>
-                      <Text style={styles.breakdownName} numberOfLines={1}>{item.name}</Text>
-                      {item.shared && (
-                        <Text style={styles.sharedBadge}>÷{item.sharedWith}</Text>
-                      )}
-                    </View>
-                    <Text style={styles.breakdownValue}>${item.share.toFixed(2)}</Text>
-                  </View>
-                ))}
-                
-                {person.tax > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownNameMuted}>Tax</Text>
-                    <Text style={styles.breakdownValueMuted}>${person.tax.toFixed(2)}</Text>
-                  </View>
-                )}
-                
-                {person.tip > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownNameMuted}>Tip</Text>
-                    <Text style={styles.breakdownValueMuted}>${person.tip.toFixed(2)}</Text>
-                  </View>
-                )}
-              </View>
+      {isMobileWeb ? (
+        <WebPullToRefresh
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          scrollViewProps={{
+            showsVerticalScrollIndicator: false,
+          }}
+        >
+          {/* Header Card */}
+          <View style={styles.summaryCard}>
+            <Text style={styles.billName}>{bill.name}</Text>
+            <View style={styles.totalBadge}>
+              <Text style={styles.totalBadgeLabel}>Total Bill</Text>
+              <Text style={styles.totalBadgeValue}>${bill.total?.toFixed(2)}</Text>
             </View>
-          );
-        })}
-
-        {/* Quick Summary */}
-        <View style={styles.quickSummary}>
-          <Text style={styles.quickSummaryTitle}>Quick Summary</Text>
-          <View style={styles.quickSummaryGrid}>
-            {activeMembers.map(([personId, person]) => {
-              const memberIdx = getMemberIndex(personId);
-              const color = AVATAR_COLORS[memberIdx % AVATAR_COLORS.length];
-              return (
-                <View key={personId} style={styles.quickSummaryItem}>
-                  <Text style={styles.quickSummaryName}>{person.name}</Text>
-                  <Text style={[styles.quickSummaryAmount, { color }]}>
-                    ${person.total.toFixed(2)}
-                  </Text>
-                </View>
-              );
-            })}
           </View>
-        </View>
-      </ScrollView>
+
+          {/* Tip Mode Toggle */}
+          <View style={styles.tipModeContainer}>
+            <Text style={styles.tipModeLabel}>Tax & Tip Split:</Text>
+            <View style={styles.tipModeButtons}>
+              <TouchableOpacity
+                style={[styles.tipModeButton, tipMode === 'equal' && styles.tipModeButtonActive]}
+                onPress={() => setTipMode('equal')}
+              >
+                <Text style={[styles.tipModeButtonText, tipMode === 'equal' && styles.tipModeButtonTextActive]}>
+                  Equal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tipModeButton, tipMode === 'proportional' && styles.tipModeButtonActive]}
+                onPress={() => setTipMode('proportional')}
+              >
+                <Text style={[styles.tipModeButtonText, tipMode === 'proportional' && styles.tipModeButtonTextActive]}>
+                  Proportional
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Person Cards */}
+          {activeMembers.map(([personId, person], index) => {
+            const memberIdx = getMemberIndex(personId);
+            const color = AVATAR_COLORS[memberIdx % AVATAR_COLORS.length];
+            
+            return (
+              <View key={personId} style={styles.personCard}>
+                <View style={styles.personHeader}>
+                  <View style={[styles.personAvatar, { backgroundColor: color }]}>
+                    <Text style={styles.personAvatarText}>{getInitials(person.name)}</Text>
+                  </View>
+                  <View style={styles.personInfo}>
+                    <Text style={styles.personName}>{person.name}</Text>
+                    <Text style={styles.personItemCount}>
+                      {person.itemsList.length} item{person.itemsList.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.personTotal}>
+                    <Text style={styles.personTotalLabel}>Owes</Text>
+                    <Text style={[styles.personTotalValue, { color }]}>
+                      ${person.total.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.itemBreakdown}>
+                  {person.itemsList.map((item, idx) => (
+                    <View key={idx} style={styles.breakdownRow}>
+                      <View style={styles.breakdownLeft}>
+                        <Text style={styles.breakdownName} numberOfLines={1}>{item.name}</Text>
+                        {item.shared && (
+                          <Text style={styles.sharedBadge}>÷{item.sharedWith}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.breakdownValue}>${item.share.toFixed(2)}</Text>
+                    </View>
+                  ))}
+                  
+                  {person.tax > 0 && (
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownNameMuted}>Tax</Text>
+                      <Text style={styles.breakdownValueMuted}>${person.tax.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  
+                  {person.tip > 0 && (
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownNameMuted}>Tip</Text>
+                      <Text style={styles.breakdownValueMuted}>${person.tip.toFixed(2)}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+
+          {/* Quick Summary */}
+          <View style={styles.quickSummary}>
+            <Text style={styles.quickSummaryTitle}>Quick Summary</Text>
+            <View style={styles.quickSummaryGrid}>
+              {activeMembers.map(([personId, person]) => {
+                const memberIdx = getMemberIndex(personId);
+                const color = AVATAR_COLORS[memberIdx % AVATAR_COLORS.length];
+                return (
+                  <View key={personId} style={styles.quickSummaryItem}>
+                    <Text style={styles.quickSummaryName}>{person.name}</Text>
+                    <Text style={[styles.quickSummaryAmount, { color }]}>
+                      ${person.total.toFixed(2)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </WebPullToRefresh>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header Card */}
+          <View style={styles.summaryCard}>
+            <Text style={styles.billName}>{bill.name}</Text>
+            <View style={styles.totalBadge}>
+              <Text style={styles.totalBadgeLabel}>Total Bill</Text>
+              <Text style={styles.totalBadgeValue}>${bill.total?.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          {/* Tip Mode Toggle */}
+          <View style={styles.tipModeContainer}>
+            <Text style={styles.tipModeLabel}>Tax & Tip Split:</Text>
+            <View style={styles.tipModeButtons}>
+              <TouchableOpacity
+                style={[styles.tipModeButton, tipMode === 'equal' && styles.tipModeButtonActive]}
+                onPress={() => setTipMode('equal')}
+              >
+                <Text style={[styles.tipModeButtonText, tipMode === 'equal' && styles.tipModeButtonTextActive]}>
+                  Equal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tipModeButton, tipMode === 'proportional' && styles.tipModeButtonActive]}
+                onPress={() => setTipMode('proportional')}
+              >
+                <Text style={[styles.tipModeButtonText, tipMode === 'proportional' && styles.tipModeButtonTextActive]}>
+                  Proportional
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Person Cards */}
+          {activeMembers.map(([personId, person], index) => {
+            const memberIdx = getMemberIndex(personId);
+            const color = AVATAR_COLORS[memberIdx % AVATAR_COLORS.length];
+            
+            return (
+              <View key={personId} style={styles.personCard}>
+                <View style={styles.personHeader}>
+                  <View style={[styles.personAvatar, { backgroundColor: color }]}>
+                    <Text style={styles.personAvatarText}>{getInitials(person.name)}</Text>
+                  </View>
+                  <View style={styles.personInfo}>
+                    <Text style={styles.personName}>{person.name}</Text>
+                    <Text style={styles.personItemCount}>
+                      {person.itemsList.length} item{person.itemsList.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.personTotal}>
+                    <Text style={styles.personTotalLabel}>Owes</Text>
+                    <Text style={[styles.personTotalValue, { color }]}>
+                      ${person.total.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.itemBreakdown}>
+                  {person.itemsList.map((item, idx) => (
+                    <View key={idx} style={styles.breakdownRow}>
+                      <View style={styles.breakdownLeft}>
+                        <Text style={styles.breakdownName} numberOfLines={1}>{item.name}</Text>
+                        {item.shared && (
+                          <Text style={styles.sharedBadge}>÷{item.sharedWith}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.breakdownValue}>${item.share.toFixed(2)}</Text>
+                    </View>
+                  ))}
+                  
+                  {person.tax > 0 && (
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownNameMuted}>Tax</Text>
+                      <Text style={styles.breakdownValueMuted}>${person.tax.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  
+                  {person.tip > 0 && (
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownNameMuted}>Tip</Text>
+                      <Text style={styles.breakdownValueMuted}>${person.tip.toFixed(2)}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+
+          {/* Quick Summary */}
+          <View style={styles.quickSummary}>
+            <Text style={styles.quickSummaryTitle}>Quick Summary</Text>
+            <View style={styles.quickSummaryGrid}>
+              {activeMembers.map(([personId, person]) => {
+                const memberIdx = getMemberIndex(personId);
+                const color = AVATAR_COLORS[memberIdx % AVATAR_COLORS.length];
+                return (
+                  <View key={personId} style={styles.quickSummaryItem}>
+                    <Text style={styles.quickSummaryName}>{person.name}</Text>
+                    <Text style={[styles.quickSummaryAmount, { color }]}>
+                      ${person.total.toFixed(2)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      )}
 
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { authPost } from '../utils/apiHelper';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 80;
@@ -75,6 +76,27 @@ export default function BillSplitPreviewScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
   
   // Initialize all items with all members selected
   useEffect(() => {
@@ -292,31 +314,11 @@ export default function BillSplitPreviewScreen() {
     }
   };
   
-  return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
-        locations={[0, 0.3, 0.7, 1]}
-        style={styles.gradient}
-      >
-        <StatusBar style="light" />
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
-          </Pressable>
-          <Text style={styles.headerTitle}>Split Bill</Text>
-          <View style={styles.headerRight} />
-        </View>
-        
-        <ScrollView 
-          style={styles.mainScroll}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.mainScrollContent}
-        >
-          {/* Main Content Card - Contains Summary, Items, Taxes, Split Summary, and Checkout */}
-          <View style={styles.mainContentCard}>
+  // Main content to be wrapped conditionally
+  const mainContent = (
+    <>
+      {/* Main Content Card - Contains Summary, Items, Taxes, Split Summary, and Checkout */}
+      <View style={styles.mainContentCard}>
             {/* Summary Section */}
             <View style={styles.summarySection}>
               <View style={styles.summaryRow}>
@@ -558,7 +560,48 @@ export default function BillSplitPreviewScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </ScrollView>
+    </>
+  );
+  
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
+        locations={[0, 0.3, 0.7, 1]}
+        style={styles.gradient}
+      >
+        <StatusBar style="light" />
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color="#FFF" />
+          </Pressable>
+          <Text style={styles.headerTitle}>Split Bill</Text>
+          <View style={styles.headerRight} />
+        </View>
+        
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            contentContainerStyle={styles.mainScrollContent}
+            scrollViewProps={{
+              style: styles.mainScroll,
+              showsVerticalScrollIndicator: false,
+            }}
+          >
+            {mainContent}
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView 
+            style={styles.mainScroll}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.mainScrollContent}
+          >
+            {mainContent}
+          </ScrollView>
+        )}
       </LinearGradient>
     </View>
   );

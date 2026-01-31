@@ -13,7 +13,6 @@ import {
   BackHandler,
   Alert,
   useWindowDimensions,
-  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -939,14 +938,6 @@ export default function GroupsScreen({ route }) {
             style={styles.cardScrollView}
             contentContainerStyle={styles.cardScrollContent}
             showsVerticalScrollIndicator={true}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor="#FF6B35"
-                colors={['#FF6B35']}
-              />
-            }
           >
             {loading ? (
               <View style={styles.loadingState}>

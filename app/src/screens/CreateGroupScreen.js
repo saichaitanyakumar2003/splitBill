@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   BackHandler,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +18,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { authGet, reportNetworkError } from '../utils/apiHelper';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function CreateGroupScreen() {
   const navigation = useNavigation();
@@ -56,6 +58,27 @@ export default function CreateGroupScreen() {
   });
   const [isCheckingGroupName, setIsCheckingGroupName] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web' && !isRedirecting) {
@@ -336,29 +359,9 @@ export default function CreateGroupScreen() {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
-        locations={[0, 0.3, 0.7, 1]}
-        style={styles.gradient}
-      >
-        <StatusBar style="light" />
-        
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Text style={styles.backText}>‹</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Create New Group</Text>
-          <View style={styles.headerRight} />
-        </View>
-
-        <ScrollView 
-          style={styles.content}
-          contentContainerStyle={styles.cardScrollContent}
-          showsVerticalScrollIndicator={true}
-        >
-            <View style={styles.card}>
+  // Card content to be shared between mobile web and non-mobile web
+  const cardContent = (
+    <View style={styles.card}>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Group Name</Text>
                 <TextInput
@@ -697,7 +700,46 @@ export default function CreateGroupScreen() {
                 )}
               </TouchableOpacity>
             </View>
-        </ScrollView>
+  );
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#FF8C5A', '#FF6B35', '#FF5722', '#E64A19']}
+        locations={[0, 0.3, 0.7, 1]}
+        style={styles.gradient}
+      >
+        <StatusBar style="light" />
+        
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Text style={styles.backText}>‹</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>Create New Group</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            style={styles.content}
+            contentContainerStyle={styles.cardScrollContent}
+            scrollViewProps={{
+              showsVerticalScrollIndicator: true,
+            }}
+          >
+            {cardContent}
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView 
+            style={styles.content}
+            contentContainerStyle={styles.cardScrollContent}
+            showsVerticalScrollIndicator={true}
+          >
+            {cardContent}
+          </ScrollView>
+        )}
       </LinearGradient>
     </View>
   );

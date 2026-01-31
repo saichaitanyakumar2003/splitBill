@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -88,6 +89,27 @@ export default function ProfileScreen() {
       setMobile(cleanPhone);
     }
   }, [user]);
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -288,11 +310,381 @@ export default function ProfileScreen() {
           <Text style={styles.headerTitle}>My Profile</Text>
         </Animated.View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            contentContainerStyle={styles.scrollContent}
+            scrollViewProps={{
+              style: styles.scrollView,
+              showsVerticalScrollIndicator: false,
+            }}
+          >
+          {/* Profile Photo Section */}
+          <Animated.View
+            style={[
+              styles.photoSection,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.photoContainer}>
+              <View style={styles.photoWrapper}>
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoInitials}>
+                    {getInitials(userName)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* Profile Info Card */}
+          <Animated.View
+            style={[
+              styles.infoCard,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            {/* Profile Error/Success Messages */}
+            {profileError && (
+              <View style={styles.apiErrorContainer}>
+                <Text style={styles.apiErrorEmoji}>😅</Text>
+                <Text style={styles.apiErrorMessage}>{profileError}</Text>
+              </View>
+            )}
+            {profileSuccess && (
+              <View style={styles.successContainer}>
+                <Text style={styles.successEmoji}>✓</Text>
+                <Text style={styles.successMessageText}>{profileSuccess}</Text>
+              </View>
+            )}
+
+            {/* Username Field with Edit Button */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.fieldHeaderWithEdit}>
+                <View style={styles.fieldHeader}>
+                  <Text style={styles.fieldIcon}>👤</Text>
+                  <Text style={styles.fieldLabel}>User Name</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.editButtonInline, isEditing && styles.editButtonActive]}
+                  onPress={() => (isEditing ? handleSave() : setIsEditing(true))}
+                  disabled={isSaving || (isEditing && mobile.length > 0 && mobile.length !== 10)}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#FF6B35" />
+                  ) : (
+                    <Text style={[styles.editButtonInlineText, isEditing && styles.editButtonActiveText]}>
+                      {isEditing ? 'Save' : 'Edit'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {isEditing ? (
+                <TextInput
+                  style={styles.fieldInput}
+                  value={userName}
+                  onChangeText={setUserName}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#999"
+                />
+              ) : (
+                <Text style={styles.fieldValue}>{userName || 'Not set'}</Text>
+              )}
+            </View>
+
+            <View style={styles.fieldDivider} />
+
+            {/* Email Field */}
+            <View style={styles.fieldContainer}>
+              {/* Email Error/Success Messages */}
+              {emailError && (
+                <View style={styles.apiErrorContainer}>
+                  <Text style={styles.apiErrorEmoji}>😅</Text>
+                  <Text style={styles.apiErrorMessage}>{emailError}</Text>
+                </View>
+              )}
+              {emailSuccess && (
+                <View style={styles.successContainer}>
+                  <Text style={styles.successEmoji}>✓</Text>
+                  <Text style={styles.successMessageText}>{emailSuccess}</Text>
+                </View>
+              )}
+              
+              <View style={styles.fieldHeaderWithEdit}>
+                <View style={styles.fieldHeader}>
+                  <Text style={styles.fieldIcon}>📧</Text>
+                  <Text style={styles.fieldLabel}>Email Address</Text>
+                </View>
+                {!isEditingEmail ? (
+                  <TouchableOpacity
+                    style={styles.editButtonInline}
+                    onPress={() => {
+                      setIsEditingEmail(true);
+                      setNewEmail(email);
+                      setEmailError(null);
+                    }}
+                  >
+                    <Text style={styles.editButtonInlineText}>Edit</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              
+              {isEditingEmail ? (
+                <View>
+                  <TextInput
+                    style={[styles.fieldInput, emailError && styles.fieldInputError]}
+                    value={newEmail}
+                    onChangeText={(text) => {
+                      setNewEmail(text);
+                      if (emailError) setEmailError(null);
+                    }}
+                    placeholder="Enter new email address"
+                    placeholderTextColor="#999"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={styles.fieldHint}>Your old email will be stored for reference</Text>
+                  
+                  <View style={styles.passwordActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setIsEditingEmail(false);
+                        setNewEmail('');
+                        setEmailError(null);
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.savePasswordButton,
+                        (isSavingEmail || !newEmail.trim() || !isValidEmail(newEmail.trim())) && styles.savePasswordButtonDisabled
+                      ]}
+                      onPress={handleSaveEmail}
+                      disabled={isSavingEmail || !newEmail.trim() || !isValidEmail(newEmail.trim())}
+                    >
+                      {isSavingEmail ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={[
+                          styles.savePasswordButtonText,
+                          (!newEmail.trim() || !isValidEmail(newEmail.trim())) && styles.savePasswordButtonTextDisabled
+                        ]}>Save Email</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.fieldValue}>{email || 'Not set'}</Text>
+              )}
+            </View>
+
+            <View style={styles.fieldDivider} />
+
+            {/* Mobile Field */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.fieldHeader}>
+                <Text style={styles.fieldIcon}>📱</Text>
+                <Text style={styles.fieldLabel}>Phone Number</Text>
+              </View>
+              {isEditing ? (
+                <View>
+                  <TextInput
+                    style={[styles.fieldInput, mobile.length > 0 && mobile.length !== 10 && styles.fieldInputError]}
+                    value={mobile}
+                    onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, '').slice(0, 10))}
+                    placeholder="Enter 10 digit phone number"
+                    placeholderTextColor="#999"
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                  {mobile.length > 0 && mobile.length !== 10 && (
+                    <Text style={styles.errorText}>Phone number must be exactly 10 digits ({mobile.length}/10)</Text>
+                  )}
+                  {mobile.length === 10 && (
+                    <Text style={styles.successText}>✓ Valid phone number</Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.fieldValue}>{mobile || 'Not set'}</Text>
+              )}
+            </View>
+
+            <View style={styles.fieldDivider} />
+
+            {/* Password Section */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.fieldHeaderWithEdit}>
+                <View style={styles.fieldHeader}>
+                  <Text style={styles.fieldIcon}>🔒</Text>
+                  <Text style={styles.fieldLabel}>Password</Text>
+                </View>
+                {!isChangingPassword && !isSettingPassword && (
+                  <TouchableOpacity
+                    style={styles.editButtonInline}
+                    onPress={() => {
+                      if (isOAuthUser) {
+                        setIsSettingPassword(true);
+                      } else {
+                        setIsChangingPassword(true);
+                      }
+                    }}
+                  >
+                    <Text style={styles.editButtonInlineText}>
+                      {isOAuthUser ? 'Set Password' : 'Change'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {(isChangingPassword || isSettingPassword) ? (
+                <View>
+                  {/* API Error Message */}
+                  {apiError && (
+                    <View style={styles.apiErrorContainer}>
+                      <Text style={styles.apiErrorEmoji}>😅</Text>
+                      <View style={styles.apiErrorContent}>
+                        <Text style={styles.apiErrorTitle}>Oops!</Text>
+                        <Text style={styles.apiErrorMessage}>{apiError}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.apiErrorClose}
+                        onPress={() => setApiError(null)}
+                      >
+                        <Text style={styles.apiErrorCloseText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {/* Success Message */}
+                  {successMessage && (
+                    <View style={styles.successContainer}>
+                      <Text style={styles.successEmoji}>🎉</Text>
+                      <Text style={styles.successMessageText}>{successMessage}</Text>
+                    </View>
+                  )}
+                  
+                  {/* OAuth user info */}
+                  {isSettingPassword && (
+                    <View style={styles.oauthInfoContainer}>
+                      <Text style={styles.oauthInfoText}>
+                        You signed up with Google. Set a password to also login with email.
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* New Password */}
+                  <View style={styles.passwordInputWrapper}>
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        newPassword && newPassword.length < 6 && styles.fieldInputError
+                      ]}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder={isSettingPassword ? "Create password (min 6 characters)" : "New password (min 6 characters)"}
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                    />
+                    {newPassword && newPassword.length < 6 && (
+                      <Text style={styles.errorText}>Password must be at least 6 characters</Text>
+                    )}
+                  </View>
+                  
+                  {/* Confirm New Password */}
+                  <View style={[styles.passwordInputWrapper, { marginTop: 12 }]}>
+                    <TextInput
+                      style={[
+                        styles.fieldInput,
+                        confirmNewPassword && newPassword !== confirmNewPassword && styles.fieldInputError
+                      ]}
+                      value={confirmNewPassword}
+                      onChangeText={setConfirmNewPassword}
+                      placeholder="Confirm new password"
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                    />
+                    {confirmNewPassword && newPassword !== confirmNewPassword && (
+                      <Text style={styles.errorText}>Passwords do not match</Text>
+                    )}
+                    {confirmNewPassword && newPassword === confirmNewPassword && newPassword.length >= 6 && (
+                      <Text style={styles.successText}>✓ Passwords match</Text>
+                    )}
+                  </View>
+                  
+                  {/* Show/Hide Password Toggle */}
+                  <TouchableOpacity
+                    style={styles.showPasswordToggle}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Text style={styles.showPasswordText}>
+                      {showPassword ? '🙈 Hide passwords' : '👁️ Show passwords'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  {/* Password Action Buttons */}
+                  <View style={styles.passwordActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={resetPasswordForm}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.savePasswordButton, 
+                        (isSaving || !isPasswordFormValid()) && styles.savePasswordButtonDisabled
+                      ]}
+                      onPress={handleChangePassword}
+                      disabled={isSaving || !isPasswordFormValid()}
+                    >
+                      {isSaving ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={[
+                          styles.savePasswordButtonText,
+                          !isPasswordFormValid() && styles.savePasswordButtonTextDisabled
+                        ]}>Save Password</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={[styles.fieldValue, styles.passwordValue]}>
+                  {isOAuthUser ? 'Not set' : maskPassword(8)}
+                </Text>
+              )}
+              
+              {!isChangingPassword && !isSettingPassword && (
+                <Text style={styles.fieldHint}>
+                  {isOAuthUser 
+                    ? 'Signed in with Google. Set a password for email login.' 
+                    : 'Password is securely encrypted'}
+                </Text>
+              )}
+            </View>
+          </Animated.View>
+
+          {/* Version Info */}
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>SplitBill v1.0.0</Text>
+          </View>
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Profile Photo Section */}
           <Animated.View
             style={[
@@ -652,6 +1044,7 @@ export default function ProfileScreen() {
             <Text style={styles.versionText}>SplitBill v1.0.0</Text>
           </View>
         </ScrollView>
+        )}
       </LinearGradient>
     </View>
   );

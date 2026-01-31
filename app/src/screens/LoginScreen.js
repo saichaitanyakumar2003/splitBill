@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -21,6 +22,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 // Required for web browser auth to complete
 WebBrowser.maybeCompleteAuthSession();
@@ -42,6 +44,28 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
+  
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+  
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Brief delay to show refresh animation
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
   
   // Forgot password state
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -465,30 +489,35 @@ export default function LoginScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Logo */}
-            <Animated.View 
-              style={[
-                styles.logoContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ scale: logoScale }],
-                },
-              ]}
+          {isMobileWeb ? (
+            <WebPullToRefresh
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+              contentContainerStyle={styles.scrollContent}
+              scrollViewProps={{
+                showsVerticalScrollIndicator: false,
+                keyboardShouldPersistTaps: "handled",
+              }}
             >
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>
-                  <Text style={styles.logoS}>S</Text>
-                  <Text style={styles.logoB}>B</Text>
-                </Text>
-              </View>
-              <Text style={styles.appName}>SplitBill</Text>
-              <Text style={styles.tagline}>Split smart. Pay fair.</Text>
-            </Animated.View>
+              {/* Logo */}
+              <Animated.View 
+                style={[
+                  styles.logoContainer,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ scale: logoScale }],
+                  },
+                ]}
+              >
+                <View style={styles.logoCircle}>
+                  <Text style={styles.logoText}>
+                    <Text style={styles.logoS}>S</Text>
+                    <Text style={styles.logoB}>B</Text>
+                  </Text>
+                </View>
+                <Text style={styles.appName}>SplitBill</Text>
+                <Text style={styles.tagline}>Split smart. Pay fair.</Text>
+              </Animated.View>
 
             {/* Login/Signup Card */}
             <Animated.View 
@@ -796,7 +825,339 @@ export default function LoginScreen() {
             </Animated.View>
 
 
-          </ScrollView>
+            </WebPullToRefresh>
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Logo */}
+              <Animated.View 
+                style={[
+                  styles.logoContainer,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ scale: logoScale }],
+                  },
+                ]}
+              >
+                <View style={styles.logoCircle}>
+                  <Text style={styles.logoText}>
+                    <Text style={styles.logoS}>S</Text>
+                    <Text style={styles.logoB}>B</Text>
+                  </Text>
+                </View>
+                <Text style={styles.appName}>SplitBill</Text>
+                <Text style={styles.tagline}>Split smart. Pay fair.</Text>
+              </Animated.View>
+
+              {/* Login/Signup Card */}
+              <Animated.View 
+                style={[
+                  styles.card,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  },
+                ]}
+              >
+                {/* Tab Toggle */}
+                <View style={[styles.tabContainer, (isLoading || isGoogleLoading || isSendingReset) && styles.tabContainerDisabled]}>
+                  <Pressable
+                    style={[styles.tab, isLogin && styles.activeTab]}
+                    onPress={() => { 
+                      if (isLoading || isGoogleLoading || isSendingReset) return;
+                      setIsLogin(true); 
+                      setApiError(null);
+                      setEmail('');
+                      setPassword('');
+                      setName('');
+                      setConfirmPassword('');
+                      setShowPassword(false);
+                      setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
+                    }}
+                    disabled={isLoading || isGoogleLoading || isSendingReset}
+                  >
+                    <Text style={[styles.tabText, isLogin && styles.activeTabText]}>Login</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.tab, !isLogin && styles.activeTab]}
+                    onPress={() => { 
+                      if (isLoading || isGoogleLoading || isSendingReset) return;
+                      setIsLogin(false); 
+                      setApiError(null);
+                      setEmail('');
+                      setPassword('');
+                      setName('');
+                      setConfirmPassword('');
+                      setShowPassword(false);
+                      setTouchedFields({ name: false, email: false, password: false, confirmPassword: false });
+                    }}
+                    disabled={isLoading || isGoogleLoading || isSendingReset}
+                  >
+                    <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>Sign Up</Text>
+                  </Pressable>
+                </View>
+
+                {/* Required Fields Note (Sign Up only) */}
+                {!isLogin && (
+                  <View style={styles.requiredNote}>
+                    <Text style={styles.requiredNoteText}>
+                      <Text style={styles.requiredAsterisk}>*</Text> indicates required fields
+                    </Text>
+                  </View>
+                )}
+
+                {/* Error Message */}
+                {apiError && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorEmoji}>😔</Text>
+                    <View style={styles.errorContent}>
+                      <Text style={styles.errorTitle}>Oops!</Text>
+                      <Text style={styles.errorMessage}>{apiError}</Text>
+                    </View>
+                    <Pressable 
+                      style={styles.errorClose}
+                      onPress={() => setApiError(null)}
+                    >
+                      <Text style={styles.errorCloseText}>✕</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                {/* Name Input (Sign Up only) */}
+                {!isLogin && (
+                  <View>
+                    <View style={[
+                      styles.inputContainer,
+                      touchedFields.name && !isNameValid() && styles.inputContainerError
+                    ]}>
+                      <Text style={styles.inputIcon}>👤</Text>
+                      <TextInput
+                        ref={nameInputRef}
+                        style={styles.input}
+                        placeholder="Full Name *"
+                        placeholderTextColor="#999"
+                        value={name}
+                        onChangeText={(text) => {
+                          setName(text);
+                          if (apiError) setApiError(null);
+                        }}
+                        onBlur={() => handleFieldBlur('name')}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        returnKeyType="next"
+                        onSubmitEditing={() => emailInputRef.current?.focus()}
+                      />
+                      {name && name.trim().length > 0 && (
+                        <Text style={styles.matchIcon}>✓</Text>
+                      )}
+                    </View>
+                    {touchedFields.name && !isNameValid() && (
+                      <Text style={styles.validationError}>Full name is required</Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Email Input */}
+                <View>
+                  <View style={[
+                    styles.inputContainer, 
+                    touchedFields.email && !isEmailValid() && styles.inputContainerError,
+                    touchedFields.email && isEmailValid() && styles.inputContainerSuccess
+                  ]}>
+                    <Text style={styles.inputIcon}>📧</Text>
+                    <TextInput
+                      ref={emailInputRef}
+                      style={styles.input}
+                      placeholder={isLogin ? "Email address" : "Email address *"}
+                      placeholderTextColor="#999"
+                      value={email}
+                      onChangeText={handleEmailChange}
+                      onBlur={() => handleFieldBlur('email')}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      onSubmitEditing={() => passwordInputRef.current?.focus()}
+                    />
+                    {email && isEmailValid() && (
+                      <Text style={styles.matchIcon}>✓</Text>
+                    )}
+                  </View>
+                  {touchedFields.email && !email && !isLogin && (
+                    <Text style={styles.validationError}>Email is required</Text>
+                  )}
+                  {touchedFields.email && email && !isEmailValid() && (
+                    <Text style={styles.validationError}>Please enter a valid email address</Text>
+                  )}
+                </View>
+
+                {/* Password Input */}
+                <View>
+                  <View style={[
+                    styles.inputContainer, 
+                    touchedFields.password && !isLogin && !isPasswordValid() && styles.inputContainerError,
+                    touchedFields.password && !isLogin && isPasswordValid() && styles.inputContainerSuccess
+                  ]}>
+                    <Text style={styles.inputIcon}>🔒</Text>
+                    <TextInput
+                      ref={passwordInputRef}
+                      style={styles.input}
+                      placeholder={isLogin ? "Password" : "Password (min 6 characters) *"}
+                      placeholderTextColor="#999"
+                      value={password}
+                      onChangeText={handlePasswordChange}
+                      onBlur={() => handleFieldBlur('password')}
+                      secureTextEntry={!showPassword}
+                      returnKeyType={isLogin ? "done" : "next"}
+                      onSubmitEditing={isLogin ? handleEmailLogin : () => confirmPasswordInputRef.current?.focus()}
+                    />
+                    <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                      <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                    </Pressable>
+                    {!isLogin && password && password.length >= 6 && (
+                      <Text style={styles.matchIcon}>✓</Text>
+                    )}
+                  </View>
+                  {!isLogin && touchedFields.password && !password && (
+                    <Text style={styles.validationError}>Password is required</Text>
+                  )}
+                  {!isLogin && password && password.length > 0 && password.length < 6 && (
+                    <Text style={styles.validationError}>Password must be at least 6 characters</Text>
+                  )}
+                </View>
+
+                {/* Confirm Password (Sign Up only) */}
+                {!isLogin && (
+                  <View>
+                    <View style={[
+                      styles.inputContainer,
+                      touchedFields.confirmPassword && !confirmPassword && styles.inputContainerError,
+                      confirmPassword && password !== confirmPassword && styles.inputContainerError,
+                      confirmPassword && password === confirmPassword && password.length >= 6 && styles.inputContainerSuccess
+                    ]}>
+                      <Text style={styles.inputIcon}>🔒</Text>
+                      <TextInput
+                        ref={confirmPasswordInputRef}
+                        style={styles.input}
+                        placeholder="Confirm Password *"
+                        placeholderTextColor="#999"
+                        value={confirmPassword}
+                        onChangeText={(text) => {
+                          setConfirmPassword(text);
+                          if (apiError) setApiError(null);
+                        }}
+                        onBlur={() => handleFieldBlur('confirmPassword')}
+                        secureTextEntry={!showPassword}
+                        returnKeyType="done"
+                        onSubmitEditing={handleEmailLogin}
+                      />
+                      {confirmPassword && password === confirmPassword && password.length >= 6 && (
+                        <Text style={styles.matchIcon}>✓</Text>
+                      )}
+                    </View>
+                    {touchedFields.confirmPassword && !confirmPassword && (
+                      <Text style={styles.validationError}>Please confirm your password</Text>
+                    )}
+                    {confirmPassword && password !== confirmPassword && (
+                      <Text style={styles.validationError}>Passwords do not match</Text>
+                    )}
+                    {confirmPassword && password === confirmPassword && password.length >= 6 && (
+                      <Text style={styles.validationSuccess}>✓ Passwords match</Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Login/Signup Button */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    pressed && !isLoading && !isGoogleLoading && !isSendingReset && styles.primaryButtonPressed,
+                    (isLoading || isGoogleLoading || isSendingReset) && styles.buttonDisabled,
+                  ]}
+                  onPress={handleEmailLogin}
+                  disabled={isLoading || isGoogleLoading || isSendingReset}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {isLoading ? 'Please wait...' : (isLogin ? 'Login' : 'Create Account')}
+                  </Text>
+                </Pressable>
+
+                {/* Forgot Password Link - Only show on Login */}
+                {isLogin && (
+                  <Pressable
+                    style={styles.forgotPasswordLink}
+                    onPress={handleForgotPassword}
+                    disabled={isLoading || isGoogleLoading || isSendingReset}
+                  >
+                    {isSendingReset ? (
+                      <View style={styles.forgotPasswordLoading}>
+                        <ActivityIndicator size="small" color="#FF6B35" />
+                        <Text style={styles.forgotPasswordText}>Sending...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                    )}
+                  </Pressable>
+                )}
+
+                {/* Divider */}
+                {/* Google SSO - Web only */}
+                {Platform.OS === 'web' && (
+                  <>
+                    <View style={styles.divider}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.dividerText}>or continue with</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.googleSSOButton,
+                        pressed && !isLoading && !isGoogleLoading && !isSendingReset && styles.googleSSOButtonPressed,
+                        (isGoogleLoading || isLoading || isSendingReset) && styles.googleSSOButtonDisabled,
+                      ]}
+                      onPress={handleGoogleLogin}
+                      disabled={isGoogleLoading || isLoading || isSendingReset || !request}
+                    >
+                      {isGoogleLoading ? (
+                        <>
+                          <ActivityIndicator size="small" color="#4285F4" style={{ marginRight: 10 }} />
+                          <Text style={styles.googleSSOText}>Connecting to Google...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <View style={styles.googleLogoWrap}>
+                            <Svg width={20} height={20} viewBox="0 0 48 48">
+                              <Path
+                                fill="#EA4335"
+                                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                              />
+                              <Path
+                                fill="#4285F4"
+                                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                              />
+                              <Path
+                                fill="#FBBC05"
+                                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                              />
+                              <Path
+                                fill="#34A853"
+                                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                              />
+                            </Svg>
+                          </View>
+                          <Text style={styles.googleSSOText}>{isLogin ? 'Login with Google SSO' : 'Sign up with Google SSO'}</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </>
+                )}
+              </Animated.View>
+            </ScrollView>
+          )}
         </KeyboardAvoidingView>
       </LinearGradient>
 
@@ -861,6 +1222,7 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+    minHeight: '100%',
   },
   // Splash Screen Styles
   splashOverlay: {
@@ -902,9 +1264,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
-    paddingBottom: Platform.OS === 'web' ? 60 : 30,
+    paddingBottom: Platform.OS === 'web' ? 80 : 30,
     justifyContent: 'center',
     alignItems: 'center',
+    // Ensure background color matches gradient end for mobile web scrolling
+    ...(Platform.OS === 'web' && {
+      backgroundColor: '#E64A19',
+      minHeight: '100%',
+    }),
   },
   logoContainer: {
     alignItems: 'center',

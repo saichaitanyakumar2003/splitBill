@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   Platform,
   Modal,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { authPost, reportNetworkError } from '../utils/apiHelper';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function GroupPreviewScreen() {
   const navigation = useNavigation();
@@ -40,6 +42,27 @@ export default function GroupPreviewScreen() {
   const [activeExpenseIndex, setActiveExpenseIndex] = useState(null);
   const [memberAmounts, setMemberAmounts] = useState({});
   const [splitError, setSplitError] = useState(null);
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   // Initialize expenses with equal split
   useEffect(() => {
@@ -228,30 +251,61 @@ export default function GroupPreviewScreen() {
             <View style={styles.expensesSection}>
               <Text style={styles.sectionTitle}>Expenses ({expenses.length})</Text>
               
-              <ScrollView 
-                style={styles.expensesScroll}
-                contentContainerStyle={styles.expensesScrollContent}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
-                {expenses.map((expense, index) => (
-                  <View key={index} style={styles.expenseRow}>
-                    <View style={styles.expenseTopRow}>
-                      <Text style={styles.expenseTitle} numberOfLines={1}>{expense.title}</Text>
-                      <Text style={styles.expenseAmount}>₹{expense.totalAmount.toFixed(2)}</Text>
+              {isMobileWeb ? (
+                <WebPullToRefresh
+                  onRefresh={handleRefresh}
+                  refreshing={refreshing}
+                  style={styles.expensesScroll}
+                  contentContainerStyle={styles.expensesScrollContent}
+                  scrollViewProps={{
+                    showsVerticalScrollIndicator: true,
+                    nestedScrollEnabled: true,
+                  }}
+                >
+                  {expenses.map((expense, index) => (
+                    <View key={index} style={styles.expenseRow}>
+                      <View style={styles.expenseTopRow}>
+                        <Text style={styles.expenseTitle} numberOfLines={1}>{expense.title}</Text>
+                        <Text style={styles.expenseAmount}>₹{expense.totalAmount.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.expenseBottomRow}>
+                        <Text style={styles.expensePaidBy} numberOfLines={1}>Paid by: {expense.paidByName}</Text>
+                        <TouchableOpacity 
+                          style={styles.viewMembersLink}
+                          onPress={() => openMemberModal(index)}
+                        >
+                          <Text style={styles.viewMembersText}>View expense</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.expenseBottomRow}>
-                      <Text style={styles.expensePaidBy} numberOfLines={1}>Paid by: {expense.paidByName}</Text>
-                      <TouchableOpacity 
-                        style={styles.viewMembersLink}
-                        onPress={() => openMemberModal(index)}
-                      >
-                        <Text style={styles.viewMembersText}>View expense</Text>
-                      </TouchableOpacity>
+                  ))}
+                </WebPullToRefresh>
+              ) : (
+                <ScrollView 
+                  style={styles.expensesScroll}
+                  contentContainerStyle={styles.expensesScrollContent}
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                >
+                  {expenses.map((expense, index) => (
+                    <View key={index} style={styles.expenseRow}>
+                      <View style={styles.expenseTopRow}>
+                        <Text style={styles.expenseTitle} numberOfLines={1}>{expense.title}</Text>
+                        <Text style={styles.expenseAmount}>₹{expense.totalAmount.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.expenseBottomRow}>
+                        <Text style={styles.expensePaidBy} numberOfLines={1}>Paid by: {expense.paidByName}</Text>
+                        <TouchableOpacity 
+                          style={styles.viewMembersLink}
+                          onPress={() => openMemberModal(index)}
+                        >
+                          <Text style={styles.viewMembersText}>View expense</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </ScrollView>
+                  ))}
+                </ScrollView>
+              )}
             </View>
 
             {/* Error */}

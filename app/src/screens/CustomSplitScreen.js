@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { theme } from '../theme';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function CustomSplitScreen({ navigation }) {
   const [billName, setBillName] = useState('');
@@ -21,6 +23,27 @@ export default function CustomSplitScreen({ navigation }) {
   ]);
   const [tax, setTax] = useState('');
   const [tip, setTip] = useState('');
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   const addItem = () => {
     if (Platform.OS !== 'web') {
@@ -110,123 +133,247 @@ export default function CustomSplitScreen({ navigation }) {
           <View style={styles.backButton} />
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Bill Name */}
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Bill Name (optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Dinner at Joe's"
-              placeholderTextColor={theme.colors.cardTextSecondary}
-              value={billName}
-              onChangeText={setBillName}
-            />
-          </View>
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            contentContainerStyle={styles.scrollContent}
+            scrollViewProps={{
+              style: styles.scrollView,
+              keyboardShouldPersistTaps: "handled",
+              showsVerticalScrollIndicator: false,
+            }}
+          >
+            {/* Bill Name */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Bill Name (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., Dinner at Joe's"
+                placeholderTextColor={theme.colors.cardTextSecondary}
+                value={billName}
+                onChangeText={setBillName}
+              />
+            </View>
 
-          {/* Items */}
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Items</Text>
-            
-            {items.map((item, index) => (
-              <View key={item.id} style={styles.itemRow}>
-                <TextInput
-                  style={[styles.input, styles.itemNameInput]}
-                  placeholder={`Item ${index + 1}`}
-                  placeholderTextColor={theme.colors.cardTextSecondary}
-                  value={item.name}
-                  onChangeText={(text) => updateItem(item.id, 'name', text)}
-                />
-                <View style={styles.priceInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
+            {/* Items */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Items</Text>
+              
+              {items.map((item, index) => (
+                <View key={item.id} style={styles.itemRow}>
                   <TextInput
-                    style={[styles.input, styles.priceInput]}
-                    placeholder="0.00"
+                    style={[styles.input, styles.itemNameInput]}
+                    placeholder={`Item ${index + 1}`}
                     placeholderTextColor={theme.colors.cardTextSecondary}
-                    keyboardType="decimal-pad"
-                    value={item.price}
-                    onChangeText={(text) => updateItem(item.id, 'price', text)}
+                    value={item.name}
+                    onChangeText={(text) => updateItem(item.id, 'name', text)}
                   />
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceInput]}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.cardTextSecondary}
+                      keyboardType="decimal-pad"
+                      value={item.price}
+                      onChangeText={(text) => updateItem(item.id, 'price', text)}
+                    />
+                  </View>
+                  {items.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => removeItem(item.id)}
+                    >
+                      <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                    </TouchableOpacity>
+                  )}
                 </View>
-                {items.length > 1 && (
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => removeItem(item.id)}
-                  >
-                    <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
+              ))}
 
-            <TouchableOpacity style={styles.addItemButton} onPress={addItem}>
-              <Ionicons name="add-circle" size={22} color={theme.colors.background} />
-              <Text style={styles.addItemText}>Add Item</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity style={styles.addItemButton} onPress={addItem}>
+                <Ionicons name="add-circle" size={22} color={theme.colors.background} />
+                <Text style={styles.addItemText}>Add Item</Text>
+              </TouchableOpacity>
+            </View>
 
-          {/* Tax & Tip */}
-          <View style={styles.card}>
-            <View style={styles.taxTipRow}>
-              <View style={styles.taxTipField}>
-                <Text style={styles.cardLabel}>Tax</Text>
-                <View style={styles.priceInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
-                  <TextInput
-                    style={[styles.input, styles.priceInput, styles.fullWidth]}
-                    placeholder="0.00"
-                    placeholderTextColor={theme.colors.cardTextSecondary}
-                    keyboardType="decimal-pad"
-                    value={tax}
-                    onChangeText={setTax}
-                  />
+            {/* Tax & Tip */}
+            <View style={styles.card}>
+              <View style={styles.taxTipRow}>
+                <View style={styles.taxTipField}>
+                  <Text style={styles.cardLabel}>Tax</Text>
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceInput, styles.fullWidth]}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.cardTextSecondary}
+                      keyboardType="decimal-pad"
+                      value={tax}
+                      onChangeText={setTax}
+                    />
+                  </View>
                 </View>
-              </View>
-              <View style={styles.taxTipField}>
-                <Text style={styles.cardLabel}>Tip</Text>
-                <View style={styles.priceInputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
-                  <TextInput
-                    style={[styles.input, styles.priceInput, styles.fullWidth]}
-                    placeholder="0.00"
-                    placeholderTextColor={theme.colors.cardTextSecondary}
-                    keyboardType="decimal-pad"
-                    value={tip}
-                    onChangeText={setTip}
-                  />
+                <View style={styles.taxTipField}>
+                  <Text style={styles.cardLabel}>Tip</Text>
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceInput, styles.fullWidth]}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.cardTextSecondary}
+                      keyboardType="decimal-pad"
+                      value={tip}
+                      onChangeText={setTip}
+                    />
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          {/* Summary */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>${calculateSubtotal().toFixed(2)}</Text>
-            </View>
-            {(parseFloat(tax) > 0) && (
+            {/* Summary */}
+            <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Tax</Text>
-                <Text style={styles.summaryValue}>${parseFloat(tax).toFixed(2)}</Text>
+                <Text style={styles.summaryLabel}>Subtotal</Text>
+                <Text style={styles.summaryValue}>${calculateSubtotal().toFixed(2)}</Text>
               </View>
-            )}
-            {(parseFloat(tip) > 0) && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Tip</Text>
-                <Text style={styles.summaryValue}>${parseFloat(tip).toFixed(2)}</Text>
+              {(parseFloat(tax) > 0) && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tax</Text>
+                  <Text style={styles.summaryValue}>${parseFloat(tax).toFixed(2)}</Text>
+                </View>
+              )}
+              {(parseFloat(tip) > 0) && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tip</Text>
+                  <Text style={styles.summaryValue}>${parseFloat(tip).toFixed(2)}</Text>
+                </View>
+              )}
+              <View style={[styles.summaryRow, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>${calculateTotal().toFixed(2)}</Text>
               </View>
-            )}
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${calculateTotal().toFixed(2)}</Text>
             </View>
-          </View>
-        </ScrollView>
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Bill Name */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Bill Name (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., Dinner at Joe's"
+                placeholderTextColor={theme.colors.cardTextSecondary}
+                value={billName}
+                onChangeText={setBillName}
+              />
+            </View>
+
+            {/* Items */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Items</Text>
+              
+              {items.map((item, index) => (
+                <View key={item.id} style={styles.itemRow}>
+                  <TextInput
+                    style={[styles.input, styles.itemNameInput]}
+                    placeholder={`Item ${index + 1}`}
+                    placeholderTextColor={theme.colors.cardTextSecondary}
+                    value={item.name}
+                    onChangeText={(text) => updateItem(item.id, 'name', text)}
+                  />
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceInput]}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.cardTextSecondary}
+                      keyboardType="decimal-pad"
+                      value={item.price}
+                      onChangeText={(text) => updateItem(item.id, 'price', text)}
+                    />
+                  </View>
+                  {items.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => removeItem(item.id)}
+                    >
+                      <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+
+              <TouchableOpacity style={styles.addItemButton} onPress={addItem}>
+                <Ionicons name="add-circle" size={22} color={theme.colors.background} />
+                <Text style={styles.addItemText}>Add Item</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Tax & Tip */}
+            <View style={styles.card}>
+              <View style={styles.taxTipRow}>
+                <View style={styles.taxTipField}>
+                  <Text style={styles.cardLabel}>Tax</Text>
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceInput, styles.fullWidth]}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.cardTextSecondary}
+                      keyboardType="decimal-pad"
+                      value={tax}
+                      onChangeText={setTax}
+                    />
+                  </View>
+                </View>
+                <View style={styles.taxTipField}>
+                  <Text style={styles.cardLabel}>Tip</Text>
+                  <View style={styles.priceInputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceInput, styles.fullWidth]}
+                      placeholder="0.00"
+                      placeholderTextColor={theme.colors.cardTextSecondary}
+                      keyboardType="decimal-pad"
+                      value={tip}
+                      onChangeText={setTip}
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Summary */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal</Text>
+                <Text style={styles.summaryValue}>${calculateSubtotal().toFixed(2)}</Text>
+              </View>
+              {(parseFloat(tax) > 0) && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tax</Text>
+                  <Text style={styles.summaryValue}>${parseFloat(tax).toFixed(2)}</Text>
+                </View>
+              )}
+              {(parseFloat(tip) > 0) && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tip</Text>
+                  <Text style={styles.summaryValue}>${parseFloat(tip).toFixed(2)}</Text>
+                </View>
+              )}
+              <View style={[styles.summaryRow, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>${calculateTotal().toFixed(2)}</Text>
+              </View>
+            </View>
+          </ScrollView>
+        )}
 
         {/* Continue Button */}
         <View style={styles.bottomBar}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { theme } from '../theme';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const AVATAR_COLORS = [
   '#FF6B35', '#4FFFB0', '#FFD93D', '#6B5BFF', '#FF8C42', '#00D9FF',
@@ -30,6 +32,27 @@ export default function BillDetailScreen({ route, navigation }) {
   const [bill, setBill] = useState(initialBill);
   const [selectedItems, setSelectedItems] = useState({});
   const [members] = useState(DEMO_MEMBERS);
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   useEffect(() => {
     if (bill?.items) {
@@ -144,106 +167,213 @@ export default function BillDetailScreen({ route, navigation }) {
         <View style={styles.backButton} />
       </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Bill Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.billName}>{bill.name}</Text>
-          <Text style={styles.billTotal}>${bill.total?.toFixed(2)}</Text>
-          <Text style={styles.summaryLabel}>
-            {bill.items?.length || 0} items • {getAssignedCount()} assigned
-          </Text>
-        </View>
+      {isMobileWeb ? (
+        <WebPullToRefresh
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+          contentContainerStyle={styles.scrollContent}
+          scrollViewProps={{
+            style: styles.scrollView,
+            showsVerticalScrollIndicator: false,
+          }}
+        >
+          {/* Bill Summary */}
+          <View style={styles.summaryCard}>
+            <Text style={styles.billName}>{bill.name}</Text>
+            <Text style={styles.billTotal}>${bill.total?.toFixed(2)}</Text>
+            <Text style={styles.summaryLabel}>
+              {bill.items?.length || 0} items • {getAssignedCount()} assigned
+            </Text>
+          </View>
 
-        {/* Members Legend */}
-        <View style={styles.membersLegend}>
-          <Text style={styles.legendTitle}>Tap to assign people</Text>
-          <View style={styles.membersRow}>
-            {members.map((member, idx) => (
-              <View key={member.id} style={styles.memberChip}>
-                <View
-                  style={[styles.memberDot, { backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length] }]}
-                />
-                <Text style={styles.memberChipText}>{member.name}</Text>
+          {/* Members Legend */}
+          <View style={styles.membersLegend}>
+            <Text style={styles.legendTitle}>Tap to assign people</Text>
+            <View style={styles.membersRow}>
+              {members.map((member, idx) => (
+                <View key={member.id} style={styles.memberChip}>
+                  <View
+                    style={[styles.memberDot, { backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length] }]}
+                  />
+                  <Text style={styles.memberChipText}>{member.name}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Items List */}
+          <View style={styles.itemsSection}>
+            {bill.items?.map((item, index) => (
+              <View key={item.id || index} style={styles.itemCard}>
+                <View style={styles.itemHeader}>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemPrice}>
+                      ${item.totalPrice?.toFixed(2) || item.price?.toFixed(2)}
+                    </Text>
+                  </View>
+                  {isItemAssigned(item.id) && (
+                    <View style={styles.checkBadge}>
+                      <Ionicons name="checkmark" size={14} color={theme.colors.cardBg} />
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.assignRow}>
+                  {members.map((member, idx) => {
+                    const isSelected = (selectedItems[item.id] || []).includes(member.id);
+                    return (
+                      <TouchableOpacity
+                        key={member.id}
+                        style={[
+                          styles.assignAvatar,
+                          isSelected && { 
+                            backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+                            borderColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+                          },
+                        ]}
+                        onPress={() => togglePersonForItem(item.id, member.id)}
+                      >
+                        <Text style={[
+                          styles.assignAvatarText,
+                          isSelected && styles.assignAvatarTextSelected,
+                        ]}>
+                          {getInitials(member.name)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             ))}
           </View>
-        </View>
 
-        {/* Items List */}
-        <View style={styles.itemsSection}>
-          {bill.items?.map((item, index) => (
-            <View key={item.id || index} style={styles.itemCard}>
-              <View style={styles.itemHeader}>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemPrice}>
-                    ${item.totalPrice?.toFixed(2) || item.price?.toFixed(2)}
-                  </Text>
+          {/* Totals */}
+          <View style={styles.totalsCard}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal</Text>
+              <Text style={styles.totalValue}>${bill.subtotal?.toFixed(2) || '0.00'}</Text>
+            </View>
+            {bill.tax > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Tax</Text>
+                <Text style={styles.totalValue}>${bill.tax?.toFixed(2)}</Text>
+              </View>
+            )}
+            {bill.tip > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Tip</Text>
+                <Text style={styles.totalValue}>${bill.tip?.toFixed(2)}</Text>
+              </View>
+            )}
+            <View style={[styles.totalRow, styles.grandTotalRow]}>
+              <Text style={styles.grandTotalLabel}>Total</Text>
+              <Text style={styles.grandTotalValue}>${bill.total?.toFixed(2) || '0.00'}</Text>
+            </View>
+          </View>
+        </WebPullToRefresh>
+      ) : (
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Bill Summary */}
+          <View style={styles.summaryCard}>
+            <Text style={styles.billName}>{bill.name}</Text>
+            <Text style={styles.billTotal}>${bill.total?.toFixed(2)}</Text>
+            <Text style={styles.summaryLabel}>
+              {bill.items?.length || 0} items • {getAssignedCount()} assigned
+            </Text>
+          </View>
+
+          {/* Members Legend */}
+          <View style={styles.membersLegend}>
+            <Text style={styles.legendTitle}>Tap to assign people</Text>
+            <View style={styles.membersRow}>
+              {members.map((member, idx) => (
+                <View key={member.id} style={styles.memberChip}>
+                  <View
+                    style={[styles.memberDot, { backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length] }]}
+                  />
+                  <Text style={styles.memberChipText}>{member.name}</Text>
                 </View>
-                {isItemAssigned(item.id) && (
-                  <View style={styles.checkBadge}>
-                    <Ionicons name="checkmark" size={14} color={theme.colors.cardBg} />
-                  </View>
-                )}
-              </View>
-              
-              <View style={styles.assignRow}>
-                {members.map((member, idx) => {
-                  const isSelected = (selectedItems[item.id] || []).includes(member.id);
-                  return (
-                    <TouchableOpacity
-                      key={member.id}
-                      style={[
-                        styles.assignAvatar,
-                        isSelected && { 
-                          backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
-                          borderColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
-                        },
-                      ]}
-                      onPress={() => togglePersonForItem(item.id, member.id)}
-                    >
-                      <Text style={[
-                        styles.assignAvatarText,
-                        isSelected && styles.assignAvatarTextSelected,
-                      ]}>
-                        {getInitials(member.name)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              ))}
             </View>
-          ))}
-        </View>
+          </View>
 
-        {/* Totals */}
-        <View style={styles.totalsCard}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>${bill.subtotal?.toFixed(2) || '0.00'}</Text>
+          {/* Items List */}
+          <View style={styles.itemsSection}>
+            {bill.items?.map((item, index) => (
+              <View key={item.id || index} style={styles.itemCard}>
+                <View style={styles.itemHeader}>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemPrice}>
+                      ${item.totalPrice?.toFixed(2) || item.price?.toFixed(2)}
+                    </Text>
+                  </View>
+                  {isItemAssigned(item.id) && (
+                    <View style={styles.checkBadge}>
+                      <Ionicons name="checkmark" size={14} color={theme.colors.cardBg} />
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.assignRow}>
+                  {members.map((member, idx) => {
+                    const isSelected = (selectedItems[item.id] || []).includes(member.id);
+                    return (
+                      <TouchableOpacity
+                        key={member.id}
+                        style={[
+                          styles.assignAvatar,
+                          isSelected && { 
+                            backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+                            borderColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+                          },
+                        ]}
+                        onPress={() => togglePersonForItem(item.id, member.id)}
+                      >
+                        <Text style={[
+                          styles.assignAvatarText,
+                          isSelected && styles.assignAvatarTextSelected,
+                        ]}>
+                          {getInitials(member.name)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
           </View>
-          {bill.tax > 0 && (
+
+          {/* Totals */}
+          <View style={styles.totalsCard}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Tax</Text>
-              <Text style={styles.totalValue}>${bill.tax?.toFixed(2)}</Text>
+              <Text style={styles.totalLabel}>Subtotal</Text>
+              <Text style={styles.totalValue}>${bill.subtotal?.toFixed(2) || '0.00'}</Text>
             </View>
-          )}
-          {bill.tip > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Tip</Text>
-              <Text style={styles.totalValue}>${bill.tip?.toFixed(2)}</Text>
+            {bill.tax > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Tax</Text>
+                <Text style={styles.totalValue}>${bill.tax?.toFixed(2)}</Text>
+              </View>
+            )}
+            {bill.tip > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Tip</Text>
+                <Text style={styles.totalValue}>${bill.tip?.toFixed(2)}</Text>
+              </View>
+            )}
+            <View style={[styles.totalRow, styles.grandTotalRow]}>
+              <Text style={styles.grandTotalLabel}>Total</Text>
+              <Text style={styles.grandTotalValue}>${bill.total?.toFixed(2) || '0.00'}</Text>
             </View>
-          )}
-          <View style={[styles.totalRow, styles.grandTotalRow]}>
-            <Text style={styles.grandTotalLabel}>Total</Text>
-            <Text style={styles.grandTotalValue}>${bill.total?.toFixed(2) || '0.00'}</Text>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {/* Bottom Action */}
       <View style={styles.bottomAction}>

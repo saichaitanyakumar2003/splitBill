@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,13 @@ import {
   Animated,
   Share,
   Easing,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 const ANIMATION_DURATION = 4000; // Animation stops after 4 seconds
 
@@ -292,6 +294,27 @@ export default function SplitSummaryScreen() {
   
   const { groupName, consolidatedExpenses = [], groupId, expenses = [] } = route.params || {};
   
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
+  
   // Animation for success checkmark
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -384,6 +407,136 @@ export default function SplitSummaryScreen() {
     return null;
   }
 
+  // Scroll content to be shared between WebPullToRefresh and ScrollView
+  const scrollContent = (
+    <>
+      {/* Success Icon */}
+      <Animated.View style={[styles.successIcon, { transform: [{ scale: scaleAnim }] }]}>
+        <Text style={styles.successEmoji}>🎉</Text>
+      </Animated.View>
+
+      <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>
+        Split Created!
+      </Animated.Text>
+
+      <Animated.Text style={[styles.groupName, { opacity: fadeAnim }]} numberOfLines={1}>
+        {groupName}
+      </Animated.Text>
+
+      {/* Summary Card */}
+      <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
+        {/* Action Icons - Top Right */}
+        <View style={styles.cardActions}>
+          <TouchableOpacity 
+            style={[styles.cardActionIcon, copied && styles.cardActionIconCopied]} 
+            onPress={handleCopy}
+          >
+            {copied ? (
+              <Text style={styles.copiedText}>Copied!</Text>
+            ) : (
+              <View style={styles.copyIcon}>
+                <View style={styles.copyRect} />
+                <View style={styles.copyRectBack} />
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.cardActionIcon} onPress={handleShare}>
+            <View style={styles.shareIconContainer}>
+              {/* Arrow pointing up */}
+              <View style={styles.shareArrow} />
+              <View style={styles.shareArrowHead} />
+              {/* Box base */}
+              <View style={styles.shareBox} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {!showSettlements ? (
+          <>
+            <Text style={styles.cardTitle}>Expenses Added ({expenses.length})</Text>
+            
+            {expenses.length > 0 ? (
+              <ScrollView 
+                style={styles.expensesScrollView}
+                contentContainerStyle={styles.expensesScrollContent}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {expenses.map((exp, index) => (
+                  <View key={index} style={styles.addedExpenseRow}>
+                    <View style={styles.addedExpenseInfo}>
+                      <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
+                      <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
+                        Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.settledContainer}>
+                <Text style={styles.settledEmoji}>📝</Text>
+                <Text style={styles.settledText}>No expenses added</Text>
+              </View>
+            )}
+
+            {/* Link to view settlements */}
+            <TouchableOpacity 
+              style={styles.viewSettlementsLink}
+              onPress={() => setShowSettlements(true)}
+            >
+              <Text style={styles.viewSettlementsText}>View Final Settlements →</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.cardTitle}>Who Owes Whom</Text>
+            
+            {consolidatedExpenses.length > 0 ? (
+              <ScrollView 
+                style={styles.expensesScrollView}
+                contentContainerStyle={styles.expensesScrollContent}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {consolidatedExpenses.map((exp, index) => (
+                  <View key={index} style={styles.expenseRow}>
+                    <View style={styles.expenseNames}>
+                      <Text style={styles.fromName} numberOfLines={1}>{exp.fromName}</Text>
+                      <Text style={styles.arrow}>→</Text>
+                      <Text style={styles.toName} numberOfLines={1}>{exp.toName}</Text>
+                    </View>
+                    <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.settledContainer}>
+                <Text style={styles.settledEmoji}>✅</Text>
+                <Text style={styles.settledText}>Everyone is settled up!</Text>
+              </View>
+            )}
+
+            {/* Link to go back to expenses */}
+            <TouchableOpacity 
+              style={styles.viewSettlementsLink}
+              onPress={() => setShowSettlements(false)}
+            >
+              <Text style={styles.viewSettlementsText}>← View Expenses Added</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </Animated.View>
+
+      {/* Go to Home Button */}
+      <TouchableOpacity style={styles.homeButton} onPress={handleGoHome}>
+        <Text style={styles.homeButtonText}>Go to Home Page</Text>
+      </TouchableOpacity>
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -396,136 +549,27 @@ export default function SplitSummaryScreen() {
         {/* Party Animations - Balloons and Bombs */}
         <PartyAnimations isAnimating={isAnimating} />
 
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Success Icon */}
-          <Animated.View style={[styles.successIcon, { transform: [{ scale: scaleAnim }] }]}>
-            <Text style={styles.successEmoji}>🎉</Text>
-          </Animated.View>
-
-          <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>
-            Split Created!
-          </Animated.Text>
-
-          <Animated.Text style={[styles.groupName, { opacity: fadeAnim }]} numberOfLines={1}>
-            {groupName}
-          </Animated.Text>
-
-          {/* Summary Card */}
-          <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
-            {/* Action Icons - Top Right */}
-            <View style={styles.cardActions}>
-              <TouchableOpacity 
-                style={[styles.cardActionIcon, copied && styles.cardActionIconCopied]} 
-                onPress={handleCopy}
-              >
-                {copied ? (
-                  <Text style={styles.copiedText}>Copied!</Text>
-                ) : (
-                  <View style={styles.copyIcon}>
-                    <View style={styles.copyRect} />
-                    <View style={styles.copyRectBack} />
-                  </View>
-                )}
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.cardActionIcon} onPress={handleShare}>
-                <View style={styles.shareIconContainer}>
-                  {/* Arrow pointing up */}
-                  <View style={styles.shareArrow} />
-                  <View style={styles.shareArrowHead} />
-                  {/* Box base */}
-                  <View style={styles.shareBox} />
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {!showSettlements ? (
-              <>
-                <Text style={styles.cardTitle}>Expenses Added ({expenses.length})</Text>
-                
-                {expenses.length > 0 ? (
-                  <ScrollView 
-                    style={styles.expensesScrollView}
-                    contentContainerStyle={styles.expensesScrollContent}
-                    showsVerticalScrollIndicator={true}
-                    nestedScrollEnabled={true}
-                  >
-                    {expenses.map((exp, index) => (
-                      <View key={index} style={styles.addedExpenseRow}>
-                        <View style={styles.addedExpenseInfo}>
-                          <Text style={styles.addedExpenseTitle} numberOfLines={1}>{exp.title}</Text>
-                          <Text style={styles.addedExpensePaidBy} numberOfLines={1}>
-                            Paid by {exp.paidByName} • {exp.memberCount} member{exp.memberCount !== 1 ? 's' : ''}
-                          </Text>
-                        </View>
-                        <Text style={styles.addedExpenseAmount}>₹{parseFloat(exp.totalAmount).toFixed(2)}</Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View style={styles.settledContainer}>
-                    <Text style={styles.settledEmoji}>📝</Text>
-                    <Text style={styles.settledText}>No expenses added</Text>
-                  </View>
-                )}
-
-                {/* Link to view settlements */}
-                <TouchableOpacity 
-                  style={styles.viewSettlementsLink}
-                  onPress={() => setShowSettlements(true)}
-                >
-                  <Text style={styles.viewSettlementsText}>View Final Settlements →</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.cardTitle}>Who Owes Whom</Text>
-                
-                {consolidatedExpenses.length > 0 ? (
-                  <ScrollView 
-                    style={styles.expensesScrollView}
-                    contentContainerStyle={styles.expensesScrollContent}
-                    showsVerticalScrollIndicator={true}
-                    nestedScrollEnabled={true}
-                  >
-                    {consolidatedExpenses.map((exp, index) => (
-                      <View key={index} style={styles.expenseRow}>
-                        <View style={styles.expenseNames}>
-                          <Text style={styles.fromName} numberOfLines={1}>{exp.fromName}</Text>
-                          <Text style={styles.arrow}>→</Text>
-                          <Text style={styles.toName} numberOfLines={1}>{exp.toName}</Text>
-                        </View>
-                        <Text style={styles.expenseAmount}>₹{parseFloat(exp.amount).toFixed(2)}</Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View style={styles.settledContainer}>
-                    <Text style={styles.settledEmoji}>✅</Text>
-                    <Text style={styles.settledText}>Everyone is settled up!</Text>
-                  </View>
-                )}
-
-                {/* Link to go back to expenses */}
-                <TouchableOpacity 
-                  style={styles.viewSettlementsLink}
-                  onPress={() => setShowSettlements(false)}
-                >
-                  <Text style={styles.viewSettlementsText}>← View Expenses Added</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </Animated.View>
-
-          {/* Go to Home Button */}
-          <TouchableOpacity style={styles.homeButton} onPress={handleGoHome}>
-            <Text style={styles.homeButtonText}>Go to Home Page</Text>
-          </TouchableOpacity>
-        </ScrollView>
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            contentContainerStyle={styles.scrollContent}
+            scrollViewProps={{
+              style: styles.scrollView,
+              showsVerticalScrollIndicator: false,
+            }}
+          >
+            {scrollContent}
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {scrollContent}
+          </ScrollView>
+        )}
       </LinearGradient>
     </View>
   );

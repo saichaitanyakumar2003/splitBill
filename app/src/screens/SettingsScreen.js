@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
   Animated,
   Easing,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
@@ -24,6 +26,27 @@ export default function SettingsScreen() {
   const [saveHistory, setSaveHistory] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
   const [biometricLogin, setBiometricLogin] = useState(false);
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -70,6 +93,209 @@ export default function SettingsScreen() {
     </View>
   );
 
+  // Content sections to be shared between WebPullToRefresh and ScrollView
+  const scrollContent = (
+    <>
+      {/* Notifications Section */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <View style={styles.sectionCard}>
+          <SettingItem
+            icon="🔔"
+            title="Push Notifications"
+            subtitle="Get notified about bill splits"
+            value={notifications}
+            onValueChange={setNotifications}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon="🔊"
+            title="Sound Effects"
+            subtitle="Play sounds on actions"
+            value={soundEffects}
+            onValueChange={setSoundEffects}
+          />
+        </View>
+      </Animated.View>
+
+      {/* Appearance Section */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        <View style={styles.sectionCard}>
+          <SettingItem
+            icon="🌙"
+            title="Dark Mode"
+            subtitle="Switch to dark theme"
+            value={darkMode}
+            onValueChange={setDarkMode}
+          />
+        </View>
+      </Animated.View>
+
+      {/* Scanner Section */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={styles.sectionTitle}>Scanner</Text>
+        <View style={styles.sectionCard}>
+          <SettingItem
+            icon="📷"
+            title="Auto Scan"
+            subtitle="Automatically scan when camera opens"
+            value={autoScan}
+            onValueChange={setAutoScan}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon="📜"
+            title="Save Scan History"
+            subtitle="Keep a record of scanned bills"
+            value={saveHistory}
+            onValueChange={setSaveHistory}
+          />
+        </View>
+      </Animated.View>
+
+      {/* Security Section */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={styles.sectionTitle}>Security</Text>
+        <View style={styles.sectionCard}>
+          <SettingItem
+            icon="🔐"
+            title="Biometric Login"
+            subtitle="Use Face ID / Fingerprint"
+            value={biometricLogin}
+            onValueChange={setBiometricLogin}
+          />
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.settingIconContainer}>
+                <Text style={styles.settingIcon}>🔑</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Change Password</Text>
+                <Text style={styles.settingSubtitle}>Update your password</Text>
+              </View>
+            </View>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* About Section */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={styles.sectionTitle}>About</Text>
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.settingIconContainer}>
+                <Text style={styles.settingIcon}>📄</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Terms of Service</Text>
+              </View>
+            </View>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.settingIconContainer}>
+                <Text style={styles.settingIcon}>🔒</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Privacy Policy</Text>
+              </View>
+            </View>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={styles.settingIconContainer}>
+                <Text style={styles.settingIcon}>ℹ️</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>Version</Text>
+              </View>
+            </View>
+            <Text style={styles.versionText}>1.0.0</Text>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* Danger Zone */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <Text style={[styles.sectionTitle, styles.dangerTitle]}>Danger Zone</Text>
+        <View style={[styles.sectionCard, styles.dangerCard]}>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIconContainer, styles.dangerIconContainer]}>
+                <Text style={styles.settingIcon}>🗑️</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, styles.dangerText]}>Delete Account</Text>
+                <Text style={styles.settingSubtitle}>Permanently delete your account</Text>
+              </View>
+            </View>
+            <Text style={[styles.settingArrow, styles.dangerText]}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Made with ❤️ by SplitBill Team</Text>
+      </View>
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -110,209 +336,27 @@ export default function SettingsScreen() {
           <View style={styles.headerRight} />
         </Animated.View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Notifications Section */}
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            contentContainerStyle={styles.scrollContent}
+            scrollViewProps={{
+              style: styles.scrollView,
+              showsVerticalScrollIndicator: false,
+            }}
           >
-            <Text style={styles.sectionTitle}>Notifications</Text>
-            <View style={styles.sectionCard}>
-              <SettingItem
-                icon="🔔"
-                title="Push Notifications"
-                subtitle="Get notified about bill splits"
-                value={notifications}
-                onValueChange={setNotifications}
-              />
-              <View style={styles.divider} />
-              <SettingItem
-                icon="🔊"
-                title="Sound Effects"
-                subtitle="Play sounds on actions"
-                value={soundEffects}
-                onValueChange={setSoundEffects}
-              />
-            </View>
-          </Animated.View>
-
-          {/* Appearance Section */}
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
+            {scrollContent}
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.sectionTitle}>Appearance</Text>
-            <View style={styles.sectionCard}>
-              <SettingItem
-                icon="🌙"
-                title="Dark Mode"
-                subtitle="Switch to dark theme"
-                value={darkMode}
-                onValueChange={setDarkMode}
-              />
-            </View>
-          </Animated.View>
-
-          {/* Scanner Section */}
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Text style={styles.sectionTitle}>Scanner</Text>
-            <View style={styles.sectionCard}>
-              <SettingItem
-                icon="📷"
-                title="Auto Scan"
-                subtitle="Automatically scan when camera opens"
-                value={autoScan}
-                onValueChange={setAutoScan}
-              />
-              <View style={styles.divider} />
-              <SettingItem
-                icon="📜"
-                title="Save Scan History"
-                subtitle="Keep a record of scanned bills"
-                value={saveHistory}
-                onValueChange={setSaveHistory}
-              />
-            </View>
-          </Animated.View>
-
-          {/* Security Section */}
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Text style={styles.sectionTitle}>Security</Text>
-            <View style={styles.sectionCard}>
-              <SettingItem
-                icon="🔐"
-                title="Biometric Login"
-                subtitle="Use Face ID / Fingerprint"
-                value={biometricLogin}
-                onValueChange={setBiometricLogin}
-              />
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <View style={styles.settingIconContainer}>
-                    <Text style={styles.settingIcon}>🔑</Text>
-                  </View>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Change Password</Text>
-                    <Text style={styles.settingSubtitle}>Update your password</Text>
-                  </View>
-                </View>
-                <Text style={styles.settingArrow}>›</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-
-          {/* About Section */}
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Text style={styles.sectionTitle}>About</Text>
-            <View style={styles.sectionCard}>
-              <TouchableOpacity style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <View style={styles.settingIconContainer}>
-                    <Text style={styles.settingIcon}>📄</Text>
-                  </View>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Terms of Service</Text>
-                  </View>
-                </View>
-                <Text style={styles.settingArrow}>›</Text>
-              </TouchableOpacity>
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <View style={styles.settingIconContainer}>
-                    <Text style={styles.settingIcon}>🔒</Text>
-                  </View>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Privacy Policy</Text>
-                  </View>
-                </View>
-                <Text style={styles.settingArrow}>›</Text>
-              </TouchableOpacity>
-              <View style={styles.divider} />
-              <View style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <View style={styles.settingIconContainer}>
-                    <Text style={styles.settingIcon}>ℹ️</Text>
-                  </View>
-                  <View style={styles.settingInfo}>
-                    <Text style={styles.settingTitle}>Version</Text>
-                  </View>
-                </View>
-                <Text style={styles.versionText}>1.0.0</Text>
-              </View>
-            </View>
-          </Animated.View>
-
-          {/* Danger Zone */}
-          <Animated.View
-            style={[
-              styles.section,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, styles.dangerTitle]}>Danger Zone</Text>
-            <View style={[styles.sectionCard, styles.dangerCard]}>
-              <TouchableOpacity style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.settingIconContainer, styles.dangerIconContainer]}>
-                    <Text style={styles.settingIcon}>🗑️</Text>
-                  </View>
-                  <View style={styles.settingInfo}>
-                    <Text style={[styles.settingTitle, styles.dangerText]}>Delete Account</Text>
-                    <Text style={styles.settingSubtitle}>Permanently delete your account</Text>
-                  </View>
-                </View>
-                <Text style={[styles.settingArrow, styles.dangerText]}>›</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Made with ❤️ by SplitBill Team</Text>
-          </View>
-        </ScrollView>
+            {scrollContent}
+          </ScrollView>
+        )}
       </LinearGradient>
     </View>
   );

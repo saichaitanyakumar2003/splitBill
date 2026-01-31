@@ -8,7 +8,6 @@ import {
   ScrollView,
   TextInput,
   Platform,
-  RefreshControl,
   ActivityIndicator,
   BackHandler,
   Dimensions,
@@ -236,14 +235,6 @@ export default function SelectGroupScreen() {
                 style={styles.groupsScrollView}
                 contentContainerStyle={styles.groupsScrollContent}
                 showsVerticalScrollIndicator={true}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                    tintColor="#FF6B35"
-                    colors={['#FF6B35']}
-                  />
-                }
               >
                 <View style={styles.groupsList}>
                   {filteredGroups.map((group, index) => (

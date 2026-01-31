@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   BackHandler,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { authGet } from '../utils/apiHelper';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function AddExpenseScreen() {
   const navigation = useNavigation();
@@ -58,6 +60,27 @@ export default function AddExpenseScreen() {
     amount: false,
     selectedMembers: false,
   });
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   // Redirect to Home if no group selected (e.g., on page refresh)
   useEffect(() => {
@@ -380,14 +403,19 @@ export default function AddExpenseScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.content}
         >
-          <ScrollView 
-            style={styles.cardScrollView}
-            contentContainerStyle={styles.cardScrollContent}
-            showsVerticalScrollIndicator={true}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled={true}
-          >
-            <View style={styles.card}>
+          {isMobileWeb ? (
+            <WebPullToRefresh
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+              style={styles.cardScrollView}
+              contentContainerStyle={styles.cardScrollContent}
+              scrollViewProps={{
+                showsVerticalScrollIndicator: true,
+                keyboardShouldPersistTaps: "handled",
+                nestedScrollEnabled: true,
+              }}
+            >
+              <View style={styles.card}>
               {/* Group Name - Fixed/Read-only */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Group Name</Text>
@@ -732,7 +760,362 @@ export default function AddExpenseScreen() {
                 <Text style={styles.createButtonText}>Continue</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </WebPullToRefresh>
+          ) : (
+            <ScrollView 
+              style={styles.cardScrollView}
+              contentContainerStyle={styles.cardScrollContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+            >
+              <View style={styles.card}>
+                {/* Group Name - Fixed/Read-only */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Group Name</Text>
+                  <View style={styles.fixedGroupContainer}>
+                    <View style={styles.fixedGroupIcon}>
+                      <Text style={styles.fixedGroupIconText}>
+                        {selectedGroup.name.substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={styles.fixedGroupName} numberOfLines={1}>{selectedGroup.name}</Text>
+                    <Text style={styles.fixedGroupBadge}>Selected</Text>
+                  </View>
+                </View>
+
+                {/* Expense Title */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Expense Title</Text>
+                  <TextInput
+                    style={[styles.input, validationErrors.expenseTitle && styles.inputError]}
+                    placeholder="e.g., Food & Drinks"
+                    placeholderTextColor="#999"
+                    value={expenseTitle}
+                    onChangeText={handleExpenseTitleChange}
+                  />
+                </View>
+
+                {/* Paid By */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Paid By</Text>
+                  <TouchableOpacity 
+                    style={[
+                      styles.payerDropdownTrigger, 
+                      isPayerDropdownOpen && styles.payerDropdownTriggerOpen,
+                      validationErrors.paidBy && styles.dropdownError
+                    ]}
+                    onPress={togglePayerDropdown}
+                    activeOpacity={0.8}
+                  >
+                    {paidBy ? (
+                      <View style={styles.payerChipContainer}>
+                        <View style={styles.payerChip}>
+                          <Text style={styles.payerChipText} numberOfLines={1}>
+                            {paidBy.mailId === user?.mailId ? `${paidBy.name} (You)` : paidBy.name}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.payerPlaceholder}>Select who paid</Text>
+                    )}
+                    <Text style={[styles.dropdownArrow, isPayerDropdownOpen && styles.dropdownArrowUp]}>
+                      {isPayerDropdownOpen ? '▲' : '▼'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isPayerDropdownOpen && (
+                    <View style={styles.payerDropdownContent}>
+                      <View style={styles.dropdownSearchBar}>
+                        <Text style={styles.searchIcon}>🔍</Text>
+                        <TextInput
+                          style={styles.dropdownSearchInput}
+                          placeholder="Search by name or email"
+                          placeholderTextColor="#999"
+                          value={payerSearchQuery}
+                          onChangeText={setPayerSearchQuery}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        {isPayerSearching && <ActivityIndicator size="small" color="#FF6B35" />}
+                      </View>
+
+                      <ScrollView 
+                        style={styles.payerDropdownScroll}
+                        showsVerticalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {/* Current User */}
+                        {paidBy?.mailId !== user?.mailId && (
+                          <View style={styles.listSection}>
+                            <Text style={styles.listSectionTitle}>You</Text>
+                            <TouchableOpacity
+                              style={styles.listItem}
+                              onPress={() => selectPayer({ mailId: user?.mailId, name: user?.name || 'You' })}
+                            >
+                              <View style={styles.userInfo}>
+                                <Text style={styles.userName} numberOfLines={1}>{user?.name || 'You'}</Text>
+                                <Text style={styles.userEmail}>{user?.mailId}</Text>
+                              </View>
+                              <Text style={styles.selectIcon}>○</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Group Members */}
+                        {groupMembers.length > 0 && payerSearchQuery.length < 2 && (
+                          <View style={styles.listSection}>
+                            <Text style={styles.listSectionTitle}>Group Members</Text>
+                            {groupMembers
+                              .filter(m => m.mailId !== paidBy?.mailId && m.mailId !== user?.mailId)
+                              .map(member => (
+                                <TouchableOpacity
+                                  key={member.mailId}
+                                  style={styles.listItem}
+                                  onPress={() => selectPayer(member)}
+                                >
+                                  <View style={styles.userInfo}>
+                                    <Text style={styles.userName} numberOfLines={1}>{member.name}</Text>
+                                    <Text style={styles.userEmail}>{member.mailId}</Text>
+                                  </View>
+                                  <Text style={styles.selectIcon}>○</Text>
+                                </TouchableOpacity>
+                              ))}
+                          </View>
+                        )}
+
+                        {/* API Search Results */}
+                        {payerSearchResults.length > 0 && (
+                          <View style={styles.listSection}>
+                            <Text style={styles.listSectionTitle}>Search Results</Text>
+                            {payerSearchResults.map(result => (
+                              <TouchableOpacity
+                                key={result.mailId}
+                                style={styles.listItem}
+                                onPress={() => selectPayer(result)}
+                              >
+                                <View style={styles.userInfo}>
+                                  <Text style={styles.userName} numberOfLines={1}>{result.name}</Text>
+                                  <Text style={styles.userEmail}>{result.mailId}</Text>
+                                </View>
+                                <Text style={styles.selectIcon}>○</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {payerSearchQuery.length >= 2 && payerSearchResults.length === 0 && !isPayerSearching && (
+                          <Text style={styles.emptyText}>No users found</Text>
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+
+                {/* Amount */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    Amount Paid
+                    {isFromBillScan && <Text style={styles.labelHint}> (from scanned bill)</Text>}
+                  </Text>
+                  <View style={[
+                    styles.amountInputContainer, 
+                    validationErrors.amount && styles.inputError,
+                    isFromBillScan && styles.amountInputLocked
+                  ]}>
+                    <Text style={styles.currencySymbol}>₹</Text>
+                    <TextInput
+                      style={[styles.amountInput, isFromBillScan && styles.amountInputDisabled]}
+                      placeholder="0.00"
+                      placeholderTextColor="#999"
+                      value={amount}
+                      onChangeText={handleAmountChange}
+                      keyboardType="decimal-pad"
+                      editable={!isFromBillScan}
+                    />
+                    {isFromBillScan && (
+                      <Text style={styles.lockedIcon}>🔒</Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Split With */}
+                <View style={styles.splitWithSection}>
+                  <Text style={styles.label}>
+                    Split With ({selectedMembers.length} selected)
+                  </Text>
+                  
+                  <TouchableOpacity 
+                    style={[
+                      styles.dropdownTrigger, 
+                      isDropdownOpen && styles.dropdownTriggerOpen,
+                      validationErrors.selectedMembers && styles.dropdownError
+                    ]}
+                    onPress={toggleDropdown}
+                    activeOpacity={0.8}
+                  >
+                    {selectedMembers.length === 0 ? (
+                      <Text style={styles.dropdownPlaceholder}>Select members to split with</Text>
+                    ) : (
+                      <View style={styles.chipsPreview}>
+                        {selectedMembers.slice(0, 2).map(member => (
+                          <View key={member.mailId} style={styles.previewChip}>
+                            <Text style={styles.previewChipText} numberOfLines={1}>
+                              {member.name}
+                            </Text>
+                          </View>
+                        ))}
+                        {selectedMembers.length > 2 && (
+                          <Text style={styles.moreCount}>+{selectedMembers.length - 2} more</Text>
+                        )}
+                      </View>
+                    )}
+                    <Text style={[styles.dropdownArrow, isDropdownOpen && styles.dropdownArrowUp]}>
+                      {isDropdownOpen ? '▲' : '▼'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {isDropdownOpen && (
+                    <View style={styles.dropdownContent}>
+                      {selectedMembers.length > 0 && (
+                        <ScrollView 
+                          style={styles.selectedChipsScrollContainer}
+                          showsVerticalScrollIndicator={selectedMembers.length > 4}
+                          nestedScrollEnabled={true}
+                        >
+                          <View style={styles.selectedChipsWrap}>
+                            {selectedMembers.map(member => (
+                              <View key={member.mailId} style={styles.memberChip}>
+                                <Text style={styles.memberChipText} numberOfLines={1}>
+                                  {member.name}
+                                </Text>
+                                <TouchableOpacity 
+                                  onPress={() => handleRemoveMember(member.mailId)}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <Text style={styles.memberChipRemove}>✕</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+                          </View>
+                        </ScrollView>
+                      )}
+
+                      <View style={styles.dropdownSearchBar}>
+                        <Text style={styles.searchIcon}>🔍</Text>
+                        <TextInput
+                          style={styles.dropdownSearchInput}
+                          placeholder="Search by name or email"
+                          placeholderTextColor="#999"
+                          value={searchQuery}
+                          onChangeText={setSearchQuery}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        {isSearching && <ActivityIndicator size="small" color="#FF6B35" />}
+                      </View>
+
+                      <ScrollView 
+                        style={styles.dropdownScroll}
+                        showsVerticalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {/* Add Yourself Option */}
+                        {currentUserOption && searchQuery.length < 2 && (
+                          <View style={styles.listSection}>
+                            <Text style={styles.listSectionTitle}>Add Yourself</Text>
+                            <TouchableOpacity
+                              style={styles.listItem}
+                              onPress={handleAddCurrentUser}
+                            >
+                              <View style={styles.userInfo}>
+                                <Text style={styles.userName} numberOfLines={1}>{user.name || 'You'} (You)</Text>
+                                <Text style={styles.userEmail}>{user.mailId}</Text>
+                              </View>
+                              <Text style={styles.addIcon}>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Group Members (excluding the payer) */}
+                        {groupMembers.length > 0 && searchQuery.length < 2 && (
+                          <View style={styles.listSection}>
+                            <Text style={styles.listSectionTitle}>Group Members</Text>
+                            {groupMembers
+                              .filter(m => 
+                                !selectedMembers.some(sm => sm.mailId?.toLowerCase() === m.mailId?.toLowerCase()) && 
+                                m.mailId?.toLowerCase() !== paidBy?.mailId?.toLowerCase()
+                              )
+                              .map(member => (
+                                <TouchableOpacity
+                                  key={member.mailId}
+                                  style={styles.listItem}
+                                  onPress={() => handleSelectMember(member)}
+                                >
+                                  <View style={styles.userInfo}>
+                                    <Text style={styles.userName} numberOfLines={1}>{member.name}</Text>
+                                    <Text style={styles.userEmail}>{member.mailId}</Text>
+                                  </View>
+                                  <Text style={styles.addIcon}>+</Text>
+                                </TouchableOpacity>
+                              ))}
+                            {groupMembers.filter(m => 
+                              !selectedMembers.some(sm => sm.mailId?.toLowerCase() === m.mailId?.toLowerCase()) && 
+                              m.mailId?.toLowerCase() !== paidBy?.mailId?.toLowerCase()
+                            ).length === 0 && (
+                              <Text style={styles.emptyTextSmall}>All group members already added</Text>
+                            )}
+                          </View>
+                        )}
+
+                        {/* API Search Results */}
+                        {searchResults.length > 0 && (
+                          <View style={styles.listSection}>
+                            <Text style={styles.listSectionTitle}>Search Results</Text>
+                            {searchResults.map(result => (
+                              <TouchableOpacity
+                                key={result.mailId}
+                                style={styles.listItem}
+                                onPress={() => handleSelectMember(result)}
+                              >
+                                <View style={styles.userInfo}>
+                                  <Text style={styles.userName} numberOfLines={1}>{result.name}</Text>
+                                  <Text style={styles.userEmail}>{result.mailId}</Text>
+                                </View>
+                                <Text style={styles.addIcon}>+</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+                          <Text style={styles.emptyText}>No users found</Text>
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+
+                {/* Error */}
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>⚠️ {error}</Text>
+                  </View>
+                )}
+
+                {/* Continue Button */}
+                <TouchableOpacity
+                  style={styles.createButton}
+                  onPress={handleContinue}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.createButtonText}>Continue</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          )}
         </KeyboardAvoidingView>
       </LinearGradient>
     </View>

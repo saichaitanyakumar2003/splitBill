@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   ScrollView,
   Platform,
   BackHandler,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 // Transform bill data from API to display format (backend handles categorization)
 const transformBillData = (bill) => {
@@ -98,6 +100,27 @@ export default function BillScanScreen() {
   
   const [rawBillData] = useState(getRawBillData);
   const billData = transformBillData(rawBillData);
+
+  // Pull to refresh state for mobile web
+  const [refreshing, setRefreshing] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   // Handle back navigation
   const handleBack = () => {
@@ -237,90 +260,181 @@ export default function BillScanScreen() {
           {hasItems ? (
             <View style={styles.mainCard}>
               {/* Scrollable Content */}
-              <ScrollView 
-                style={styles.cardScrollView}
-                contentContainerStyle={styles.cardScrollContent}
-                showsVerticalScrollIndicator={true}
-                bounces={true}
-                nestedScrollEnabled={true}
-              >
-                {/* Restaurant Header */}
-                {billData.restaurantName && (
-                  <View style={styles.restaurantHeader}>
-                    <Text style={styles.restaurantName}>{billData.restaurantName}</Text>
-                    <Text style={styles.billDate}>{billData.date}</Text>
+              {isMobileWeb ? (
+                <WebPullToRefresh
+                  onRefresh={handleRefresh}
+                  refreshing={refreshing}
+                  style={styles.cardScrollView}
+                  contentContainerStyle={styles.cardScrollContent}
+                  scrollViewProps={{
+                    showsVerticalScrollIndicator: true,
+                    bounces: true,
+                    nestedScrollEnabled: true,
+                  }}
+                >
+                  {/* Restaurant Header */}
+                  {billData.restaurantName && (
+                    <View style={styles.restaurantHeader}>
+                      <Text style={styles.restaurantName}>{billData.restaurantName}</Text>
+                      <Text style={styles.billDate}>{billData.date}</Text>
+                    </View>
+                  )}
+
+                  {/* Divider */}
+                  <View style={styles.divider} />
+
+                  {/* Items by Category */}
+                  {billData.isFoodBill ? (
+                    <>
+                      {renderCategory('Non-Veg Items', billData.items.nonVeg, '🍗')}
+                      {renderCategory('Veg Items', billData.items.veg, '🥬')}
+                      {billData.items.general.length > 0 && 
+                        renderCategory('Other Items', billData.items.general, '📦')}
+                    </>
+                  ) : (
+                    renderCategory('Items', billData.items.general, '🛒')
+                  )}
+
+                  {/* Subtotal */}
+                  <View style={styles.subtotalSection}>
+                    <Text style={styles.subtotalLabel}>Subtotal</Text>
+                    <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
                   </View>
-                )}
 
-                {/* Divider */}
-                <View style={styles.divider} />
+                  {/* Individual Tax Rows - Always show if taxes exist */}
+                  {billData.taxes && billData.taxes.length > 0 && (
+                    <View style={styles.taxesSection}>
+                      <Text style={styles.taxesTitle}>TAXES & CHARGES</Text>
+                      {billData.taxes.map((tax, index) => (
+                        <View key={index} style={styles.taxRow}>
+                          <Text style={styles.taxName}>{tax.name}</Text>
+                          <Text style={styles.taxAmount}>₹{(tax.amount || 0).toFixed(2)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
 
-                {/* Items by Category */}
-                {billData.isFoodBill ? (
-                  <>
-                    {renderCategory('Non-Veg Items', billData.items.nonVeg, '🍗')}
-                    {renderCategory('Veg Items', billData.items.veg, '🥬')}
-                    {billData.items.general.length > 0 && 
-                      renderCategory('Other Items', billData.items.general, '📦')}
-                  </>
-                ) : (
-                  renderCategory('Items', billData.items.general, '🛒')
-                )}
+                  {/* Total Tax Row - Show only if subtotal != total (taxes added on top) */}
+                  {getSubtotal() !== billData.total && (
+                    <View style={styles.taxesTotalSection}>
+                      <Text style={styles.taxesTotalLabel}>Total Taxes & Charges</Text>
+                      <Text style={styles.taxesTotalValue}>
+                        ₹{(billData.total - getSubtotal()).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
 
-                {/* Subtotal */}
-                <View style={styles.subtotalSection}>
-                  <Text style={styles.subtotalLabel}>Subtotal</Text>
-                  <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
-                </View>
-
-                {/* Individual Tax Rows - Always show if taxes exist */}
-                {billData.taxes && billData.taxes.length > 0 && (
-                  <View style={styles.taxesSection}>
-                    <Text style={styles.taxesTitle}>TAXES & CHARGES</Text>
-                    {billData.taxes.map((tax, index) => (
-                      <View key={index} style={styles.taxRow}>
-                        <Text style={styles.taxName}>{tax.name}</Text>
-                        <Text style={styles.taxAmount}>₹{(tax.amount || 0).toFixed(2)}</Text>
-                      </View>
-                    ))}
+                  {/* Total */}
+                  <View style={styles.totalSection}>
+                    <Text style={styles.totalLabel}>Total</Text>
+                    <Text style={styles.totalValue}>₹{billData.total.toFixed(2)}</Text>
                   </View>
-                )}
 
-                {/* Total Tax Row - Show only if subtotal != total (taxes added on top) */}
-                {getSubtotal() !== billData.total && (
-                  <View style={styles.taxesTotalSection}>
-                    <Text style={styles.taxesTotalLabel}>Total Taxes & Charges</Text>
-                    <Text style={styles.taxesTotalValue}>
-                      ₹{(billData.total - getSubtotal()).toFixed(2)}
-                    </Text>
+                  {/* Continue Button - Inside Card */}
+                  <View style={styles.continueButtonWrapper}>
+                    <TouchableOpacity 
+                      style={styles.continueButton}
+                      onPress={() => {
+                        // Navigate to SplitOptions with bill data
+                        navigation.navigate('SplitOptions', {
+                          billData: {
+                            ...billData,
+                            rawItems: rawBillData?.items || [],
+                          }
+                        });
+                      }}
+                    >
+                      <Text style={styles.continueButtonText}>Continue</Text>
+                      <Ionicons name="chevron-forward" size={22} color="#FFF" />
+                    </TouchableOpacity>
                   </View>
-                )}
+                </WebPullToRefresh>
+              ) : (
+                <ScrollView 
+                  style={styles.cardScrollView}
+                  contentContainerStyle={styles.cardScrollContent}
+                  showsVerticalScrollIndicator={true}
+                  bounces={true}
+                  nestedScrollEnabled={true}
+                >
+                  {/* Restaurant Header */}
+                  {billData.restaurantName && (
+                    <View style={styles.restaurantHeader}>
+                      <Text style={styles.restaurantName}>{billData.restaurantName}</Text>
+                      <Text style={styles.billDate}>{billData.date}</Text>
+                    </View>
+                  )}
 
-                {/* Total */}
-                <View style={styles.totalSection}>
-                  <Text style={styles.totalLabel}>Total</Text>
-                  <Text style={styles.totalValue}>₹{billData.total.toFixed(2)}</Text>
-                </View>
+                  {/* Divider */}
+                  <View style={styles.divider} />
 
-                {/* Continue Button - Inside Card */}
-                <View style={styles.continueButtonWrapper}>
-                  <TouchableOpacity 
-                    style={styles.continueButton}
-                    onPress={() => {
-                      // Navigate to SplitOptions with bill data
-                      navigation.navigate('SplitOptions', {
-                        billData: {
-                          ...billData,
-                          rawItems: rawBillData?.items || [],
-                        }
-                      });
-                    }}
-                  >
-                    <Text style={styles.continueButtonText}>Continue</Text>
-                    <Ionicons name="chevron-forward" size={22} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
+                  {/* Items by Category */}
+                  {billData.isFoodBill ? (
+                    <>
+                      {renderCategory('Non-Veg Items', billData.items.nonVeg, '🍗')}
+                      {renderCategory('Veg Items', billData.items.veg, '🥬')}
+                      {billData.items.general.length > 0 && 
+                        renderCategory('Other Items', billData.items.general, '📦')}
+                    </>
+                  ) : (
+                    renderCategory('Items', billData.items.general, '🛒')
+                  )}
+
+                  {/* Subtotal */}
+                  <View style={styles.subtotalSection}>
+                    <Text style={styles.subtotalLabel}>Subtotal</Text>
+                    <Text style={styles.subtotalValue}>₹{getSubtotal().toFixed(2)}</Text>
+                  </View>
+
+                  {/* Individual Tax Rows - Always show if taxes exist */}
+                  {billData.taxes && billData.taxes.length > 0 && (
+                    <View style={styles.taxesSection}>
+                      <Text style={styles.taxesTitle}>TAXES & CHARGES</Text>
+                      {billData.taxes.map((tax, index) => (
+                        <View key={index} style={styles.taxRow}>
+                          <Text style={styles.taxName}>{tax.name}</Text>
+                          <Text style={styles.taxAmount}>₹{(tax.amount || 0).toFixed(2)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Total Tax Row - Show only if subtotal != total (taxes added on top) */}
+                  {getSubtotal() !== billData.total && (
+                    <View style={styles.taxesTotalSection}>
+                      <Text style={styles.taxesTotalLabel}>Total Taxes & Charges</Text>
+                      <Text style={styles.taxesTotalValue}>
+                        ₹{(billData.total - getSubtotal()).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Total */}
+                  <View style={styles.totalSection}>
+                    <Text style={styles.totalLabel}>Total</Text>
+                    <Text style={styles.totalValue}>₹{billData.total.toFixed(2)}</Text>
+                  </View>
+
+                  {/* Continue Button - Inside Card */}
+                  <View style={styles.continueButtonWrapper}>
+                    <TouchableOpacity 
+                      style={styles.continueButton}
+                      onPress={() => {
+                        // Navigate to SplitOptions with bill data
+                        navigation.navigate('SplitOptions', {
+                          billData: {
+                            ...billData,
+                            rawItems: rawBillData?.items || [],
+                          }
+                        });
+                      }}
+                    >
+                      <Text style={styles.continueButtonText}>Continue</Text>
+                      <Ionicons name="chevron-forward" size={22} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              )}
             </View>
           ) : (
             <View style={styles.noItemsCard}>

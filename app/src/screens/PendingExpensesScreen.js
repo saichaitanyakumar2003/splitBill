@@ -10,7 +10,6 @@ import {
   Alert,
   Modal,
   BackHandler,
-  RefreshControl,
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -385,14 +384,6 @@ export default function PendingExpensesScreen({ route }) {
                     showsVerticalScrollIndicator={true}
                     bounces={true}
                     nestedScrollEnabled={true}
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        tintColor="#FF6B35"
-                        colors={['#FF6B35']}
-                      />
-                    }
                   >
                     {pendingExpenses.map((group) => (
                       <View key={group.groupId} style={styles.groupSection}>

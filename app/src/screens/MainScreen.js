@@ -12,7 +12,6 @@ import {
   Image,
   PixelRatio,
   ScrollView,
-  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -209,14 +208,6 @@ export default function MainScreen({ navigation }) {
           <ScrollView
             contentContainerStyle={styles.webScrollContent}
             showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#FF6B35"
-                colors={['#FF6B35']}
-              />
-            }
           >
             {webContent}
           </ScrollView>
