@@ -674,9 +674,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 65 : (Platform.OS === 'web' ? 20 : 50),
+    paddingTop: Platform.OS === 'ios' ? 60 : (Platform.OS === 'web' ? 12 : 50),
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'web' ? 12 : 20,
     zIndex: 100,
   },
   backButton: {
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   },
   photoSection: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: Platform.OS === 'android' ? 20 : 10,
     marginBottom: 20,
   },
   photoContainer: {

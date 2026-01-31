@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import Logo from '../components/Logo';
 import { api } from '../api/client';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 // Only import camera on native platforms
 let CameraView, useCameraPermissions;
@@ -31,6 +32,7 @@ if (Platform.OS !== 'web') {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
+const isMobileWeb = isWeb && SCREEN_WIDTH < 768;
 
 // Normalize size based on screen dimensions for consistent spacing across devices
 // Base design is for 375 width (iPhone) - scales proportionally
@@ -163,45 +165,62 @@ export default function MainScreen({ navigation }) {
 
   // Web view - show options directly
   if (isWeb) {
+    const webContent = (
+      <View style={styles.webContent}>
+        <Logo size="large" />
+        
+        <View style={styles.webOptions}>
+          <TouchableOpacity style={styles.webOptionCard} onPress={handleCustomSplit}>
+            <View style={styles.webOptionIcon}>
+              <Ionicons name="calculator" size={32} color={theme.colors.background} />
+            </View>
+            <Text style={styles.webOptionTitle}>Add Custom Split</Text>
+            <Text style={styles.webOptionDesc}>Enter items manually</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.webOptionCard} onPress={pickImage}>
+            <View style={styles.webOptionIcon}>
+              <Ionicons name="image" size={32} color={theme.colors.background} />
+            </View>
+            <Text style={styles.webOptionTitle}>Upload Image</Text>
+            <Text style={styles.webOptionDesc}>Import a bill photo</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+    
     return (
       <LinearGradient
         colors={[theme.colors.backgroundGradientStart, theme.colors.backgroundGradientEnd]}
         style={styles.container}
       >
-        <ScrollView
-          contentContainerStyle={styles.webScrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#FF6B35"
-              colors={['#FF6B35']}
-            />
-          }
-        >
-          <View style={styles.webContent}>
-            <Logo size="large" />
-            
-            <View style={styles.webOptions}>
-              <TouchableOpacity style={styles.webOptionCard} onPress={handleCustomSplit}>
-                <View style={styles.webOptionIcon}>
-                  <Ionicons name="calculator" size={32} color={theme.colors.background} />
-                </View>
-                <Text style={styles.webOptionTitle}>Add Custom Split</Text>
-                <Text style={styles.webOptionDesc}>Enter items manually</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.webOptionCard} onPress={pickImage}>
-                <View style={styles.webOptionIcon}>
-                  <Ionicons name="image" size={32} color={theme.colors.background} />
-                </View>
-                <Text style={styles.webOptionTitle}>Upload Image</Text>
-                <Text style={styles.webOptionDesc}>Import a bill photo</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            contentContainerStyle={styles.webScrollContent}
+            scrollViewProps={{
+              showsVerticalScrollIndicator: false,
+            }}
+          >
+            {webContent}
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.webScrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#FF6B35"
+                colors={['#FF6B35']}
+              />
+            }
+          >
+            {webContent}
+          </ScrollView>
+        )}
       </LinearGradient>
     );
   }

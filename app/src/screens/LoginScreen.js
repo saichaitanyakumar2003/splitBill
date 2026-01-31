@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
-    paddingBottom: 30,
+    paddingBottom: Platform.OS === 'web' ? 60 : 30,
     justifyContent: 'center',
     alignItems: 'center',
   },

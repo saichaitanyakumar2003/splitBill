@@ -11,6 +11,7 @@ import {
   Modal,
   BackHandler,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { authGet, authPost } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function PendingExpensesScreen({ route }) {
   const navigation = useNavigation();
@@ -26,6 +28,18 @@ export default function PendingExpensesScreen({ route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [pendingExpenses, setPendingExpenses] = useState([]);
   const [resolvingEdge, setResolvingEdge] = useState(null);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
+  
   const [confirmModal, setConfirmModal] = useState({
     visible: false,
     groupId: null,
@@ -232,13 +246,16 @@ export default function PendingExpensesScreen({ route }) {
               <Text style={styles.cardTitle}>Pending Payments</Text>
               <TouchableOpacity 
                 onPress={handleRefresh} 
-                style={styles.cardRefreshButton}
+                style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
                 disabled={refreshing || loading}
               >
                 {refreshing ? (
                   <ActivityIndicator size="small" color="#FF6B35" />
                 ) : (
-                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                  <>
+                    <Ionicons name="refresh" size={20} color="#FF6B35" />
+                    {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -272,98 +289,189 @@ export default function PendingExpensesScreen({ route }) {
                 </View>
 
                 {/* Scrollable Pending List */}
-                <ScrollView 
-                  style={styles.scrollView}
-                  contentContainerStyle={styles.scrollViewContent}
-                  showsVerticalScrollIndicator={true}
-                  bounces={true}
-                  nestedScrollEnabled={true}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={handleRefresh}
-                      tintColor="#FF6B35"
-                      colors={['#FF6B35']}
-                    />
-                  }
-                >
-                  {pendingExpenses.map((group) => (
-                    <View key={group.groupId} style={styles.groupSection}>
-                      {/* Group Header */}
-                      <View style={styles.groupHeader}>
-                        <View style={styles.groupIcon}>
-                          <Text style={styles.groupIconText}>
-                            {group.groupName.substring(0, 2).toUpperCase()}
-                          </Text>
+                {isMobileWeb ? (
+                  <WebPullToRefresh
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    scrollViewProps={{
+                      showsVerticalScrollIndicator: true,
+                      bounces: true,
+                      nestedScrollEnabled: true,
+                    }}
+                  >
+                    {pendingExpenses.map((group) => (
+                      <View key={group.groupId} style={styles.groupSection}>
+                        {/* Group Header */}
+                        <View style={styles.groupHeader}>
+                          <View style={styles.groupIcon}>
+                            <Text style={styles.groupIconText}>
+                              {group.groupName.substring(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.groupInfo}>
+                            <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
+                            <Text style={styles.groupStatus}>
+                              {group.pendingEdges?.length || 0} pending
+                              {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.groupInfo}>
-                          <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
-                          <Text style={styles.groupStatus}>
-                            {group.pendingEdges?.length || 0} pending
-                            {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
-                          </Text>
-                        </View>
-                      </View>
 
-                      {/* Pending Edges */}
-                      {group.pendingEdges?.map((edge, index) => {
-                        const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
-                        return (
-                          <View key={`pending-${index}`} style={styles.expenseRow}>
-                            <View style={styles.expenseTop}>
-                              <View style={styles.avatarTo}>
-                                <Text style={styles.avatarText}>
+                        {/* Pending Edges */}
+                        {group.pendingEdges?.map((edge, index) => {
+                          const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
+                          return (
+                            <View key={`pending-${index}`} style={styles.expenseRow}>
+                              <View style={styles.expenseTop}>
+                                <View style={styles.avatarTo}>
+                                  <Text style={styles.avatarText}>
+                                    {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={styles.expenseInfo}>
+                                  <Text style={styles.expenseText} numberOfLines={1}>
+                                    Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                  </Text>
+                                  <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                </View>
+                              </View>
+                              <View style={styles.buttonGroup}>
+                                <TouchableOpacity
+                                  style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
+                                  onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
+                                  disabled={isResolving}
+                                >
+                                  {isResolving ? (
+                                    <ActivityIndicator size="small" color="#FF6B35" />
+                                  ) : (
+                                    <Text style={styles.resolveButtonText}>Mark as Settled</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Resolved Edges */}
+                        {group.resolvedEdges?.map((edge, index) => (
+                          <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
+                            <View style={styles.expenseLeft}>
+                              <View style={styles.avatarResolved}>
+                                <Text style={styles.avatarTextResolved}>
                                   {(edge.toName || 'U').charAt(0).toUpperCase()}
                                 </Text>
                               </View>
                               <View style={styles.expenseInfo}>
-                                <Text style={styles.expenseText} numberOfLines={1}>
-                                  Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                <Text style={styles.expenseTextResolved} numberOfLines={1}>
+                                  Paid {edge.toName}
                                 </Text>
-                                <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
                               </View>
                             </View>
-                            <View style={styles.buttonGroup}>
-                              <TouchableOpacity
-                                style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
-                                onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
-                                disabled={isResolving}
-                              >
-                                {isResolving ? (
-                                  <ActivityIndicator size="small" color="#FF6B35" />
-                                ) : (
-                                  <Text style={styles.resolveButtonText}>Mark as Settled</Text>
-                                )}
-                              </TouchableOpacity>
+                            <View style={styles.settledBadge}>
+                              <Text style={styles.settledBadgeText}>✓</Text>
                             </View>
                           </View>
-                        );
-                      })}
-
-                      {/* Resolved Edges */}
-                      {group.resolvedEdges?.map((edge, index) => (
-                        <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
-                          <View style={styles.expenseLeft}>
-                            <View style={styles.avatarResolved}>
-                              <Text style={styles.avatarTextResolved}>
-                                {(edge.toName || 'U').charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                            <View style={styles.expenseInfo}>
-                              <Text style={styles.expenseTextResolved} numberOfLines={1}>
-                                Paid {edge.toName}
-                              </Text>
-                              <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
-                            </View>
+                        ))}
+                      </View>
+                    ))}
+                  </WebPullToRefresh>
+                ) : (
+                  <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor="#FF6B35"
+                        colors={['#FF6B35']}
+                      />
+                    }
+                  >
+                    {pendingExpenses.map((group) => (
+                      <View key={group.groupId} style={styles.groupSection}>
+                        {/* Group Header */}
+                        <View style={styles.groupHeader}>
+                          <View style={styles.groupIcon}>
+                            <Text style={styles.groupIconText}>
+                              {group.groupName.substring(0, 2).toUpperCase()}
+                            </Text>
                           </View>
-                          <View style={styles.settledBadge}>
-                            <Text style={styles.settledBadgeText}>✓</Text>
+                          <View style={styles.groupInfo}>
+                            <Text style={styles.groupName} numberOfLines={1}>{group.groupName}</Text>
+                            <Text style={styles.groupStatus}>
+                              {group.pendingEdges?.length || 0} pending
+                              {group.resolvedEdges?.length > 0 && ` • ${group.resolvedEdges.length} settled`}
+                            </Text>
                           </View>
                         </View>
-                      ))}
-                    </View>
-                  ))}
-                </ScrollView>
+
+                        {/* Pending Edges */}
+                        {group.pendingEdges?.map((edge, index) => {
+                          const isResolving = resolvingEdge === `${group.groupId}-${edge.from}-${edge.to}`;
+                          return (
+                            <View key={`pending-${index}`} style={styles.expenseRow}>
+                              <View style={styles.expenseTop}>
+                                <View style={styles.avatarTo}>
+                                  <Text style={styles.avatarText}>
+                                    {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                  </Text>
+                                </View>
+                                <View style={styles.expenseInfo}>
+                                  <Text style={styles.expenseText} numberOfLines={1}>
+                                    Pay <Text style={styles.expenseName}>{edge.toName}</Text>
+                                  </Text>
+                                  <Text style={styles.expenseAmount}>₹{edge.amount.toFixed(2)}</Text>
+                                </View>
+                              </View>
+                              <View style={styles.buttonGroup}>
+                                <TouchableOpacity
+                                  style={[styles.resolveButton, isResolving && styles.resolveButtonDisabled]}
+                                  onPress={() => handleResolve(group.groupId, edge.from, edge.to, edge.toName, edge.amount, group.groupName)}
+                                  disabled={isResolving}
+                                >
+                                  {isResolving ? (
+                                    <ActivityIndicator size="small" color="#FF6B35" />
+                                  ) : (
+                                    <Text style={styles.resolveButtonText}>Mark as Settled</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Resolved Edges */}
+                        {group.resolvedEdges?.map((edge, index) => (
+                          <View key={`resolved-${index}`} style={styles.expenseRowResolved}>
+                            <View style={styles.expenseLeft}>
+                              <View style={styles.avatarResolved}>
+                                <Text style={styles.avatarTextResolved}>
+                                  {(edge.toName || 'U').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                              <View style={styles.expenseInfo}>
+                                <Text style={styles.expenseTextResolved} numberOfLines={1}>
+                                  Paid {edge.toName}
+                                </Text>
+                                <Text style={styles.expenseAmountResolved}>₹{edge.amount.toFixed(2)}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.settledBadge}>
+                              <Text style={styles.settledBadgeText}>✓</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
               </>
             )}
           </View>
@@ -608,6 +716,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  cardRefreshButtonMobileWeb: {
+    width: 'auto',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  refreshButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
   },
   summaryTitle: {
     fontSize: 14,

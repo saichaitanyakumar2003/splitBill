@@ -11,11 +11,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   BackHandler,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { authGet } from '../utils/apiHelper';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function SelectGroupScreen() {
   const navigation = useNavigation();
@@ -28,6 +30,17 @@ export default function SelectGroupScreen() {
   const [groups, setGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
 
   // Redirect to Home on web page refresh (no navigation history)
   useEffect(() => {
@@ -184,6 +197,40 @@ export default function SelectGroupScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+            ) : isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={onRefresh}
+                refreshing={refreshing}
+                style={styles.groupsScrollView}
+                contentContainerStyle={styles.groupsScrollContent}
+                scrollViewProps={{
+                  showsVerticalScrollIndicator: true,
+                }}
+              >
+                <View style={styles.groupsList}>
+                  {filteredGroups.map((group, index) => (
+                    <TouchableOpacity
+                      key={group._id || group.id}
+                      style={[
+                        styles.groupItem,
+                        index < filteredGroups.length - 1 && styles.groupItemBorder
+                      ]}
+                      onPress={() => handleSelectGroup(group)}
+                    >
+                      <View style={styles.groupIcon}>
+                        <Text style={styles.groupIconText}>
+                          {group.name.substring(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
+                        <Text style={styles.groupStatus}>● Active</Text>
+                      </View>
+                      <Text style={styles.groupArrow}>›</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </WebPullToRefresh>
             ) : (
               <ScrollView 
                 style={styles.groupsScrollView}

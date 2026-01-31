@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { authGet, authPost, authDelete, authPut } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
+import WebPullToRefresh from '../components/WebPullToRefresh';
 
 export default function GroupsScreen({ route }) {
   const navigation = useNavigation();
@@ -859,80 +860,144 @@ export default function GroupsScreen({ route }) {
           </View>
           <TouchableOpacity 
             onPress={handleRefresh} 
-            style={styles.cardRefreshButton}
+            style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
             disabled={refreshing || loading}
           >
             {refreshing ? (
               <ActivityIndicator size="small" color="#FF6B35" />
             ) : (
-              <Ionicons name="refresh" size={20} color="#FF6B35" />
+              <>
+                <Ionicons name="refresh" size={20} color="#FF6B35" />
+                {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+              </>
             )}
           </TouchableOpacity>
         </View>
 
         {/* Groups List */}
-        <ScrollView 
-          style={styles.cardScrollView}
-          contentContainerStyle={styles.cardScrollContent}
-          showsVerticalScrollIndicator={true}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#FF6B35"
-              colors={['#FF6B35']}
-            />
-          }
-        >
-          {loading ? (
-            <View style={styles.loadingState}>
-              <ActivityIndicator size="large" color="#FF6B35" />
-              <Text style={styles.loadingText}>Loading groups...</Text>
-            </View>
-          ) : filteredGroups.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🔍</Text>
-              <Text style={styles.emptyTitle}>
-                {searchQuery ? 'No groups found' : 'Search for a group'}
-              </Text>
-              <Text style={styles.emptySubtext}>
-                {searchQuery 
-                  ? `No groups matching "${searchQuery}"`
-                  : 'Search for a group to view expenses'
-                }
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.groupsList}>
-              {filteredGroups.map((group, index) => (
-                <TouchableOpacity
-                  key={group._id || group.id}
-                  style={[
-                    styles.groupItem,
-                    index < filteredGroups.length - 1 && styles.groupItemBorder
-                  ]}
-                  onPress={() => handleSelectGroup(group)}
-                >
-                  <View style={styles.groupIcon}>
-                    <Text style={styles.groupIconText}>
-                      {group.name.substring(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.groupInfo}>
-                    <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
-                    <Text style={[
-                      styles.groupStatus,
-                      group.status === 'completed' && styles.groupStatusCompleted
-                    ]}>
-                      {group.status === 'active' ? '● Active' : '✓ Completed'}
-                    </Text>
-                  </View>
-                  <Text style={styles.groupArrow}>›</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </ScrollView>
+        {isMobileWeb ? (
+          <WebPullToRefresh
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            style={styles.cardScrollView}
+            contentContainerStyle={styles.cardScrollContent}
+            scrollViewProps={{
+              showsVerticalScrollIndicator: true,
+            }}
+          >
+            {loading ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator size="large" color="#FF6B35" />
+                <Text style={styles.loadingText}>Loading groups...</Text>
+              </View>
+            ) : filteredGroups.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>🔍</Text>
+                <Text style={styles.emptyTitle}>
+                  {searchQuery ? 'No groups found' : 'Search for a group'}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  {searchQuery 
+                    ? `No groups matching "${searchQuery}"`
+                    : 'Search for a group to view expenses'
+                  }
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.groupsList}>
+                {filteredGroups.map((group, index) => (
+                  <TouchableOpacity
+                    key={group._id || group.id}
+                    style={[
+                      styles.groupItem,
+                      index < filteredGroups.length - 1 && styles.groupItemBorder
+                    ]}
+                    onPress={() => handleSelectGroup(group)}
+                  >
+                    <View style={styles.groupIcon}>
+                      <Text style={styles.groupIconText}>
+                        {group.name.substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.groupInfo}>
+                      <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
+                      <Text style={[
+                        styles.groupStatus,
+                        group.status === 'completed' && styles.groupStatusCompleted
+                      ]}>
+                        {group.status === 'active' ? '● Active' : '✓ Completed'}
+                      </Text>
+                    </View>
+                    <Text style={styles.groupArrow}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </WebPullToRefresh>
+        ) : (
+          <ScrollView 
+            style={styles.cardScrollView}
+            contentContainerStyle={styles.cardScrollContent}
+            showsVerticalScrollIndicator={true}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#FF6B35"
+                colors={['#FF6B35']}
+              />
+            }
+          >
+            {loading ? (
+              <View style={styles.loadingState}>
+                <ActivityIndicator size="large" color="#FF6B35" />
+                <Text style={styles.loadingText}>Loading groups...</Text>
+              </View>
+            ) : filteredGroups.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>🔍</Text>
+                <Text style={styles.emptyTitle}>
+                  {searchQuery ? 'No groups found' : 'Search for a group'}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  {searchQuery 
+                    ? `No groups matching "${searchQuery}"`
+                    : 'Search for a group to view expenses'
+                  }
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.groupsList}>
+                {filteredGroups.map((group, index) => (
+                  <TouchableOpacity
+                    key={group._id || group.id}
+                    style={[
+                      styles.groupItem,
+                      index < filteredGroups.length - 1 && styles.groupItemBorder
+                    ]}
+                    onPress={() => handleSelectGroup(group)}
+                  >
+                    <View style={styles.groupIcon}>
+                      <Text style={styles.groupIconText}>
+                        {group.name.substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.groupInfo}>
+                      <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
+                      <Text style={[
+                        styles.groupStatus,
+                        group.status === 'completed' && styles.groupStatusCompleted
+                      ]}>
+                        {group.status === 'active' ? '● Active' : '✓ Completed'}
+                      </Text>
+                    </View>
+                    <Text style={styles.groupArrow}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        )}
       </View>
     </View>
   );
@@ -1229,13 +1294,16 @@ export default function GroupsScreen({ route }) {
             <View style={styles.headerActions}>
               <TouchableOpacity 
                 onPress={handleRefresh} 
-                style={styles.cardRefreshButton}
+                style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
                 disabled={refreshing || loadingDetails}
               >
                 {refreshing ? (
                   <ActivityIndicator size="small" color="#FF6B35" />
                 ) : (
-                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                  <>
+                    <Ionicons name="refresh" size={20} color="#FF6B35" />
+                    {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+                  </>
                 )}
               </TouchableOpacity>
               {isEditable && (
@@ -1964,6 +2032,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  cardRefreshButtonMobileWeb: {
+    width: 'auto',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  refreshButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
   },
   cardDeleteButton: {
     width: 40,

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   BackHandler,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -16,6 +17,10 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { authGet, authPost } from '../utils/apiHelper';
 import { useAuth } from '../context/AuthContext';
+import WebPullToRefresh from '../components/WebPullToRefresh';
+
+// Check if mobile web
+const isMobileWeb = () => Platform.OS === 'web' && Dimensions.get('window').width < 768;
 
 // Collapsible Group Component
 function CollapsibleGroup({ group, onNotify, notifyingUser }) {
@@ -102,6 +107,17 @@ export default function AwaitingScreen({ route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [awaitingPayments, setAwaitingPayments] = useState([]);
   const [notifyingUser, setNotifyingUser] = useState(null);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
+  
+  // Detect mobile web
+  const isMobileWeb = Platform.OS === 'web' && screenWidth < 768;
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenWidth(window.width);
+    });
+    return () => subscription?.remove();
+  }, []);
 
   const fetchAwaitingPayments = async () => {
     try {
@@ -206,13 +222,16 @@ export default function AwaitingScreen({ route }) {
               <Text style={styles.cardTitle}>Awaiting Payments</Text>
               <TouchableOpacity 
                 onPress={handleRefresh} 
-                style={styles.cardRefreshButton}
+                style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
                 disabled={refreshing || loading}
               >
                 {refreshing ? (
                   <ActivityIndicator size="small" color="#FF6B35" />
                 ) : (
-                  <Ionicons name="refresh" size={20} color="#FF6B35" />
+                  <>
+                    <Ionicons name="refresh" size={20} color="#FF6B35" />
+                    {isMobileWeb && <Text style={styles.refreshButtonText}>Refresh</Text>}
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -246,31 +265,55 @@ export default function AwaitingScreen({ route }) {
                 </View>
 
                 {/* Scrollable Awaiting List */}
-                <ScrollView 
-                  style={styles.scrollView}
-                  contentContainerStyle={styles.scrollViewContent}
-                  showsVerticalScrollIndicator={true}
-                  bounces={true}
-                  nestedScrollEnabled={true}
-                  keyboardShouldPersistTaps="handled"
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={handleRefresh}
-                      tintColor="#FF6B35"
-                      colors={['#FF6B35']}
-                    />
-                  }
-                >
-                  {awaitingPayments.map((group) => (
-                    <CollapsibleGroup
-                      key={group.groupId}
-                      group={group}
-                      onNotify={handleNotify}
-                      notifyingUser={notifyingUser}
-                    />
-                  ))}
-                </ScrollView>
+                {isMobileWeb ? (
+                  <WebPullToRefresh
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    scrollViewProps={{
+                      showsVerticalScrollIndicator: true,
+                      bounces: true,
+                      nestedScrollEnabled: true,
+                      keyboardShouldPersistTaps: "handled",
+                    }}
+                  >
+                    {awaitingPayments.map((group) => (
+                      <CollapsibleGroup
+                        key={group.groupId}
+                        group={group}
+                        onNotify={handleNotify}
+                        notifyingUser={notifyingUser}
+                      />
+                    ))}
+                  </WebPullToRefresh>
+                ) : (
+                  <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollViewContent}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    nestedScrollEnabled={true}
+                    keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor="#FF6B35"
+                        colors={['#FF6B35']}
+                      />
+                    }
+                  >
+                    {awaitingPayments.map((group) => (
+                      <CollapsibleGroup
+                        key={group.groupId}
+                        group={group}
+                        onNotify={handleNotify}
+                        notifyingUser={notifyingUser}
+                      />
+                    ))}
+                  </ScrollView>
+                )}
               </View>
             )}
           </View>
@@ -402,6 +445,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  cardRefreshButtonMobileWeb: {
+    width: 'auto',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  refreshButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
   },
   summaryTitle: {
     fontSize: 14,
