@@ -208,13 +208,6 @@ export default function HelpCenterScreen() {
                   <Text style={androidStyles.faqQuestion}>Is my data secure?</Text>
                   <Text style={androidStyles.faqAnswer}>Yes! We use bank-level encryption to protect all your data and transactions.</Text>
                 </View>
-                
-                <View style={androidStyles.faqDivider} />
-                
-                <View style={androidStyles.faqItem}>
-                  <Text style={androidStyles.faqQuestion}>Can I use SplitBill offline?</Text>
-                  <Text style={androidStyles.faqAnswer}>Yes, you can add and split bills offline. They'll sync when you're back online.</Text>
-                </View>
               </Animated.View>
 
               {/* Social Media */}
@@ -365,13 +358,6 @@ export default function HelpCenterScreen() {
             <View style={styles.faqItem}>
               <Text style={styles.faqQuestion}>Is my data secure?</Text>
               <Text style={styles.faqAnswer}>Yes! We use bank-level encryption to protect all your data and transactions.</Text>
-            </View>
-            
-            <View style={styles.faqDivider} />
-            
-            <View style={styles.faqItem}>
-              <Text style={styles.faqQuestion}>Can I use SplitBill offline?</Text>
-              <Text style={styles.faqAnswer}>Yes, you can add and split bills offline. They'll sync when you're back online.</Text>
             </View>
           </Animated.View>
 
