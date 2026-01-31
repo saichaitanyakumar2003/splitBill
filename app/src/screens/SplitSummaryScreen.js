@@ -412,36 +412,46 @@ export default function SplitSummaryScreen() {
   // Content without card wrapper (for Android)
   const contentWithoutCard = (
     <>
-      {/* Action Icons - Top Right */}
-      <View style={androidStyles.cardActions}>
+      {/* Header Row with View Settlements and Action Icons */}
+      <View style={androidStyles.contentHeader}>
         <TouchableOpacity 
-          style={[styles.cardActionIcon, copied && styles.cardActionIconCopied]} 
-          onPress={handleCopy}
+          onPress={() => setShowSettlements(!showSettlements)}
         >
-          {copied ? (
-            <Text style={styles.copiedText}>Copied!</Text>
-          ) : (
-            <View style={styles.copyIcon}>
-              <View style={styles.copyRect} />
-              <View style={styles.copyRectBack} />
-            </View>
-          )}
+          <Text style={androidStyles.viewSettlementsLink}>
+            {showSettlements ? '← Expenses Added' : 'View Final Settlements →'}
+          </Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.cardActionIcon} onPress={handleShare}>
-          <View style={styles.shareIconContainer}>
-            {/* Arrow pointing up */}
-            <View style={styles.shareArrow} />
-            <View style={styles.shareArrowHead} />
-            {/* Box base */}
-            <View style={styles.shareBox} />
-          </View>
-        </TouchableOpacity>
+        <View style={androidStyles.cardActions}>
+          <TouchableOpacity 
+            style={[styles.cardActionIcon, copied && styles.cardActionIconCopied]} 
+            onPress={handleCopy}
+          >
+            {copied ? (
+              <Text style={styles.copiedText}>Copied!</Text>
+            ) : (
+              <View style={styles.copyIcon}>
+                <View style={styles.copyRect} />
+                <View style={styles.copyRectBack} />
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.cardActionIcon} onPress={handleShare}>
+            <View style={styles.shareIconContainer}>
+              {/* Arrow pointing up */}
+              <View style={styles.shareArrow} />
+              <View style={styles.shareArrowHead} />
+              {/* Box base */}
+              <View style={styles.shareBox} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {!showSettlements ? (
         <>
-          <Text style={styles.cardTitle}>Expenses Added ({expenses.length})</Text>
+          <Text style={androidStyles.sectionTitle}>Expenses Added ({expenses.length})</Text>
           
           {expenses.length > 0 ? (
             <ScrollView 
@@ -469,17 +479,10 @@ export default function SplitSummaryScreen() {
             </View>
           )}
 
-          {/* Link to view settlements */}
-          <TouchableOpacity 
-            style={styles.viewSettlementsLink}
-            onPress={() => setShowSettlements(true)}
-          >
-            <Text style={styles.viewSettlementsText}>View Final Settlements →</Text>
-          </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={styles.cardTitle}>Who Owes Whom</Text>
+          <Text style={androidStyles.sectionTitle}>Who Owes Whom</Text>
           
           {consolidatedExpenses.length > 0 ? (
             <ScrollView 
@@ -506,13 +509,6 @@ export default function SplitSummaryScreen() {
             </View>
           )}
 
-          {/* Link to go back to expenses */}
-          <TouchableOpacity 
-            style={styles.viewSettlementsLink}
-            onPress={() => setShowSettlements(false)}
-          >
-            <Text style={styles.viewSettlementsText}>← View Expenses Added</Text>
-          </TouchableOpacity>
         </>
       )}
     </>
@@ -654,63 +650,56 @@ export default function SplitSummaryScreen() {
       <View style={androidStyles.container}>
         <LinearGradient
           colors={['#F57C3A', '#E85A24', '#D84315']}
-          style={androidStyles.headerGradient}
+          style={androidStyles.gradient}
         >
           <StatusBar style="light" />
-          
-          {/* Back Button */}
-          <TouchableOpacity 
-            style={androidStyles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#E85A24" />
-          </TouchableOpacity>
 
           {/* Header Title */}
           <Text style={androidStyles.headerTitle}>Summary</Text>
 
           {/* Decorative Icon */}
           <View style={androidStyles.decorativeIconContainer}>
-            <Ionicons name="checkmark-done-outline" size={26} color="#E85A24" />
+            <View style={androidStyles.decorativeIconCircle}>
+              <Ionicons name="checkmark-done-outline" size={26} color="#E85A24" />
+            </View>
+          </View>
+
+          {/* White Content Area with Curved Top */}
+          <View style={androidStyles.whiteContentArea}>
+            {isMobileWeb ? (
+              <WebPullToRefresh
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                contentContainerStyle={androidStyles.scrollContent}
+                scrollViewProps={{
+                  style: androidStyles.scrollView,
+                  showsVerticalScrollIndicator: false,
+                }}
+              >
+                <Animated.View style={{ opacity: fadeAnim }}>
+                  {contentWithoutCard}
+                </Animated.View>
+              </WebPullToRefresh>
+            ) : (
+              <ScrollView 
+                style={androidStyles.scrollView}
+                contentContainerStyle={androidStyles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <Animated.View style={{ opacity: fadeAnim }}>
+                  {contentWithoutCard}
+                </Animated.View>
+              </ScrollView>
+            )}
+            
+            {/* Go to Home Button - Fixed at bottom */}
+            <View style={androidStyles.bottomButtonContainer}>
+              <TouchableOpacity style={androidStyles.homeButton} onPress={handleGoHome}>
+                <Text style={androidStyles.homeButtonText}>Go to Home Page</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </LinearGradient>
-
-        {/* White Content Area with Curved Top */}
-        <View style={androidStyles.whiteContentArea}>
-          {isMobileWeb ? (
-            <WebPullToRefresh
-              onRefresh={handleRefresh}
-              refreshing={refreshing}
-              contentContainerStyle={androidStyles.scrollContent}
-              scrollViewProps={{
-                style: androidStyles.scrollView,
-                showsVerticalScrollIndicator: false,
-              }}
-            >
-              <Animated.View style={{ opacity: fadeAnim }}>
-                {contentWithoutCard}
-              </Animated.View>
-              {/* Go to Home Button */}
-              <TouchableOpacity style={styles.homeButton} onPress={handleGoHome}>
-                <Text style={styles.homeButtonText}>Go to Home Page</Text>
-              </TouchableOpacity>
-            </WebPullToRefresh>
-          ) : (
-            <ScrollView 
-              style={androidStyles.scrollView}
-              contentContainerStyle={androidStyles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <Animated.View style={{ opacity: fadeAnim }}>
-                {contentWithoutCard}
-              </Animated.View>
-              {/* Go to Home Button */}
-              <TouchableOpacity style={styles.homeButton} onPress={handleGoHome}>
-                <Text style={styles.homeButtonText}>Go to Home Page</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          )}
-        </View>
       </View>
     );
   }
@@ -1072,46 +1061,37 @@ const styles = StyleSheet.create({
 const androidStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E85A24',
   },
-  headerGradient: {
-    paddingTop: Platform.OS === 'android' ? 50 : 0,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    position: 'relative',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+  gradient: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 20,
+    paddingTop: 60,
+    marginBottom: 15,
   },
   decorativeIconContainer: {
+    alignItems: 'center',
+    marginTop: 5,
+    marginBottom: -25,
+    zIndex: 20,
+  },
+  decorativeIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 5,
-    marginBottom: -25,
-    zIndex: 20,
-    elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
+    elevation: 8,
   },
   whiteContentArea: {
     flex: 1,
@@ -1119,24 +1099,65 @@ const androidStyles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     marginTop: 0,
-    paddingTop: 40,
+    paddingTop: 15,
     overflow: 'hidden',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 20,
+    paddingTop: 30,
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 100,
+  },
+  contentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  viewSettlementsLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E85A24',
   },
   cardActions: {
     flexDirection: 'row',
     gap: 12,
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-    zIndex: 10,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
+  bottomButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 40,
+    paddingBottom: 30,
+    paddingTop: 15,
+    backgroundColor: '#FFFFFF',
+  },
+  homeButton: {
+    backgroundColor: '#E85A24',
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    shadowColor: '#E85A24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  homeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 
