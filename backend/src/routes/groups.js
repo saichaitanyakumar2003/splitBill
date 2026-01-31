@@ -655,14 +655,12 @@ router.get('/history', async (req, res) => {
     const editHistoryGroups = await EditHistory.distinct('groupId', { groupId: { $in: allGroupIds } });
     const groupsWithEditHistory = new Set(editHistoryGroups);
     
-    // Collect all member emails for name lookup
+    // Collect all member emails for name lookup (from ALL settlements, not just user's)
     const allMemberEmails = new Set();
     historyRecords.forEach(record => {
       record.settledEdges.forEach(edge => {
-        if (edge.from === userMailId || edge.to === userMailId) {
-          allMemberEmails.add(edge.from);
-          allMemberEmails.add(edge.to);
-        }
+        allMemberEmails.add(edge.from);
+        allMemberEmails.add(edge.to);
       });
     });
     
@@ -676,26 +674,24 @@ router.get('/history', async (req, res) => {
       const isDeletedOrCompleted = group.status === 'deleted' || group.status === 'completed';
       const hasEditHistory = groupsWithEditHistory.has(group._id);
       
-      // Get settled edges for this user
-      let userSettledEdges = [];
+      // Get ALL settled edges for this group (not filtered by user)
+      let allSettledEdges = [];
       if (historyRecord) {
-        userSettledEdges = historyRecord.settledEdges
-          .filter(edge => edge.from === userMailId || edge.to === userMailId)
-          .map(edge => ({
-            ...edge,
-            fromName: emailToName[edge.from] || edge.from?.split('@')[0] || 'Unknown',
-            toName: emailToName[edge.to] || edge.to?.split('@')[0] || 'Unknown',
-          }));
+        allSettledEdges = historyRecord.settledEdges.map(edge => ({
+          ...edge,
+          fromName: emailToName[edge.from] || edge.from?.split('@')[0] || 'Unknown',
+          toName: emailToName[edge.to] || edge.to?.split('@')[0] || 'Unknown',
+        }));
       }
       
       // Include in history if: has settlements OR has edit history OR is deleted/completed
-      if (userSettledEdges.length > 0 || hasEditHistory || isDeletedOrCompleted) {
+      if (allSettledEdges.length > 0 || hasEditHistory || isDeletedOrCompleted) {
         historyWithNames.push({
           id: historyRecord?._id || group._id,
           groupId: group._id,
           groupName: group.name,
           groupStatus: group.status,
-          settledEdges: userSettledEdges,
+          settledEdges: allSettledEdges,
           hasEditHistory: hasEditHistory,
           expiresAt: historyRecord?.expiresAt || null,
           createdAt: historyRecord?.createdAt || group.updatedAt,
