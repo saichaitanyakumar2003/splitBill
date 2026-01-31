@@ -1081,6 +1081,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
   },
+  cardRefreshButtonMobileWeb: {
+    width: 'auto',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  refreshButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   summaryInfo: {
     marginBottom: 12,
   },

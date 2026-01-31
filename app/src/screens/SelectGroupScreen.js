@@ -137,13 +137,13 @@ export default function SelectGroupScreen() {
   if (isAndroid) {
     return (
       <View style={androidStyles.container}>
-        <StatusBar style="light" />
-        
-        {/* Orange Header */}
         <LinearGradient
           colors={['#F57C3A', '#E85A24', '#D84315']}
-          style={androidStyles.headerGradient}
+          style={androidStyles.gradient}
         >
+          <StatusBar style="light" />
+          
+          {/* Header */}
           <View style={androidStyles.header}>
             <Pressable onPress={handleBack} style={androidStyles.backButton}>
               <Ionicons name="arrow-back" size={22} color="#E85A24" />
@@ -153,15 +153,14 @@ export default function SelectGroupScreen() {
           </View>
           
           {/* Decorative icon */}
-          <View style={androidStyles.headerIconContainer}>
-            <View style={androidStyles.headerIconCircle}>
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
               <Ionicons name="people-outline" size={26} color="#E85A24" />
             </View>
           </View>
-        </LinearGradient>
 
-        {/* White Content Area with curved top */}
-        <View style={androidStyles.contentWrapper}>
+          {/* White Content Area with curved top */}
+          <View style={androidStyles.whiteContentArea}>
           {/* Search Bar */}
           <View style={androidStyles.searchContainer}>
             <View style={androidStyles.searchInputWrapper}>
@@ -218,9 +217,12 @@ export default function SelectGroupScreen() {
               {filteredGroups.map((group, index) => (
                 <TouchableOpacity
                   key={group._id || group.id}
-                  style={androidStyles.groupItem}
+                  style={[
+                    androidStyles.groupItem,
+                    index < filteredGroups.length - 1 && androidStyles.groupItemBorder
+                  ]}
                   onPress={() => handleSelectGroup(group)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   <View style={androidStyles.groupIcon}>
                     <Text style={androidStyles.groupIconText}>
@@ -231,14 +233,13 @@ export default function SelectGroupScreen() {
                     <Text style={androidStyles.groupName} numberOfLines={1}>{group.name}</Text>
                     <Text style={androidStyles.groupStatus}>● Active</Text>
                   </View>
-                  <View style={androidStyles.groupArrowCircle}>
-                    <Ionicons name="chevron-forward" size={20} color="#FFF" />
-                  </View>
+                  <Text style={androidStyles.groupArrow}>›</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           )}
         </View>
+        </LinearGradient>
       </View>
     );
   }
@@ -570,16 +571,16 @@ const androidStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E85A24',
   },
-  headerGradient: {
-    paddingTop: 40,
-    paddingBottom: 60,
+  gradient: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 50,
+    paddingBottom: 20,
   },
   backButton: {
     width: 44,
@@ -603,13 +604,13 @@ const androidStyles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  headerIconContainer: {
+  decorativeIconContainer: {
     alignItems: 'center',
     marginTop: 5,
     marginBottom: -25,
     zIndex: 20,
   },
-  headerIconCircle: {
+  decorativeIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -622,7 +623,7 @@ const androidStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
-  contentWrapper: {
+  whiteContentArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     marginTop: 0,
@@ -713,25 +714,20 @@ const androidStyles = StyleSheet.create({
   },
   groupsScrollView: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   groupsScrollContent: {
+    paddingHorizontal: 20,
     paddingBottom: 20,
+    paddingTop: 10,
   },
   groupItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+    paddingVertical: 16,
+  },
+  groupItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   groupIcon: {
     width: 50,
@@ -761,12 +757,9 @@ const androidStyles = StyleSheet.create({
     color: '#28A745',
     fontWeight: '500',
   },
-  groupArrowCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E85A24',
-    justifyContent: 'center',
-    alignItems: 'center',
+  groupArrow: {
+    fontSize: 24,
+    color: '#CCC',
+    fontWeight: '300',
   },
 });

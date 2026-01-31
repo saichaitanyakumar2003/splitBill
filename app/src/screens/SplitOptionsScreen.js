@@ -83,13 +83,13 @@ export default function SplitOptionsScreen() {
   if (isAndroid) {
     return (
       <View style={androidStyles.container}>
-        <StatusBar style="light" />
-        
-        {/* Orange Header */}
         <LinearGradient
           colors={['#F57C3A', '#E85A24', '#D84315']}
-          style={androidStyles.headerGradient}
+          style={androidStyles.gradient}
         >
+          <StatusBar style="light" />
+          
+          {/* Header */}
           <View style={androidStyles.header}>
             <Pressable onPress={handleBack} style={androidStyles.backButton}>
               <Ionicons name="arrow-back" size={22} color="#E85A24" />
@@ -99,15 +99,14 @@ export default function SplitOptionsScreen() {
           </View>
           
           {/* Decorative icon */}
-          <View style={androidStyles.headerIconContainer}>
-            <View style={androidStyles.headerIconCircle}>
+          <View style={androidStyles.decorativeIconContainer}>
+            <View style={androidStyles.decorativeIconCircle}>
               <Ionicons name="git-branch-outline" size={26} color="#E85A24" />
             </View>
           </View>
-        </LinearGradient>
 
-        {/* White Content Area with curved top */}
-        <View style={androidStyles.contentWrapper}>
+          {/* White Content Area with curved top */}
+          <View style={androidStyles.whiteContentArea}>
           <View style={androidStyles.content}>
             <Text style={androidStyles.cardTitle}>What would you like to do?</Text>
             <Text style={androidStyles.cardSubtitle}>Choose an option to split your expenses</Text>
@@ -159,6 +158,7 @@ export default function SplitOptionsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </LinearGradient>
       </View>
     );
   }
@@ -337,16 +337,16 @@ const androidStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E85A24',
   },
-  headerGradient: {
-    paddingTop: 40,
-    paddingBottom: 60,
+  gradient: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 50,
+    paddingBottom: 20,
   },
   backButton: {
     width: 44,
@@ -370,13 +370,13 @@ const androidStyles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  headerIconContainer: {
+  decorativeIconContainer: {
     alignItems: 'center',
     marginTop: 5,
     marginBottom: -25,
     zIndex: 20,
   },
-  headerIconCircle: {
+  decorativeIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -389,7 +389,7 @@ const androidStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
-  contentWrapper: {
+  whiteContentArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     marginTop: 0,
