@@ -810,7 +810,7 @@ function HomeScreen({ navigation, route }) {
   // Android/iOS Native - New Dashboard Layout
   if (isNativeMobile) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: '#FF6B35' }]}>
         {/* Orange Header Section */}
         <LinearGradient
           colors={['#FF8C5A', '#FF6B35', '#FF5722']}
@@ -2513,6 +2513,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
+    zIndex: 1,
   },
   androidTopBar: {
     flexDirection: 'row',
