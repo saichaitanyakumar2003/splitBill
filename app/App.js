@@ -228,7 +228,7 @@ function DecorativeCircles() {
 }
 
 // Logo Component with pulse
-function Logo({ isMobile = false }) {
+function Logo({ isMobile = false, hideText = false }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -261,16 +261,20 @@ function Logo({ isMobile = false }) {
         </Text>
       </Animated.View>
       
-      <Text style={[styles.title, isMobile && styles.titleMobile]}>Split<Text style={styles.titleBold}>Bill</Text></Text>
-      <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>Split smart. Pay fair.</Text>
-      
-      <View style={styles.taglineRow}>
-        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>🧾</Text>
-        <Text style={styles.taglineArrow}>→</Text>
-        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>👥</Text>
-        <Text style={styles.taglineArrow}>→</Text>
-        <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>✅</Text>
-      </View>
+      {!hideText && (
+        <>
+          <Text style={[styles.title, isMobile && styles.titleMobile]}>Split<Text style={styles.titleBold}>Bill</Text></Text>
+          <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>Split smart. Pay fair.</Text>
+          
+          <View style={styles.taglineRow}>
+            <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>🧾</Text>
+            <Text style={styles.taglineArrow}>→</Text>
+            <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>👥</Text>
+            <Text style={styles.taglineArrow}>→</Text>
+            <Text style={[styles.taglineIcon, isMobile && styles.taglineIconMobile]}>✅</Text>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -2597,7 +2601,9 @@ const styles = StyleSheet.create({
   // Android Dashboard Styles
   androidHeader: {
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 60,
+    paddingBottom: 80,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
     zIndex: 1,
   },
   androidTopBar: {
@@ -2637,21 +2643,17 @@ const styles = StyleSheet.create({
   androidWhitePanel: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginTop: -30,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    marginTop: -50,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    zIndex: 0,
   },
   androidScrollView: {
     flex: 1,
   },
   androidScrollContent: {
     padding: 20,
-    paddingTop: 40,
+    paddingTop: 20,
     backgroundColor: '#FFFFFF',
   },
   androidActionButtonsRow: {
