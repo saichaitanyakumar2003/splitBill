@@ -101,7 +101,7 @@ export default function SplitOptionsScreen() {
           {/* Decorative icon */}
           <View style={androidStyles.headerIconContainer}>
             <View style={androidStyles.headerIconCircle}>
-              <Ionicons name="git-branch-outline" size={28} color="#E85A24" />
+              <Ionicons name="git-branch-outline" size={26} color="#E85A24" />
             </View>
           </View>
         </LinearGradient>
@@ -372,27 +372,28 @@ const androidStyles = StyleSheet.create({
   },
   headerIconContainer: {
     alignItems: 'center',
-    marginTop: -10,
-    marginBottom: 5,
-    zIndex: 10,
+    marginTop: 5,
+    marginBottom: -25,
+    zIndex: 20,
   },
   headerIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 8,
   },
   contentWrapper: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginTop: -30,
+    marginTop: 0,
+    paddingTop: 15,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',

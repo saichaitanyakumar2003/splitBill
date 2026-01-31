@@ -231,7 +231,7 @@ export default function BillScanScreen() {
             </View>
             <View style={androidStyles.androidIconContainer}>
               <View style={androidStyles.androidIconCircle}>
-                <Ionicons name="scan-outline" size={28} color="#E85A24" />
+                <Ionicons name="scan-outline" size={26} color="#E85A24" />
               </View>
             </View>
             <View style={androidStyles.androidContentArea}>
@@ -299,7 +299,7 @@ export default function BillScanScreen() {
           {/* Decorative Icon */}
           <View style={androidStyles.androidIconContainer}>
             <View style={androidStyles.androidIconCircle}>
-              <Ionicons name="scan-outline" size={28} color="#E85A24" />
+              <Ionicons name="scan-outline" size={26} color="#E85A24" />
             </View>
           </View>
 
@@ -994,22 +994,22 @@ const androidStyles = StyleSheet.create({
   // Decorative Icon
   androidIconContainer: {
     alignItems: 'center',
-    marginTop: -10,
-    marginBottom: 5,
-    zIndex: 10,
+    marginTop: 5,
+    marginBottom: -25,
+    zIndex: 20,
   },
   androidIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   
   // White Content Area with Curved Top
@@ -1018,7 +1018,8 @@ const androidStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    marginTop: -30,
+    marginTop: 0,
+    paddingTop: 40,
     overflow: 'hidden',
     paddingHorizontal: 20,
   },
