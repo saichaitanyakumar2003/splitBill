@@ -431,7 +431,7 @@ function WebProfileMenu({ visible, onClose, onViewProfile, onHelpCenter, onLogou
 }
 
 
-// Mobile Settings Panel Component (Right) - View Profile, Help Center, and Logout
+// Mobile Info Panel Component (Right) - View Profile, Help Center, and Logout
 function MobileSettingsPanel({ visible, onClose, onViewProfile, onHelpCenter, onLogout }) {
   if (!visible) return null;
 
@@ -440,7 +440,7 @@ function MobileSettingsPanel({ visible, onClose, onViewProfile, onHelpCenter, on
       <Pressable style={styles.sidePanelOverlay} onPress={onClose} />
       <View style={[styles.sidePanel, styles.settingsPanel]}>
         <View style={styles.sidePanelHeader}>
-          <Text style={styles.sidePanelTitle}>Settings</Text>
+          <Text style={styles.sidePanelTitle}>Info</Text>
           <TouchableOpacity onPress={onClose} style={styles.sidePanelClose}>
             <Text style={styles.sidePanelCloseText}>✕</Text>
           </TouchableOpacity>
