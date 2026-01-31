@@ -18,35 +18,37 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 ## 🆓 Why SplitBill?
 
-**SplitBill offers FREE AI-powered OCR bill scanning** — a premium feature that competitors like Splitwise charge for in their Pro subscription ($4.99/month).
+Other expense-splitting apps charge **$4.99/month or more** for premium features like OCR scanning and analytics. **SplitBill gives you everything for FREE.**
 
-| Feature | SplitBill | Splitwise |
-|---------|-----------|-----------|
-| OCR Bill Scanning | ✅ **FREE** | ❌ Pro only ($4.99/mo) |
-| Item-level Splitting | ✅ FREE | ❌ Pro only |
-| Unlimited Scans | ✅ FREE | ❌ Limited |
-| Smart Tax/Tip Distribution | ✅ FREE | ⚠️ Basic |
+### What You Get — 100% Free:
+- **📸 AI-Powered OCR Scanning** — Scan any receipt and extract items automatically
+- **🧮 Item-Level Splitting** — Assign specific items to specific people
+- **📊 Expense Analytics** — Track spending by category with interactive charts
+- **🤖 AI-Powered Insights** — Get personalized spending summaries and saving tips
+- **🔔 Push Notifications** — Stay updated on group expenses
+- **♾️ Unlimited Usage** — No caps, no limits, no subscriptions
 
-> **No subscriptions. No hidden fees. Just scan, split, and settle — completely free!**
+> **No subscriptions. No hidden fees. Just scan, split, and track — completely free!**
 
 ---
 
 ## 🤖 Powered by Google Gemini AI
 
-SplitBill uses **Google Gemini 2.5 Flash** — one of the most advanced multimodal AI models available:
+SplitBill uses **Google Gemini 2.5 Flash** — one of the most advanced multimodal AI models — for both OCR and analytics:
 
-| Model | Provider | Capability |
-|-------|----------|------------|
-| **Gemini 2.5 Flash** | Google AI | Vision + Language Understanding |
-
-This cutting-edge multimodal model excels at understanding and extracting structured data from bill images, providing:
-
+### Receipt Scanning (Vision AI)
 - 🎯 **High accuracy** in recognizing item names, prices, and quantities
 - 🧠 **Smart categorization** of food items (Veg, Non-Veg, Beverages, Others)
 - 📊 **Automatic tax & charge detection** (CGST, SGST, Service Charge)
 - 🏪 **Restaurant/merchant name extraction**
 - 💡 **Tax-inclusive bill handling** — correctly handles Indian GST bills
 - ⚡ **Fast processing** — results in seconds
+
+### Expense Analytics (Language AI)
+- 🏷️ **Auto-categorization** of expenses into Food, Travel, Entertainment, Shopping, Others
+- 📈 **Spending pattern analysis** across months
+- 💬 **Personalized AI summaries** with saving tips
+- 🔄 **Smart caching** to minimize API calls
 
 ---
 
@@ -58,6 +60,30 @@ This cutting-edge multimodal model excels at understanding and extracting struct
 - **📤 Easy Sharing** - Share split summaries with your friends
 - **🔔 Push Notifications** - Get notified when you owe money or when expenses are added
 - **🌐 Web & Mobile** - Works on Android and Web browsers
+
+---
+
+## 📈 Expense Analytics & AI Insights (Android Only)
+
+Track your spending patterns and get AI-powered insights — all for free!
+
+> **Note:** Analytics features are currently available only on the Android app.
+
+### Expense Insights (Pie Chart)
+- View spending breakdown by category for any month
+- Interactive pie chart — tap a slice to see details
+- Filter by categories: Food, Travel, Entertainment, Shopping, Others
+
+### Analysis (Bar Chart)
+- Compare spending across categories over time
+- Select date range: Past 1-6 months
+- See total spending trends at a glance
+
+### AI-Powered Summary
+- Get personalized insights about your spending habits
+- See where you spent the most and month-over-month changes
+- Receive actionable saving tips based on your patterns
+- Powered by Google Gemini AI (2 summaries per day)
 
 ## 🚀 Quick Start
 
