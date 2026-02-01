@@ -912,17 +912,21 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   paymentCardContent: {
-    flexDirection: 'column',
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
   },
   paymentCardUsers: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    flex: 1,
+    gap: 4,
   },
   paymentCardUser: {
     flexDirection: 'row',
     alignItems: 'center',
-    maxWidth: '45%',
   },
   paymentCardUserAvatar: {
     width: 28,
@@ -942,16 +946,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#333',
+    maxWidth: 100,
   },
   paymentCardArrow: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
   },
   paymentCardAmount: {
     fontSize: 15,
     fontWeight: '700',
     color: '#28A745',
-    marginTop: 8,
-    alignSelf: 'flex-end',
+    marginLeft: 'auto',
   },
   addPaymentSection: {
     backgroundColor: '#FAFAFA',
