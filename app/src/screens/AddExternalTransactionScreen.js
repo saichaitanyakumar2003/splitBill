@@ -458,7 +458,8 @@ export default function AddExternalTransactionScreen() {
               <Ionicons 
                 name={isDropdownOpen ? "chevron-up" : "chevron-down"} 
                 size={20} 
-                color="#666" 
+                color="#666"
+                style={styles.dropdownIcon}
               />
             </TouchableOpacity>
             
@@ -1035,6 +1036,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     paddingHorizontal: 12,
     height: 50,
+    overflow: 'hidden',
   },
   dropdownError: {
     borderColor: '#DC3545',
@@ -1044,7 +1046,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     paddingVertical: 0,
+    minWidth: 0,
     ...(Platform.OS === 'web' && { outlineStyle: 'none' }),
+  },
+  dropdownIcon: {
+    marginLeft: 8,
+    flexShrink: 0,
   },
   dropdownList: {
     backgroundColor: '#FFF',
