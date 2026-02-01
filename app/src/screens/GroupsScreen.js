@@ -1514,7 +1514,7 @@ export default function GroupsScreen({ route }) {
       <View style={styles.content}>
         <View style={styles.card}>
           {/* Card Header with Group Name, Refresh and Delete */}
-          <View style={styles.detailsCardHeader}>
+          <View style={[styles.detailsCardHeader, isMobileWeb && styles.detailsCardHeaderMobileWeb]}>
             <View style={styles.groupNameSection}>
               <View style={styles.groupNameRow}>
                 <Text style={styles.groupNameLabel}>GROUP</Text>
@@ -1542,7 +1542,7 @@ export default function GroupsScreen({ route }) {
                 </Text>
               )}
             </View>
-            <View style={styles.headerActions}>
+            <View style={[styles.headerActions, isMobileWeb && styles.headerActionsMobileWeb]}>
               <TouchableOpacity 
                 onPress={handleRefresh} 
                 style={[styles.cardRefreshButton, isMobileWeb && styles.cardRefreshButtonMobileWeb]}
@@ -2866,10 +2866,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
+  detailsCardHeaderMobileWeb: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  headerActionsMobileWeb: {
+    flexWrap: 'wrap',
+    width: '100%',
   },
   cardRefreshButton: {
     width: 40,
