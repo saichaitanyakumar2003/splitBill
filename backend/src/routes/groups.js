@@ -1196,11 +1196,25 @@ router.post('/:id/add-external-payment', async (req, res) => {
     const fromLower = from.toLowerCase().trim();
     const toLower = to.toLowerCase().trim();
     
+    // Get user-friendly names
+    const fromName = from.split('@')[0];
+    const toName = to.split('@')[0];
+    
     // Get current pending edges (not resolved)
+    // Edge { from: B, to: A } means B owes A (B is debtor, A is creditor)
     const pendingEdges = edgesDoc.getPendingEdges();
     
-    // Find if there's a pending edge from 'from' to 'to'
+    console.log(`📋 External payment request: ${fromName} paid ${toName} ₹${parsedAmount}`);
+    console.log(`📋 Pending edges:`, pendingEdges.map(e => `${e.from.split('@')[0]} owes ${e.to.split('@')[0]} ₹${e.amount}`));
+    
+    // For a valid external payment:
+    // - The payer (from) should be the debtor (owes money)
+    // - The recipient (to) should be the creditor (is owed money)
+    // So we need an edge where from owes to
     const existingDebt = pendingEdges.find(e => e.from === fromLower && e.to === toLower);
+    
+    // Check if there's a reverse debt (to owes from) - this would be invalid
+    const reverseDebt = pendingEdges.find(e => e.from === toLower && e.to === fromLower);
     
     // Cap the external payment amount to the actual debt
     // If B owes A ₹50 and external payment is ₹100, only record ₹50
@@ -1209,30 +1223,29 @@ router.post('/:id/add-external-payment', async (req, res) => {
     let originalAmount = actualPaymentAmount;
     
     if (existingDebt) {
+      // Valid: from owes to, so from paying to settles the debt
       // Cap to the debt amount
       if (actualPaymentAmount > existingDebt.amount) {
         actualPaymentAmount = existingDebt.amount;
         wasCapped = true;
         console.log(`💰 External payment capped: Requested ₹${originalAmount}, capped to ₹${actualPaymentAmount} (actual debt)`);
       }
+      console.log(`✅ Valid payment: ${fromName} owes ${toName} ₹${existingDebt.amount}, recording payment of ₹${actualPaymentAmount}`);
+    } else if (reverseDebt) {
+      // Invalid: to owes from, so from paying to is the wrong direction
+      // This would increase to's debt instead of settling it
+      console.log(`❌ Invalid payment direction: ${toName} owes ${fromName} ₹${reverseDebt.amount}, but trying to record ${fromName} paying ${toName}`);
+      return res.status(400).json({ 
+        success: false, 
+        message: `Invalid payment direction: ${toName} owes ${fromName} ₹${reverseDebt.amount.toFixed(2)}. To settle this debt, ${toName} should pay ${fromName}, not the other way around.`
+      });
     } else {
-      // No pending debt from 'from' to 'to' - check if there's a reverse debt
-      const reverseDebt = pendingEdges.find(e => e.from === toLower && e.to === fromLower);
-      if (reverseDebt) {
-        // 'to' actually owes 'from', so this payment doesn't make sense
-        // But we'll allow it with a warning - set amount to 0 to prevent reverse edge creation
-        console.log(`⚠️ External payment warning: ${fromLower} doesn't owe ${toLower}, ${toLower} owes ${fromLower} ₹${reverseDebt.amount}`);
-        return res.status(400).json({ 
-          success: false, 
-          message: `${from.split('@')[0]} doesn't owe ${to.split('@')[0]}. Actually ${to.split('@')[0]} owes ${from.split('@')[0]} ₹${reverseDebt.amount.toFixed(2)}.`
-        });
-      } else {
-        // No debt in either direction - don't allow
-        return res.status(400).json({ 
-          success: false, 
-          message: `No pending payment found from ${from.split('@')[0]} to ${to.split('@')[0]} in this group.`
-        });
-      }
+      // No debt in either direction - don't allow
+      console.log(`❌ No debt found between ${fromName} and ${toName}`);
+      return res.status(400).json({ 
+        success: false, 
+        message: `No pending debt between ${fromName} and ${toName} in this group.`
+      });
     }
     
     // Get all expenses and current resolved payments
