@@ -912,20 +912,17 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   paymentCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
   },
   paymentCardUsers: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
     flexWrap: 'wrap',
   },
   paymentCardUser: {
     flexDirection: 'row',
     alignItems: 'center',
-    maxWidth: '40%',
+    maxWidth: '45%',
   },
   paymentCardUserAvatar: {
     width: 28,
@@ -953,7 +950,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#28A745',
-    marginLeft: 8,
+    marginTop: 8,
+    alignSelf: 'flex-end',
   },
   addPaymentSection: {
     backgroundColor: '#FAFAFA',
@@ -1234,6 +1232,7 @@ const androidStyles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
+    marginLeft: 12,
   },
   headerRight: {
     width: 44,
