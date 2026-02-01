@@ -88,6 +88,10 @@ export default function GroupsScreen({ route }) {
   // Save confirmation modal state
   const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
 
+  // Complete group modal state
+  const [completeGroupModalVisible, setCompleteGroupModalVisible] = useState(false);
+  const [completingGroup, setCompletingGroup] = useState(false);
+
   // Fetch user's groups
   const fetchGroups = async () => {
     try {
@@ -373,6 +377,53 @@ export default function GroupsScreen({ route }) {
       }
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Handle complete group choice
+  const handleCompleteGroupChoice = async (keepActive) => {
+    if (!selectedGroup) return;
+    
+    setCompleteGroupModalVisible(false);
+    
+    if (!keepActive) {
+      // User chose to complete the group
+      setCompletingGroup(true);
+      try {
+        const groupId = selectedGroup._id || selectedGroup.id;
+        const response = await authPost(`/groups/${groupId}/complete`);
+        const data = await response.json();
+        
+        if (data.success || response.ok) {
+          // Refresh groups and group details
+          await fetchGroups();
+          await fetchGroupDetails(groupId);
+          
+          if (Platform.OS === 'web') {
+            alert(`Group "${selectedGroup.name}" has been marked as completed!`);
+          } else {
+            Alert.alert('Success', `Group "${selectedGroup.name}" has been marked as completed!`);
+          }
+        } else {
+          throw new Error(data.message || 'Failed to complete group');
+        }
+      } catch (error) {
+        console.error('Error completing group:', error);
+        if (Platform.OS === 'web') {
+          alert('Failed to complete group. Please try again.');
+        } else {
+          Alert.alert('Error', 'Failed to complete group. Please try again.');
+        }
+      } finally {
+        setCompletingGroup(false);
+      }
+    } else {
+      // User chose to keep active - just close modal
+      if (Platform.OS === 'web') {
+        alert('Group will remain active.');
+      } else {
+        Alert.alert('Info', 'Group will remain active.');
+      }
     }
   };
 
@@ -1415,6 +1466,33 @@ export default function GroupsScreen({ route }) {
               </TouchableOpacity>
               {isEditable && (
                 <TouchableOpacity 
+                  onPress={() => {
+                    const groupId = selectedGroup._id || selectedGroup.id;
+                    navigation.navigate('AddExternalTransaction', { 
+                      groupId, 
+                      groupName: selectedGroup?.name
+                    });
+                  }} 
+                  style={styles.cardExternalTransactionButton}
+                >
+                  <Ionicons name="checkmark-done-circle-outline" size={20} color="#FF6B35" />
+                </TouchableOpacity>
+              )}
+              {isEditable && (
+                <TouchableOpacity 
+                  onPress={() => setCompleteGroupModalVisible(true)} 
+                  style={styles.cardCompleteButton}
+                  disabled={completingGroup}
+                >
+                  {completingGroup ? (
+                    <ActivityIndicator size="small" color="#28A745" />
+                  ) : (
+                    <Ionicons name="flag-outline" size={20} color="#28A745" />
+                  )}
+                </TouchableOpacity>
+              )}
+              {isEditable && (
+                <TouchableOpacity 
                   onPress={() => setDeleteModalVisible(true)} 
                   style={styles.cardDeleteButton}
                   disabled={deleting}
@@ -1479,6 +1557,37 @@ export default function GroupsScreen({ route }) {
                   </>
                 )}
               </TouchableOpacity>
+              {isEditable && (
+                <TouchableOpacity 
+                  onPress={() => {
+                    const groupId = selectedGroup._id || selectedGroup.id;
+                    navigation.navigate('AddExternalTransaction', { 
+                      groupId, 
+                      groupName: selectedGroup?.name
+                    });
+                  }} 
+                  style={[styles.cardExternalTransactionButton, isMobileWeb && styles.cardExternalTransactionButtonMobileWeb]}
+                >
+                  <Ionicons name="checkmark-done-circle-outline" size={20} color="#FF6B35" />
+                  {isMobileWeb && <Text style={styles.externalTransactionButtonText}>Record Payment</Text>}
+                </TouchableOpacity>
+              )}
+              {isEditable && (
+                <TouchableOpacity 
+                  onPress={() => setCompleteGroupModalVisible(true)} 
+                  style={[styles.cardCompleteButton, isMobileWeb && styles.cardCompleteButtonMobileWeb]}
+                  disabled={completingGroup}
+                >
+                  {completingGroup ? (
+                    <ActivityIndicator size="small" color="#28A745" />
+                  ) : (
+                    <>
+                      <Ionicons name="flag-outline" size={20} color="#28A745" />
+                      {isMobileWeb && <Text style={styles.completeButtonText}>Complete</Text>}
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
               {isEditable && (
                 <TouchableOpacity 
                   onPress={() => setDeleteModalVisible(true)} 
@@ -1638,6 +1747,53 @@ export default function GroupsScreen({ route }) {
                     <ActivityIndicator size="small" color="#FFF" />
                   ) : (
                     <Text style={styles.deleteModalConfirmText}>Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Complete Group Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={completeGroupModalVisible}
+          onRequestClose={() => setCompleteGroupModalVisible(false)}
+        >
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.completeModalContent}>
+              <TouchableOpacity
+                style={styles.completeModalCloseButton}
+                onPress={() => setCompleteGroupModalVisible(false)}
+              >
+                <Text style={styles.completeModalCloseText}>✕</Text>
+              </TouchableOpacity>
+              <View style={styles.completeModalIcon}>
+                <Text style={styles.completeModalIconText}>🏁</Text>
+              </View>
+              <Text style={styles.completeModalTitle}>Complete Group?</Text>
+              <Text style={styles.completeModalText}>
+                What would you like to do with{' '}
+                <Text style={styles.completeModalGroupName}>"{selectedGroup?.name}"</Text>?
+              </Text>
+              <View style={styles.completeModalButtons}>
+                <TouchableOpacity
+                  style={styles.keepActiveButton}
+                  onPress={() => handleCompleteGroupChoice(true)}
+                  disabled={completingGroup}
+                >
+                  <Text style={styles.keepActiveButtonText}>Keep Active</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.completeGroupButton}
+                  onPress={() => handleCompleteGroupChoice(false)}
+                  disabled={completingGroup}
+                >
+                  {completingGroup ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.completeGroupButtonText}>Complete Group</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -2191,6 +2347,53 @@ export default function GroupsScreen({ route }) {
         </View>
       </Modal>
 
+      {/* Complete Group Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={completeGroupModalVisible}
+        onRequestClose={() => setCompleteGroupModalVisible(false)}
+      >
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.completeModalContent}>
+            <TouchableOpacity
+              style={styles.completeModalCloseButton}
+              onPress={() => setCompleteGroupModalVisible(false)}
+            >
+              <Text style={styles.completeModalCloseText}>✕</Text>
+            </TouchableOpacity>
+            <View style={styles.completeModalIcon}>
+              <Text style={styles.completeModalIconText}>🏁</Text>
+            </View>
+            <Text style={styles.completeModalTitle}>Complete Group?</Text>
+            <Text style={styles.completeModalText}>
+              What would you like to do with{' '}
+              <Text style={styles.completeModalGroupName}>"{selectedGroup?.name}"</Text>?
+            </Text>
+            <View style={styles.completeModalButtons}>
+              <TouchableOpacity
+                style={styles.keepActiveButton}
+                onPress={() => handleCompleteGroupChoice(true)}
+                disabled={completingGroup}
+              >
+                <Text style={styles.keepActiveButtonText}>Keep Active</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.completeGroupButton}
+                onPress={() => handleCompleteGroupChoice(false)}
+                disabled={completingGroup}
+              >
+                {completingGroup ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.completeGroupButtonText}>Complete Group</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Edit Expense Modal */}
       <Modal
         animationType="slide"
@@ -2696,6 +2899,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  cardExternalTransactionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  cardExternalTransactionButtonMobileWeb: {
+    width: 'auto',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  externalTransactionButtonText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cardCompleteButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  cardCompleteButtonMobileWeb: {
+    width: 'auto',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  completeButtonText: {
+    color: '#28A745',
+    fontSize: 14,
+    fontWeight: '600',
   },
   cardScrollView: {
     flex: 1,
@@ -3558,6 +3801,91 @@ const styles = StyleSheet.create({
   deleteModalConfirmText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFF',
+  },
+  // Complete Group Modal
+  completeModalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  completeModalCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  completeModalCloseText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  completeModalIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  completeModalIconText: {
+    fontSize: 32,
+  },
+  completeModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 12,
+  },
+  completeModalText: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  completeModalGroupName: {
+    fontWeight: '700',
+    color: '#333',
+  },
+  completeModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  keepActiveButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#FF6B35',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  keepActiveButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  completeGroupButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#28A745',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' && { cursor: 'pointer' }),
+  },
+  completeGroupButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#FFF',
   },
   // Edit Expense Modal

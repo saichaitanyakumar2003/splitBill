@@ -13,7 +13,7 @@ const EditHistorySchema = new mongoose.Schema({
   },
   action: {
     type: String,
-    enum: ['add_expense', 'edit_expense', 'delete_expense', 'delete_group'],
+    enum: ['add_expense', 'edit_expense', 'delete_expense', 'delete_group', 'external_payment'],
     required: true
   },
   actionBy: {

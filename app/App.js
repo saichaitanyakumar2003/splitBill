@@ -45,6 +45,7 @@ import SplitSummaryScreen from './src/screens/SplitSummaryScreen';
 import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import BillScanScreen from './src/screens/BillScanScreen';
+import AddExternalTransactionScreen from './src/screens/AddExternalTransactionScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -2251,6 +2252,7 @@ function AppNavigator() {
         <Stack.Screen name="SelectGroup" component={SelectGroupScreen} />
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
         <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
+        <Stack.Screen name="AddExternalTransaction" component={AddExternalTransactionScreen} />
         <Stack.Screen name="GroupPreview" component={GroupPreviewScreen} />
         <Stack.Screen name="BillSplitPreview" component={BillSplitPreviewScreen} />
         <Stack.Screen name="SplitSummary" component={SplitSummaryScreen} />

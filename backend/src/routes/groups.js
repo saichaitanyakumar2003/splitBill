@@ -1159,6 +1159,197 @@ router.post('/:id/resolve', async (req, res) => {
   }
 });
 
+// Add external payment (record a payment made outside the app)
+router.post('/:id/add-external-payment', async (req, res) => {
+  try {
+    const { from, to, amount } = req.body;
+    
+    if (!from || !to || !amount) {
+      return res.status(400).json({ success: false, message: 'from, to, and amount are required' });
+    }
+    
+    if (from === to) {
+      return res.status(400).json({ success: false, message: 'from and to cannot be the same user' });
+    }
+    
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'amount must be a positive number' });
+    }
+    
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    
+    if (group.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Cannot add payments to a non-active group' });
+    }
+    
+    // Get or create consolidated edges document
+    let edgesDoc = await ConsolidatedEdges.findOne({ groupId: group._id });
+    if (!edgesDoc) {
+      edgesDoc = await ConsolidatedEdges.findOrCreateByGroupId(group._id);
+    }
+    
+    // Normalize emails
+    const fromLower = from.toLowerCase().trim();
+    const toLower = to.toLowerCase().trim();
+    
+    // Get current pending edges (not resolved)
+    const pendingEdges = edgesDoc.getPendingEdges();
+    
+    // Find if there's a pending edge from 'from' to 'to'
+    const existingDebt = pendingEdges.find(e => e.from === fromLower && e.to === toLower);
+    
+    // Cap the external payment amount to the actual debt
+    // If B owes A ₹50 and external payment is ₹100, only record ₹50
+    let actualPaymentAmount = Math.round(parsedAmount * 100) / 100;
+    let wasCapped = false;
+    let originalAmount = actualPaymentAmount;
+    
+    if (existingDebt) {
+      // Cap to the debt amount
+      if (actualPaymentAmount > existingDebt.amount) {
+        actualPaymentAmount = existingDebt.amount;
+        wasCapped = true;
+        console.log(`💰 External payment capped: Requested ₹${originalAmount}, capped to ₹${actualPaymentAmount} (actual debt)`);
+      }
+    } else {
+      // No pending debt from 'from' to 'to' - check if there's a reverse debt
+      const reverseDebt = pendingEdges.find(e => e.from === toLower && e.to === fromLower);
+      if (reverseDebt) {
+        // 'to' actually owes 'from', so this payment doesn't make sense
+        // But we'll allow it with a warning - set amount to 0 to prevent reverse edge creation
+        console.log(`⚠️ External payment warning: ${fromLower} doesn't owe ${toLower}, ${toLower} owes ${fromLower} ₹${reverseDebt.amount}`);
+        return res.status(400).json({ 
+          success: false, 
+          message: `${from.split('@')[0]} doesn't owe ${to.split('@')[0]}. Actually ${to.split('@')[0]} owes ${from.split('@')[0]} ₹${reverseDebt.amount.toFixed(2)}.`
+        });
+      } else {
+        // No debt in either direction - don't allow
+        return res.status(400).json({ 
+          success: false, 
+          message: `No pending payment found from ${from.split('@')[0]} to ${to.split('@')[0]} in this group.`
+        });
+      }
+    }
+    
+    // Get all expenses and current resolved payments
+    const allExpenses = group.getExpenses();
+    const currentResolvedPayments = edgesDoc.getResolvedEdges();
+    
+    // Add the new external payment as a resolved payment (with capped amount)
+    const newResolvedPayment = {
+      from: fromLower,
+      to: toLower,
+      amount: actualPaymentAmount,
+      resolved: true,
+      settledAt: new Date().toISOString(),
+      isExternal: true, // Mark as external payment (type 1)
+      originalAmount: wasCapped ? originalAmount : undefined // Store original if capped
+    };
+    
+    const allResolvedPayments = [...currentResolvedPayments, newResolvedPayment];
+    
+    // Recalculate consolidated edges with all resolved payments
+    const newEdges = calculateConsolidatedEdges(allExpenses, allResolvedPayments);
+    
+    // Combine new pending edges with all resolved payments
+    const allEdges = [
+      ...newEdges,
+      ...allResolvedPayments
+    ];
+    
+    edgesDoc.setEdges(allEdges);
+    await edgesDoc.save();
+    
+    // Add to history
+    let historyDoc = await History.findOne({ groupId: group._id });
+    if (!historyDoc) {
+      historyDoc = await History.findOrCreateByGroupId(group._id, group.name);
+    }
+    historyDoc.addSettledEdge(newResolvedPayment);
+    await historyDoc.save();
+    
+    // Record edit history
+    const actorMailId = req.user?.mailId;
+    const actorUser = actorMailId ? await User.findById(actorMailId) : null;
+    
+    const cappedNote = wasCapped ? ` (capped from ₹${originalAmount.toFixed(2)})` : '';
+    EditHistory.addEntry({
+      groupId: group._id,
+      groupName: group.name,
+      action: 'external_payment',
+      actionBy: actorMailId || 'unknown',
+      actionByName: actorUser?.name || actorMailId?.split('@')[0] || 'Unknown',
+      details: {
+        from: fromLower,
+        to: toLower,
+        amount: actualPaymentAmount,
+        originalAmount: wasCapped ? originalAmount : undefined,
+        wasCapped,
+        changes: `Added external payment: ${fromLower} paid ₹${actualPaymentAmount.toFixed(2)} to ${toLower}${cappedNote}`
+      }
+    }).catch(err => console.error('Failed to record edit history:', err));
+    
+    // Send push notification to recipient
+    try {
+      const recipient = await User.findById(toLower);
+      if (recipient) {
+        const recipientDetails = recipient.getDetails();
+        if (recipientDetails.expoPushToken) {
+          const payer = await User.findById(fromLower);
+          const payerName = payer?.name || fromLower.split('@')[0];
+          
+          await sendPushNotification(recipientDetails.expoPushToken, {
+            title: '💸 External Payment Recorded',
+            body: wasCapped 
+              ? `${payerName} recorded a payment of ₹${originalAmount.toFixed(2)} to you (capped to ₹${actualPaymentAmount.toFixed(2)} - actual debt)`
+              : `${payerName} has recorded a payment of ₹${actualPaymentAmount.toFixed(2)} to you`,
+            data: {
+              type: 'external_payment',
+              screen: 'Groups',
+              groupId: group._id,
+              groupName: group.name,
+              amount: actualPaymentAmount,
+              originalAmount: wasCapped ? originalAmount : undefined,
+              wasCapped,
+              payerName,
+            },
+          });
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to send external payment notification:', notifError);
+    }
+    
+    // Check if all edges are resolved
+    const allResolved = edgesDoc.areAllResolved();
+    
+    const cappedMsg = wasCapped ? ` (capped from ₹${originalAmount.toFixed(2)})` : '';
+    console.log(`💰 External payment recorded: ${fromLower} → ${toLower} for ₹${actualPaymentAmount.toFixed(2)}${cappedMsg} in group "${group.name}"`);
+    console.log(`📊 Recalculated ${newEdges.length} pending settlements, ${allResolvedPayments.length} resolved`);
+    
+    res.json({ 
+      success: true, 
+      data: {
+        groupId: group._id,
+        groupName: group.name,
+        groupStatus: group.status,
+        allResolved,
+        recordedAmount: actualPaymentAmount,
+        requestedAmount: originalAmount,
+        wasCapped,
+        consolidatedExpenses: edgesDoc.edges
+      }
+    });
+  } catch (e) {
+    console.error('Error adding external payment:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Mark group as completed
 router.post('/:id/complete', async (req, res) => {
   try {
