@@ -685,7 +685,7 @@ export default function HistoryScreen({ route }) {
                               {formatDate(item.createdAt)}
                             </Text>
                           </View>
-                          <Text style={styles.editHistoryDescription} numberOfLines={2}>
+                          <Text style={styles.editHistoryDescription}>
                             {item.details?.changes || item.details?.expenseName || 'No details'}
                           </Text>
                           <Text style={styles.editHistoryUser}>
@@ -947,7 +947,7 @@ export default function HistoryScreen({ route }) {
                             {formatDate(item.createdAt)}
                           </Text>
                         </View>
-                        <Text style={styles.editHistoryDescription} numberOfLines={2}>
+                        <Text style={styles.editHistoryDescription}>
                           {item.details?.changes || item.details?.expenseName || 'No details'}
                         </Text>
                         <Text style={styles.editHistoryUser}>

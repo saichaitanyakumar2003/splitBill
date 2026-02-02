@@ -1270,7 +1270,7 @@ export default function GroupsScreen({ route }) {
                         {formatTimestamp(item.createdAt)}
                       </Text>
                     </View>
-                    <Text style={styles.activityDescription} numberOfLines={2}>
+                    <Text style={styles.activityDescription}>
                       {item.details?.changes || item.details?.expenseName || 'No details'}
                     </Text>
                     <Text style={styles.activityUser}>
