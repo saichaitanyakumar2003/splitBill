@@ -59,13 +59,6 @@
         {
           "color": "#FF6B35"
         }
-      ],
-      [
-        "@react-native-voice/voice",
-        {
-          "microphone": "SplitBill needs microphone access for voice input",
-          "speechRecognition": "SplitBill uses speech recognition to transcribe your voice"
-        }
       ]
     ],
     "updates": {

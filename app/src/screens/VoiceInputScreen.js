@@ -7,7 +7,6 @@ import {
   Pressable,
   TextInput,
   Platform,
-  PermissionsAndroid,
   Alert,
   ScrollView,
   KeyboardAvoidingView,
@@ -29,8 +28,6 @@ if (isAndroid) {
   }
 }
 
-const RECORD_AUDIO = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
-
 export default function VoiceInputScreen() {
   const navigation = useNavigation();
   const [transcript, setTranscript] = useState('');
@@ -42,8 +39,10 @@ export default function VoiceInputScreen() {
 
   const requestMicPermission = async () => {
     if (!isAndroid) return true;
+    const PermissionsAndroid = require('./getPermissionsAndroid');
+    if (!PermissionsAndroid) return false;
     try {
-      const granted = await PermissionsAndroid.request(RECORD_AUDIO, {
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
         title: 'Microphone permission',
         message: 'SplitBill needs microphone access for voice input.',
         buttonNeutral: 'Ask Me Later',
@@ -248,7 +247,7 @@ export default function VoiceInputScreen() {
                 <Text style={styles.previewLabel}>Preview (editable)</Text>
                 <TextInput
                   style={styles.previewInput}
-                  placeholder="Tap record, speak, then stop. Your speech will appear here. You can edit the text."
+                  placeholder="Tap record, speak, then stop. Your speech will appear here. You can edit the text. Please mention the expense name, paid by whom and split members, amounts clearly."
                   placeholderTextColor="#999"
                   value={transcript}
                   onChangeText={setTranscript}
