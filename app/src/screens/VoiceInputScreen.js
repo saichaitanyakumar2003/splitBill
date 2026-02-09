@@ -39,8 +39,19 @@ export default function VoiceInputScreen() {
 
   const requestMicPermission = async () => {
     if (!isAndroid) return true;
-    const PermissionsAndroid = require('./getPermissionsAndroid');
-    if (!PermissionsAndroid) return false;
+    // Use runtime require so Android gets PermissionsAndroid even when bundle is universal (OTA).
+    let PermissionsAndroid;
+    try {
+      const RN = require('react-native');
+      PermissionsAndroid = RN.PermissionsAndroid;
+    } catch (e) {
+      setPermissionError('Could not access permissions.');
+      return false;
+    }
+    if (!PermissionsAndroid) {
+      setPermissionError('Microphone permission is not available.');
+      return false;
+    }
     try {
       const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
         title: 'Microphone permission',
@@ -154,10 +165,10 @@ export default function VoiceInputScreen() {
                 <Ionicons name="arrow-back" size={24} color="#E85A24" style={pressed && { opacity: 0.7 }} />
               )}
             </Pressable>
-            <Text style={styles.headerTitle}>Voice input</Text>
-          </View>
-          <View style={styles.whiteContentArea}>
-            <View style={styles.unavailableBox}>
+<Text style={styles.headerTitleCentered} pointerEvents="none">Voice input</Text>
+        </View>
+        <View style={styles.whiteContentArea}>
+          <View style={styles.unavailableBox}>
               <View style={styles.unavailableIconCircle}>
                 <Ionicons name="mic-off-outline" size={32} color="#E85A24" />
               </View>
@@ -194,7 +205,7 @@ export default function VoiceInputScreen() {
               <Ionicons name="arrow-back" size={24} color="#E85A24" style={pressed && { opacity: 0.7 }} />
             )}
           </Pressable>
-          <Text style={styles.headerTitle}>Voice input</Text>
+          <Text style={styles.headerTitleCentered} pointerEvents="none">Voice input</Text>
         </View>
 
         <View style={styles.decorativeIconContainer}>
@@ -256,8 +267,10 @@ export default function VoiceInputScreen() {
                   textAlignVertical="top"
                 />
               </View>
+            </ScrollView>
 
-              {/* Continue is intentionally non-functional for now */}
+            {/* Continue is intentionally non-functional for now - fixed at bottom */}
+            <View style={styles.continueButtonContainer}>
               <Pressable
                 style={[
                   styles.continueButton,
@@ -271,7 +284,7 @@ export default function VoiceInputScreen() {
                   Continue
                 </Text>
               </Pressable>
-            </ScrollView>
+            </View>
           </KeyboardAvoidingView>
         </View>
       </LinearGradient>
@@ -292,6 +305,16 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 56 : 55,
     paddingHorizontal: 20,
     paddingBottom: 24,
+    position: 'relative',
+  },
+  headerTitleCentered: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFF',
+    textAlign: 'center',
   },
   backButton: {
     width: 44,
@@ -347,7 +370,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 40,
-    paddingBottom: 40,
+    paddingBottom: 20,
+  },
+  continueButtonContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -420,7 +448,7 @@ const styles = StyleSheet.create({
     padding: 16,
     color: '#333',
     fontSize: 16,
-    minHeight: 140,
+    minHeight: 260,
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
