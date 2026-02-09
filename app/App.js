@@ -1071,12 +1071,21 @@ function HomeScreen({ navigation, route }) {
           {/* Top Bar */}
           <View style={styles.androidTopBar}>
             <Text style={styles.androidAppTitle}>SplitBill</Text>
-            <TouchableOpacity 
-              style={styles.androidProfileButton}
-              onPress={() => setShowSettingsPanel(true)}
-            >
-              <Text style={styles.androidProfileInitials}>{getUserInitials()}</Text>
-            </TouchableOpacity>
+            <View style={styles.androidHeaderRightIcons}>
+              <TouchableOpacity
+                style={[styles.androidProfileButton, styles.androidMicButton]}
+                onPress={() => navigation.navigate('VoiceInput')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="mic" size={22} color="#FF6B35" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.androidProfileButton}
+                onPress={() => setShowSettingsPanel(true)}
+              >
+                <Text style={styles.androidProfileInitials}>{getUserInitials()}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           {/* Logo - without text */}
@@ -3365,6 +3374,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#FFF',
+  },
+  androidHeaderRightIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  androidMicButton: {
+    marginRight: 10,
   },
   androidProfileButton: {
     width: 42,
