@@ -37,23 +37,26 @@ export default function VoiceInputScreen() {
   const [speechError, setSpeechError] = useState(null);
   const listenersRef = useRef([]);
 
-  const requestMicPermission = async () => {
+  // Same pattern as Upload Photo: check/request permission on tap, then proceed or show Alert.
+  const ensureMicPermission = async () => {
     if (!isAndroid) return true;
-    // Use runtime require so Android gets PermissionsAndroid even when bundle is universal (OTA).
     let PermissionsAndroid;
     try {
       const RN = require('react-native');
       PermissionsAndroid = RN.PermissionsAndroid;
     } catch (e) {
-      setPermissionError('Could not access permissions.');
       return false;
     }
-    if (!PermissionsAndroid) {
-      setPermissionError('Microphone permission is not available.');
-      return false;
-    }
+    if (!PermissionsAndroid) return false;
     try {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+      const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+      const existing = await PermissionsAndroid.check(permission);
+      if (existing) {
+        setPermissionGranted(true);
+        setPermissionError(null);
+        return true;
+      }
+      const granted = await PermissionsAndroid.request(permission, {
         title: 'Microphone permission',
         message: 'SplitBill needs microphone access for voice input.',
         buttonNeutral: 'Ask Me Later',
@@ -62,7 +65,7 @@ export default function VoiceInputScreen() {
       });
       const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
       setPermissionGranted(ok);
-      if (!ok) setPermissionError('Microphone permission is required for voice input.');
+      setPermissionError(ok ? null : 'Microphone permission is required for voice input.');
       return ok;
     } catch (e) {
       setPermissionError('Could not request microphone permission.');
@@ -80,8 +83,9 @@ export default function VoiceInputScreen() {
     };
   }, []);
 
+  // Attach Voice listeners as soon as Voice is available so they're ready before first start()
   useEffect(() => {
-    if (!Voice || !permissionGranted) return;
+    if (!Voice) return;
 
     const onSpeechStart = () => {
       setSpeechError(null);
@@ -115,26 +119,38 @@ export default function VoiceInputScreen() {
     return () => {
       Voice.removeAllListeners?.();
     };
-  }, [permissionGranted]);
+  }, []);
 
   const toggleRecording = async () => {
     if (!Voice) {
       Alert.alert('Not available', 'Voice input is only available on Android with a development build.');
       return;
     }
-    if (!permissionGranted) {
-      const ok = await requestMicPermission();
-      if (!ok) return;
-    }
-    setSpeechError(null);
-    try {
-      if (isRecording) {
+    if (isRecording) {
+      setSpeechError(null);
+      try {
         await Voice.stop();
-      } else {
-        await Voice.start('en-US');
+      } catch (e) {
+        setSpeechError(e.message || 'Failed to stop recording');
+        setIsRecording(false);
       }
+      return;
+    }
+    // Starting: same as Upload Photo — check/request permission, then proceed or show Alert
+    try {
+      const hasPermission = await ensureMicPermission();
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow microphone access to use voice input for expenses.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      setSpeechError(null);
+      await Voice.start('en-US');
     } catch (e) {
-      setSpeechError(e.message || 'Failed to start or stop recording');
+      setSpeechError(e.message || 'Failed to start recording');
       setIsRecording(false);
     }
   };
@@ -229,7 +245,7 @@ export default function VoiceInputScreen() {
               {permissionError ? (
                 <View style={styles.errorBanner}>
                   <Text style={styles.errorText}>{permissionError}</Text>
-                  <TouchableOpacity onPress={requestMicPermission}>
+                  <TouchableOpacity onPress={ensureMicPermission}>
                     <Text style={styles.retryText}>Retry</Text>
                   </TouchableOpacity>
                 </View>
@@ -243,7 +259,7 @@ export default function VoiceInputScreen() {
                     pressed && !isRecording && styles.recordButtonPressed,
                   ]}
                   onPress={toggleRecording}
-                  disabled={!permissionGranted}
+                  disabled={!Voice}
                 >
                   <Ionicons name={isRecording ? 'stop' : 'mic'} size={40} color="#FFF" />
                 </Pressable>
