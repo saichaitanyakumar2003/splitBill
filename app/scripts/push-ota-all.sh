@@ -2,7 +2,11 @@
 
 # Script to push OTA updates to all channels (development, preview, production)
 # Usage: ./scripts/push-ota-all.sh "Your update message"
-# 
+#
+# OTA updates are only delivered to apps matching the current runtimeVersion (app.json).
+# Old binaries (e.g. runtimeVersion 1.0.0) will NOT receive these updates—only the
+# new version (runtimeVersion 2.0.0+) will get them. Safe to push after adding native modules.
+#
 # For CI/CD (GitHub Actions), this script uses --non-interactive flag
 
 MESSAGE=${1:-"OTA Update"}

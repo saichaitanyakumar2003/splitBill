@@ -46,6 +46,7 @@ import PendingExpensesScreen from './src/screens/PendingExpensesScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import BillScanScreen from './src/screens/BillScanScreen';
 import AddExternalTransactionScreen from './src/screens/AddExternalTransactionScreen';
+import VoiceInputScreen from './src/screens/VoiceInputScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -60,6 +61,7 @@ const getLinkedScreens = (isAuthenticated) => ({
       Login: isAuthenticated ? 'login' : '',  // Root path goes to Login when not authenticated
       Home: isAuthenticated ? '' : 'home',     // Root path goes to Home when authenticated
       Profile: 'profile',
+      VoiceInput: 'voice',
       Settings: 'settings',
       HelpCenter: 'help',
       Groups: 'groups',
@@ -1872,17 +1874,30 @@ function HomeScreen({ navigation, route }) {
             <View style={styles.headerPlaceholder} />
           )}
           
-          {/* Right Icon - Profile with initials (Native Mobile) or Profile dropdown (Web) */}
+          {/* Right Icons - Mic (Android only) + Profile (Native Mobile) or Profile dropdown (Web) */}
           {isNativeMobile ? (
-            <TouchableOpacity
-              style={styles.profileIconButton}
-              onPress={() => setShowSettingsPanel(true)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.profileIconCircle}>
-                <Text style={styles.profileIconText}>{getUserInitials()}</Text>
-              </View>
-            </TouchableOpacity>
+            <View style={styles.headerRightIcons}>
+              {Platform.OS === 'android' && (
+                <TouchableOpacity
+                  style={[styles.profileIconButton, styles.micIconButton]}
+                  onPress={() => navigation.navigate('VoiceInput')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.profileIconCircle}>
+                    <Ionicons name="mic" size={24} color="#FF6B35" />
+                  </View>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.profileIconButton}
+                onPress={() => setShowSettingsPanel(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.profileIconCircle}>
+                  <Text style={styles.profileIconText}>{getUserInitials()}</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           ) : (
             <TouchableOpacity
               style={styles.profileIconButton}
@@ -2253,6 +2268,7 @@ function AppNavigator() {
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
         <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
         <Stack.Screen name="AddExternalTransaction" component={AddExternalTransactionScreen} />
+        <Stack.Screen name="VoiceInput" component={VoiceInputScreen} />
         <Stack.Screen name="GroupPreview" component={GroupPreviewScreen} />
         <Stack.Screen name="BillSplitPreview" component={BillSplitPreviewScreen} />
         <Stack.Screen name="SplitSummary" component={SplitSummaryScreen} />
@@ -2844,8 +2860,15 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     marginTop: 4,
   },
+  headerRightIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   profileIconButton: {
     position: 'relative',
+  },
+  micIconButton: {
+    marginRight: 8,
   },
   profileIconCircle: {
     width: 48,

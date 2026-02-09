@@ -59,12 +59,19 @@
         {
           "color": "#FF6B35"
         }
+      ],
+      [
+        "@react-native-voice/voice",
+        {
+          "microphone": "SplitBill needs microphone access for voice input",
+          "speechRecognition": "SplitBill uses speech recognition to transcribe your voice"
+        }
       ]
     ],
     "updates": {
       "url": "https://u.expo.dev/db7eb830-0c3b-46d3-92ba-49a9b072eb81"
     },
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "2.0.0",
     "extra": {
       "apiBaseUrl": "https://splitbill-i6ou.onrender.com/api",
       "apiHost": "https://splitbill-i6ou.onrender.com",
