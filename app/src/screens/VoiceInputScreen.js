@@ -28,16 +28,27 @@ if (isAndroid) {
   }
 }
 
+// Ignore when user starts/stops with no voice (no match, client error, etc.) — do not show any error.
+function isIgnorableSpeechError(error) {
+  if (error == null) return true;
+  if (typeof error === 'object' && [5, 7, 11].includes(Number(error.code))) return true;
+  const msg = typeof error === 'string' ? error : (error.message || (error.code != null ? String(error.code) : '') || String(error));
+  const lower = msg.toLowerCase();
+  if (/^(5|7|11)(\/|\s|$)/.test(String(msg).trim())) return true;
+  if (lower.includes('no match') || lower.includes('client error') || lower.includes("didn't understand") || lower.includes('didnt understand')) return true;
+  return false;
+}
+
 export default function VoiceInputScreen() {
   const navigation = useNavigation();
   const [transcript, setTranscript] = useState('');
+  const [partialResult, setPartialResult] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
-  const [permissionError, setPermissionError] = useState(null);
   const [speechError, setSpeechError] = useState(null);
   const listenersRef = useRef([]);
 
-  // Same pattern as Upload Photo: check/request permission on tap, then proceed or show Alert.
+  // Ask for mic permission only once. If already granted (e.g. after app restart), do not ask again.
   const ensureMicPermission = async () => {
     if (!isAndroid) return true;
     let PermissionsAndroid;
@@ -48,12 +59,11 @@ export default function VoiceInputScreen() {
       return false;
     }
     if (!PermissionsAndroid) return false;
+    const permission = PermissionsAndroid.PERMISSIONS?.RECORD_AUDIO || 'android.permission.RECORD_AUDIO';
     try {
-      const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
-      const existing = await PermissionsAndroid.check(permission);
-      if (existing) {
+      const alreadyGranted = await PermissionsAndroid.check(permission);
+      if (alreadyGranted === true || alreadyGranted === 'granted') {
         setPermissionGranted(true);
-        setPermissionError(null);
         return true;
       }
       const granted = await PermissionsAndroid.request(permission, {
@@ -65,10 +75,8 @@ export default function VoiceInputScreen() {
       });
       const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
       setPermissionGranted(ok);
-      setPermissionError(ok ? null : 'Microphone permission is required for voice input.');
       return ok;
     } catch (e) {
-      setPermissionError('Could not request microphone permission.');
       return false;
     }
   };
@@ -83,38 +91,56 @@ export default function VoiceInputScreen() {
     };
   }, []);
 
-  // Attach Voice listeners as soon as Voice is available so they're ready before first start()
+  // Attach Voice listeners: partial results for live text, final results append to transcript.
   useEffect(() => {
     if (!Voice) return;
 
     const onSpeechStart = () => {
       setSpeechError(null);
+      setPartialResult('');
       setIsRecording(true);
     };
     const onSpeechEnd = () => {
+      setPartialResult('');
       setIsRecording(false);
     };
-    const onSpeechResults = (e) => {
+    const getTextFromEvent = (e) => {
       const value = e?.value ?? e?.results?.[0]?.value;
       if (Array.isArray(value) && value.length > 0) {
-        const text = value.map((t) => (typeof t === 'string' ? t : t?.transcript ?? '')).filter(Boolean).join(' ');
-        if (text) {
-          setTranscript((prev) => (prev ? prev + ' ' + text : text));
-        }
-      } else if (typeof value === 'string' && value.trim()) {
-        setTranscript((prev) => (prev ? prev + ' ' + value : value));
+        return value.map((t) => (typeof t === 'string' ? t : t?.transcript ?? '')).filter(Boolean).join(' ');
       }
+      if (typeof value === 'string' && value.trim()) return value;
+      return '';
+    };
+    const onSpeechPartialResults = (e) => {
+      const text = getTextFromEvent(e);
+      if (text) setPartialResult(text);
+    };
+    const onSpeechResults = (e) => {
+      const text = getTextFromEvent(e);
+      if (text) {
+        setTranscript((prev) => (prev ? prev + ' ' + text : text));
+      }
+      setPartialResult('');
     };
     const onSpeechError = (e) => {
-      setSpeechError(e.error?.message || e.error || 'Speech recognition error');
+      const err = e?.error ?? e;
+      if (isIgnorableSpeechError(err)) {
+        setSpeechError(null);
+      } else {
+        const msg = err?.message ?? err?.error ?? (typeof err === 'string' ? err : 'Speech recognition error');
+        setSpeechError(msg);
+      }
+      setPartialResult('');
       setIsRecording(false);
     };
 
     Voice.onSpeechStart = onSpeechStart;
     Voice.onSpeechEnd = onSpeechEnd;
+    Voice.onSpeechPartialResults = onSpeechPartialResults;
     Voice.onSpeechResults = onSpeechResults;
     Voice.onSpeechError = onSpeechError;
-    listenersRef.current = [onSpeechStart, onSpeechEnd, onSpeechResults, onSpeechError];
+    listenersRef.current = [onSpeechStart, onSpeechEnd, onSpeechPartialResults, onSpeechResults, onSpeechError];
 
     return () => {
       Voice.removeAllListeners?.();
@@ -155,6 +181,7 @@ export default function VoiceInputScreen() {
     }
   };
 
+  const displayValue = transcript + (partialResult ? (transcript ? ' ' : '') + partialResult : '');
   const canContinue = transcript.trim().length > 0 && !isRecording;
   const voiceUnavailable = !Voice;
 
@@ -242,15 +269,6 @@ export default function VoiceInputScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {permissionError ? (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorText}>{permissionError}</Text>
-                  <TouchableOpacity onPress={ensureMicPermission}>
-                    <Text style={styles.retryText}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-
               <View style={styles.recordSection}>
                 <Pressable
                   style={({ pressed }) => [
@@ -276,8 +294,11 @@ export default function VoiceInputScreen() {
                   style={styles.previewInput}
                   placeholder="Tap record, speak, then stop. Your speech will appear here. You can edit the text. Please mention the expense name, paid by whom and split members, amounts clearly."
                   placeholderTextColor="#999"
-                  value={transcript}
-                  onChangeText={setTranscript}
+                  value={displayValue}
+                  onChangeText={(text) => {
+                    setTranscript(text);
+                    setPartialResult('');
+                  }}
                   multiline
                   editable={true}
                   textAlignVertical="top"
