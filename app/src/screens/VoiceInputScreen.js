@@ -50,9 +50,10 @@ export default function VoiceInputScreen() {
   const listenersRef = useRef([]);
   const pendingResultRef = useRef('');
   const userStoppedRef = useRef(false);
-  const lastAppendedRef = useRef('');
+  const transcriptRef = useRef(transcript);
 
   useEffect(() => {
+    transcriptRef.current = transcript;
     setVoiceInputDraft(transcript);
   }, [transcript]);
 
@@ -105,7 +106,6 @@ export default function VoiceInputScreen() {
 
     const onSpeechStart = () => {
       userStoppedRef.current = false;
-      lastAppendedRef.current = '';
       setSpeechError(null);
       setPartialResult('');
       pendingResultRef.current = '';
@@ -117,11 +117,14 @@ export default function VoiceInputScreen() {
         const pending = (pendingResultRef.current || '').trim();
         pendingResultRef.current = '';
         setPartialResult('');
-        if (wasUserStop) {
-          if (pending && pending !== lastAppendedRef.current) {
-            lastAppendedRef.current = pending;
+        if (pending) {
+          const currentTranscript = transcriptRef.current || '';
+          const alreadyEndsWith = currentTranscript.endsWith(pending) || currentTranscript === pending;
+          if (!alreadyEndsWith) {
             setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
           }
+        }
+        if (wasUserStop) {
           setIsRecording(false);
         } else {
           if (Voice) Voice.start('en-US').catch(() => {});
@@ -151,9 +154,12 @@ export default function VoiceInputScreen() {
     };
     const onSpeechError = (e) => {
       const pending = (pendingResultRef.current || '').trim();
-      if (pending && pending !== lastAppendedRef.current) {
-        lastAppendedRef.current = pending;
-        setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+      if (pending) {
+        const currentTranscript = transcriptRef.current || '';
+        const alreadyEndsWith = currentTranscript.endsWith(pending) || currentTranscript === pending;
+        if (!alreadyEndsWith) {
+          setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+        }
       }
       pendingResultRef.current = '';
       setPartialResult('');
