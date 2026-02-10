@@ -51,6 +51,7 @@ export default function VoiceInputScreen() {
   const pendingResultRef = useRef('');
   const userStoppedRef = useRef(false);
   const transcriptRef = useRef(transcript);
+  const lastVisibleTextRef = useRef('');
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -106,6 +107,7 @@ export default function VoiceInputScreen() {
 
     const onSpeechStart = () => {
       userStoppedRef.current = false;
+      lastVisibleTextRef.current = '';
       setSpeechError(null);
       setPartialResult('');
       pendingResultRef.current = '';
@@ -115,8 +117,9 @@ export default function VoiceInputScreen() {
       const wasUserStop = userStoppedRef.current;
       const delay = wasUserStop ? 450 : 200;
       setTimeout(() => {
-        const pending = (pendingResultRef.current || '').trim();
+        const pending = (pendingResultRef.current || lastVisibleTextRef.current || '').trim();
         pendingResultRef.current = '';
+        lastVisibleTextRef.current = '';
         setPartialResult('');
         if (wasUserStop) {
           if (pending) {
@@ -138,12 +141,16 @@ export default function VoiceInputScreen() {
     };
     const onSpeechPartialResults = (e) => {
       const text = getTextFromEvent(e);
-      if (text) setPartialResult(text);
+      if (text) {
+        lastVisibleTextRef.current = text;
+        setPartialResult(text);
+      }
     };
     const onSpeechResults = (e) => {
       const text = getTextFromEvent(e);
       if (text) {
         pendingResultRef.current = text;
+        lastVisibleTextRef.current = text;
         setPartialResult(text);
       } else {
         setPartialResult('');
