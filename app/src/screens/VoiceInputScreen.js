@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -46,13 +46,9 @@ export default function VoiceInputScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [speechError, setSpeechError] = useState(null);
-  const listenersRef = useRef([]);
-  const lastResultRef = useRef('');
-  const userStoppedRef = useRef(false);
   const transcriptRef = useRef(transcript);
-  const stopHandledRef = useRef(false);
-  const pendingStartRef = useRef(false);
-  const startTimeoutRef = useRef(null);
+  // Ignore duplicate result events from the engine
+  const lastFinalRef = useRef('');
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -92,87 +88,31 @@ export default function VoiceInputScreen() {
     }
   };
 
-  // Permission is requested when user taps the record button (not on screen load)
-  useEffect(() => {
-    return () => {
-      if (Voice) {
-        Voice.removeAllListeners?.();
-        Voice.destroy?.();
-      }
-    };
-  }, []);
-
-  // Attach Voice listeners: only onSpeechResults — append final result to transcript when user stops.
+  // Voice listeners: same pattern as reference — lastFinalRef avoids duplicate result events.
   useEffect(() => {
     if (!Voice) return;
 
-    const getTextFromEvent = (e) => {
-      const value = e?.value ?? e?.results?.[0]?.value;
-      if (Array.isArray(value) && value.length > 0) {
-        return value.map((t) => (typeof t === 'string' ? t : t?.transcript ?? '')).filter(Boolean).join(' ');
-      }
-      if (typeof value === 'string' && value.trim()) return value;
-      return '';
-    };
+    Voice.removeAllListeners?.();
 
-    const onSpeechStart = () => {
-      if (startTimeoutRef.current) {
-        clearTimeout(startTimeoutRef.current);
-        startTimeoutRef.current = null;
-      }
-      pendingStartRef.current = false;
-      userStoppedRef.current = false;
-      stopHandledRef.current = false;
-      lastResultRef.current = '';
+    Voice.onSpeechStart = () => {
       setSpeechError(null);
       setIsRecording(true);
     };
 
-    const onSpeechResults = (e) => {
-      const text = getTextFromEvent(e);
-      if (text && !userStoppedRef.current) lastResultRef.current = text;
-      if (!userStoppedRef.current) return;
-      // Claim append immediately so only one handler (this or onSpeechEnd) ever appends
-      if (stopHandledRef.current) return;
-      stopHandledRef.current = true;
-      const toAppend = (text || lastResultRef.current || '').trim();
-      lastResultRef.current = '';
-      if (toAppend) {
-        setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
-      }
-      setIsRecording(false);
+    Voice.onSpeechResults = (e) => {
+      const raw = e?.value?.[0] ?? e?.results?.[0]?.value?.[0];
+      const result = typeof raw === 'string' ? raw : (raw?.transcript ?? '');
+      const trimmed = result ? String(result).trim() : '';
+
+      if (!trimmed || trimmed === lastFinalRef.current) return;
+
+      lastFinalRef.current = trimmed;
+      setTranscript((prev) => (prev ? prev + ' ' + trimmed : trimmed));
     };
 
-    const onSpeechEnd = () => {
-      if (!userStoppedRef.current) return;
-      // Engine may fire onSpeechEnd before onSpeechResults; append stored result after a short delay.
-      const delay = 350;
-      setTimeout(() => {
-        if (stopHandledRef.current) {
-          setIsRecording(false);
-          return;
-        }
-        stopHandledRef.current = true;
-        const toAppend = (lastResultRef.current || '').trim();
-        lastResultRef.current = '';
-        if (toAppend) {
-          setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
-        }
-        setIsRecording(false);
-      }, delay);
-    };
+    Voice.onSpeechEnd = () => setIsRecording(false);
 
-    const onSpeechError = (e) => {
-      if (startTimeoutRef.current) {
-        clearTimeout(startTimeoutRef.current);
-        startTimeoutRef.current = null;
-      }
-      pendingStartRef.current = false;
-      const toAppend = (lastResultRef.current || '').trim();
-      if (toAppend) {
-        setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
-      }
-      lastResultRef.current = '';
+    Voice.onSpeechError = (e) => {
       setIsRecording(false);
       const err = e?.error ?? e;
       if (isIgnorableSpeechError(err)) {
@@ -183,15 +123,48 @@ export default function VoiceInputScreen() {
       }
     };
 
-    Voice.onSpeechStart = onSpeechStart;
-    Voice.onSpeechEnd = onSpeechEnd;
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechError = onSpeechError;
-    listenersRef.current = [onSpeechStart, onSpeechEnd, onSpeechResults, onSpeechError];
-
     return () => {
-      Voice.removeAllListeners?.();
+      if (Voice) {
+        const p = Voice.destroy?.();
+        if (p && typeof p.then === 'function') {
+          p.then(() => Voice.removeAllListeners?.());
+        } else {
+          Voice.removeAllListeners?.();
+        }
+      }
     };
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    if (!Voice) return;
+    lastFinalRef.current = '';
+    setSpeechError(null);
+    const hasPermission = await ensureMicPermission();
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Required',
+        'Please allow microphone access to use voice input for expenses.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    try {
+      await Voice.start('en-US');
+    } catch (e) {
+      setSpeechError(e?.message || 'Failed to start recording');
+      setIsRecording(false);
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    if (!Voice) return;
+    setSpeechError(null);
+    try {
+      await Voice.stop();
+    } catch (e) {
+      setSpeechError(e?.message || 'Failed to stop recording');
+      setIsRecording(false);
+    }
   }, []);
 
   const toggleRecording = async () => {
@@ -200,43 +173,9 @@ export default function VoiceInputScreen() {
       return;
     }
     if (isRecording) {
-      userStoppedRef.current = true;
-      setSpeechError(null);
-      try {
-        await Voice.stop();
-      } catch (e) {
-        setSpeechError(e.message || 'Failed to stop recording');
-        setIsRecording(false);
-      }
-      return;
-    }
-    // Starting: only show recording after engine actually starts (onSpeechStart). Prevent double-start.
-    if (pendingStartRef.current) return;
-    pendingStartRef.current = true;
-    setSpeechError(null);
-    try {
-      const hasPermission = await ensureMicPermission();
-      if (!hasPermission) {
-        Alert.alert(
-          'Permission Required',
-          'Please allow microphone access to use voice input for expenses.',
-          [{ text: 'OK' }]
-        );
-        pendingStartRef.current = false;
-        return;
-      }
-      await Voice.start('en-US');
-      // isRecording is set in onSpeechStart when the engine actually starts.
-      // If onSpeechStart never fires (e.g. cold start), allow retry after a timeout.
-      startTimeoutRef.current = setTimeout(() => {
-        startTimeoutRef.current = null;
-        if (pendingStartRef.current) {
-          pendingStartRef.current = false;
-        }
-      }, 5000);
-    } catch (e) {
-      pendingStartRef.current = false;
-      setSpeechError(e.message || 'Failed to start recording');
+      await stopRecording();
+    } else {
+      await startRecording();
     }
   };
 
