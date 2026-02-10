@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { getVoiceInputDraft, setVoiceInputDraft, clearVoiceInputDraft } from '../store/voiceInputDraft';
 
 const isAndroid = Platform.OS === 'android';
 
@@ -41,12 +42,17 @@ function isIgnorableSpeechError(error) {
 
 export default function VoiceInputScreen() {
   const navigation = useNavigation();
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState(() => getVoiceInputDraft());
   const [partialResult, setPartialResult] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [speechError, setSpeechError] = useState(null);
   const listenersRef = useRef([]);
+  const pendingResultRef = useRef('');
+
+  useEffect(() => {
+    setVoiceInputDraft(transcript);
+  }, [transcript]);
 
   // Ask for mic permission only once. If already granted (e.g. after app restart), do not ask again.
   const ensureMicPermission = async () => {
@@ -98,9 +104,15 @@ export default function VoiceInputScreen() {
     const onSpeechStart = () => {
       setSpeechError(null);
       setPartialResult('');
+      pendingResultRef.current = '';
       setIsRecording(true);
     };
     const onSpeechEnd = () => {
+      const pending = (pendingResultRef.current || '').trim();
+      if (pending) {
+        setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+      }
+      pendingResultRef.current = '';
       setPartialResult('');
       setIsRecording(false);
     };
@@ -118,12 +130,17 @@ export default function VoiceInputScreen() {
     };
     const onSpeechResults = (e) => {
       const text = getTextFromEvent(e);
-      if (text) {
-        setTranscript((prev) => (prev ? prev + ' ' + text : text));
-      }
+      if (text) pendingResultRef.current = text;
       setPartialResult('');
     };
     const onSpeechError = (e) => {
+      const pending = (pendingResultRef.current || '').trim();
+      if (pending) {
+        setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+      }
+      pendingResultRef.current = '';
+      setPartialResult('');
+      setIsRecording(false);
       const err = e?.error ?? e;
       if (isIgnorableSpeechError(err)) {
         setSpeechError(null);
@@ -131,8 +148,6 @@ export default function VoiceInputScreen() {
         const msg = err?.message ?? err?.error ?? (typeof err === 'string' ? err : 'Speech recognition error');
         setSpeechError(msg);
       }
-      setPartialResult('');
-      setIsRecording(false);
     };
 
     Voice.onSpeechStart = onSpeechStart;
@@ -289,7 +304,12 @@ export default function VoiceInputScreen() {
               ) : null}
 
               <View style={styles.previewSection}>
-                <Text style={styles.previewLabel}>Preview (editable)</Text>
+                <View style={styles.previewLabelRow}>
+                  <Text style={styles.previewLabel}>Preview (editable)</Text>
+                  <Pressable onPress={() => { clearVoiceInputDraft(); setTranscript(''); setPartialResult(''); }} hitSlop={8}>
+                    <Text style={styles.clearLink}>Clear</Text>
+                  </Pressable>
+                </View>
                 <TextInput
                   style={styles.previewInput}
                   placeholder="Tap record, speak, then stop. Your speech will appear here. You can edit the text. Please mention the expense name, paid by whom and split members, amounts clearly."
@@ -473,11 +493,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
   },
+  previewLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   previewLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+  },
+  clearLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E85A24',
+    textDecorationLine: 'underline',
   },
   previewInput: {
     backgroundColor: '#F8F8F8',
