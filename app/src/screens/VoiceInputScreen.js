@@ -51,6 +51,7 @@ export default function VoiceInputScreen() {
   const pendingResultRef = useRef('');
   const userStoppedRef = useRef(false);
   const transcriptRef = useRef(transcript);
+  const lastAppendedRef = useRef('');
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -106,11 +107,13 @@ export default function VoiceInputScreen() {
 
     const onSpeechStart = () => {
       userStoppedRef.current = false;
+      lastAppendedRef.current = '';
       setSpeechError(null);
       setPartialResult('');
       pendingResultRef.current = '';
       setIsRecording(true);
     };
+    const normalize = (s) => (s || '').trim().toLowerCase();
     const onSpeechEnd = () => {
       const wasUserStop = userStoppedRef.current;
       setTimeout(() => {
@@ -120,7 +123,9 @@ export default function VoiceInputScreen() {
         if (pending) {
           const currentTranscript = transcriptRef.current || '';
           const alreadyEndsWith = currentTranscript.endsWith(pending) || currentTranscript === pending;
-          if (!alreadyEndsWith) {
+          const sameAsLast = normalize(pending) === normalize(lastAppendedRef.current);
+          if (!alreadyEndsWith && !sameAsLast) {
+            lastAppendedRef.current = pending;
             setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
           }
         }
@@ -157,7 +162,9 @@ export default function VoiceInputScreen() {
       if (pending) {
         const currentTranscript = transcriptRef.current || '';
         const alreadyEndsWith = currentTranscript.endsWith(pending) || currentTranscript === pending;
-        if (!alreadyEndsWith) {
+        const sameAsLast = normalize(pending) === normalize(lastAppendedRef.current);
+        if (!alreadyEndsWith && !sameAsLast) {
+          lastAppendedRef.current = pending;
           setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
         }
       }
