@@ -112,19 +112,22 @@ export default function VoiceInputScreen() {
       setIsRecording(true);
     };
     const onSpeechEnd = () => {
-      const pending = (pendingResultRef.current || '').trim();
-      if (pending && pending !== lastAppendedRef.current) {
-        lastAppendedRef.current = pending;
-        setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
-      }
-      pendingResultRef.current = '';
-      setPartialResult('');
-      if (userStoppedRef.current) {
-        setIsRecording(false);
-      } else {
-        // Engine ended (e.g. silence) but user did not tap stop — keep recording by restarting.
-        if (Voice) Voice.start('en-US').catch(() => {});
-      }
+      // Android often fires onSpeechEnd before onSpeechResults — defer so we don't flush empty pending.
+      const wasUserStop = userStoppedRef.current;
+      setTimeout(() => {
+        const pending = (pendingResultRef.current || '').trim();
+        if (pending && pending !== lastAppendedRef.current) {
+          lastAppendedRef.current = pending;
+          setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+        }
+        pendingResultRef.current = '';
+        setPartialResult('');
+        if (wasUserStop) {
+          setIsRecording(false);
+        } else {
+          if (Voice) Voice.start('en-US').catch(() => {});
+        }
+      }, 200);
     };
     const getTextFromEvent = (e) => {
       const value = e?.value ?? e?.results?.[0]?.value;
@@ -140,8 +143,12 @@ export default function VoiceInputScreen() {
     };
     const onSpeechResults = (e) => {
       const text = getTextFromEvent(e);
-      if (text) pendingResultRef.current = text;
-      setPartialResult('');
+      if (text) {
+        pendingResultRef.current = text;
+        setPartialResult(text);
+      } else {
+        setPartialResult('');
+      }
     };
     const onSpeechError = (e) => {
       const pending = (pendingResultRef.current || '').trim();
