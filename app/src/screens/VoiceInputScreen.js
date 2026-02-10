@@ -51,7 +51,6 @@ export default function VoiceInputScreen() {
   const pendingResultRef = useRef('');
   const userStoppedRef = useRef(false);
   const transcriptRef = useRef(transcript);
-  const lastAppendedRef = useRef('');
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -107,34 +106,27 @@ export default function VoiceInputScreen() {
 
     const onSpeechStart = () => {
       userStoppedRef.current = false;
-      lastAppendedRef.current = '';
       setSpeechError(null);
       setPartialResult('');
       pendingResultRef.current = '';
       setIsRecording(true);
     };
-    const normalize = (s) => (s || '').trim().toLowerCase();
     const onSpeechEnd = () => {
       const wasUserStop = userStoppedRef.current;
+      const delay = wasUserStop ? 450 : 200;
       setTimeout(() => {
         const pending = (pendingResultRef.current || '').trim();
         pendingResultRef.current = '';
         setPartialResult('');
-        if (pending) {
-          const currentTranscript = transcriptRef.current || '';
-          const alreadyEndsWith = currentTranscript.endsWith(pending) || currentTranscript === pending;
-          const sameAsLast = normalize(pending) === normalize(lastAppendedRef.current);
-          if (!alreadyEndsWith && !sameAsLast) {
-            lastAppendedRef.current = pending;
+        if (wasUserStop) {
+          if (pending) {
             setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
           }
-        }
-        if (wasUserStop) {
           setIsRecording(false);
         } else {
           if (Voice) Voice.start('en-US').catch(() => {});
         }
-      }, 200);
+      }, delay);
     };
     const getTextFromEvent = (e) => {
       const value = e?.value ?? e?.results?.[0]?.value;
@@ -160,13 +152,7 @@ export default function VoiceInputScreen() {
     const onSpeechError = (e) => {
       const pending = (pendingResultRef.current || '').trim();
       if (pending) {
-        const currentTranscript = transcriptRef.current || '';
-        const alreadyEndsWith = currentTranscript.endsWith(pending) || currentTranscript === pending;
-        const sameAsLast = normalize(pending) === normalize(lastAppendedRef.current);
-        if (!alreadyEndsWith && !sameAsLast) {
-          lastAppendedRef.current = pending;
-          setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
-        }
+        setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
       }
       pendingResultRef.current = '';
       setPartialResult('');
