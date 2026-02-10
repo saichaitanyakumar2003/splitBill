@@ -43,15 +43,14 @@ function isIgnorableSpeechError(error) {
 export default function VoiceInputScreen() {
   const navigation = useNavigation();
   const [transcript, setTranscript] = useState(() => getVoiceInputDraft());
-  const [partialResult, setPartialResult] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [speechError, setSpeechError] = useState(null);
   const listenersRef = useRef([]);
-  const pendingResultRef = useRef('');
+  const lastResultRef = useRef('');
   const userStoppedRef = useRef(false);
   const transcriptRef = useRef(transcript);
-  const lastVisibleTextRef = useRef('');
+  const stopHandledRef = useRef(false);
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -101,36 +100,10 @@ export default function VoiceInputScreen() {
     };
   }, []);
 
-  // Attach Voice listeners: partial results for live text, final results append to transcript.
+  // Attach Voice listeners: only onSpeechResults — append final result to transcript when user stops.
   useEffect(() => {
     if (!Voice) return;
 
-    const onSpeechStart = () => {
-      userStoppedRef.current = false;
-      lastVisibleTextRef.current = '';
-      setSpeechError(null);
-      setPartialResult('');
-      pendingResultRef.current = '';
-      setIsRecording(true);
-    };
-    const onSpeechEnd = () => {
-      const wasUserStop = userStoppedRef.current;
-      const delay = wasUserStop ? 450 : 200;
-      setTimeout(() => {
-        const pending = (pendingResultRef.current || lastVisibleTextRef.current || '').trim();
-        pendingResultRef.current = '';
-        lastVisibleTextRef.current = '';
-        setPartialResult('');
-        if (wasUserStop) {
-          if (pending) {
-            setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
-          }
-          setIsRecording(false);
-        } else {
-          if (Voice) Voice.start('en-US').catch(() => {});
-        }
-      }, delay);
-    };
     const getTextFromEvent = (e) => {
       const value = e?.value ?? e?.results?.[0]?.value;
       if (Array.isArray(value) && value.length > 0) {
@@ -139,30 +112,53 @@ export default function VoiceInputScreen() {
       if (typeof value === 'string' && value.trim()) return value;
       return '';
     };
-    const onSpeechPartialResults = (e) => {
-      const text = getTextFromEvent(e);
-      if (text) {
-        lastVisibleTextRef.current = text;
-        setPartialResult(text);
-      }
+
+    const onSpeechStart = () => {
+      userStoppedRef.current = false;
+      stopHandledRef.current = false;
+      lastResultRef.current = '';
+      setSpeechError(null);
     };
+
     const onSpeechResults = (e) => {
       const text = getTextFromEvent(e);
-      if (text) {
-        pendingResultRef.current = text;
-        lastVisibleTextRef.current = text;
-        setPartialResult(text);
-      } else {
-        setPartialResult('');
+      if (text) lastResultRef.current = text;
+      if (!userStoppedRef.current) return;
+      if (stopHandledRef.current) return;
+      stopHandledRef.current = true;
+      const toAppend = (lastResultRef.current || text || '').trim();
+      lastResultRef.current = '';
+      if (toAppend) {
+        setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
       }
+      setIsRecording(false);
     };
+
+    const onSpeechEnd = () => {
+      if (!userStoppedRef.current) return;
+      // Engine may fire onSpeechEnd before onSpeechResults; append stored result after a short delay.
+      const delay = 350;
+      setTimeout(() => {
+        if (stopHandledRef.current) {
+          setIsRecording(false);
+          return;
+        }
+        stopHandledRef.current = true;
+        const toAppend = (lastResultRef.current || '').trim();
+        lastResultRef.current = '';
+        if (toAppend) {
+          setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
+        }
+        setIsRecording(false);
+      }, delay);
+    };
+
     const onSpeechError = (e) => {
-      const pending = (pendingResultRef.current || '').trim();
-      if (pending) {
-        setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+      const toAppend = (lastResultRef.current || '').trim();
+      if (toAppend) {
+        setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
       }
-      pendingResultRef.current = '';
-      setPartialResult('');
+      lastResultRef.current = '';
       setIsRecording(false);
       const err = e?.error ?? e;
       if (isIgnorableSpeechError(err)) {
@@ -175,10 +171,9 @@ export default function VoiceInputScreen() {
 
     Voice.onSpeechStart = onSpeechStart;
     Voice.onSpeechEnd = onSpeechEnd;
-    Voice.onSpeechPartialResults = onSpeechPartialResults;
     Voice.onSpeechResults = onSpeechResults;
     Voice.onSpeechError = onSpeechError;
-    listenersRef.current = [onSpeechStart, onSpeechEnd, onSpeechPartialResults, onSpeechResults, onSpeechError];
+    listenersRef.current = [onSpeechStart, onSpeechEnd, onSpeechResults, onSpeechError];
 
     return () => {
       Voice.removeAllListeners?.();
@@ -201,7 +196,9 @@ export default function VoiceInputScreen() {
       }
       return;
     }
-    // Starting: same as Upload Photo — check/request permission, then proceed or show Alert
+    // Starting: set recording state immediately, then request permission and start engine
+    setIsRecording(true);
+    setSpeechError(null);
     try {
       const hasPermission = await ensureMicPermission();
       if (!hasPermission) {
@@ -210,9 +207,9 @@ export default function VoiceInputScreen() {
           'Please allow microphone access to use voice input for expenses.',
           [{ text: 'OK' }]
         );
+        setIsRecording(false);
         return;
       }
-      setSpeechError(null);
       await Voice.start('en-US');
     } catch (e) {
       setSpeechError(e.message || 'Failed to start recording');
@@ -220,7 +217,7 @@ export default function VoiceInputScreen() {
     }
   };
 
-  const displayValue = transcript + (partialResult ? (transcript ? ' ' : '') + partialResult : '');
+  const displayValue = transcript;
   const canContinue = transcript.trim().length > 0 && !isRecording;
   const voiceUnavailable = !Voice;
 
@@ -330,7 +327,7 @@ export default function VoiceInputScreen() {
               <View style={styles.previewSection}>
                 <View style={styles.previewLabelRow}>
                   <Text style={styles.previewLabel}>Preview (editable)</Text>
-                  <Pressable onPress={() => { clearVoiceInputDraft(); setTranscript(''); setPartialResult(''); }} hitSlop={8}>
+                  <Pressable onPress={() => { clearVoiceInputDraft(); setTranscript(''); }} hitSlop={8}>
                     <Text style={styles.clearLink}>Clear</Text>
                   </Pressable>
                 </View>
@@ -339,10 +336,7 @@ export default function VoiceInputScreen() {
                   placeholder="Tap record, speak, then stop. Your speech will appear here. You can edit the text. Please mention the expense name, paid by whom and split members, amounts clearly."
                   placeholderTextColor="#999"
                   value={displayValue}
-                  onChangeText={(text) => {
-                    setTranscript(text);
-                    setPartialResult('');
-                  }}
+                  onChangeText={setTranscript}
                   multiline
                   editable={true}
                   textAlignVertical="top"
