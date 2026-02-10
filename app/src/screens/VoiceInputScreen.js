@@ -112,17 +112,16 @@ export default function VoiceInputScreen() {
       setIsRecording(true);
     };
     const onSpeechEnd = () => {
-      // Android often fires onSpeechEnd before onSpeechResults — defer so we don't flush empty pending.
       const wasUserStop = userStoppedRef.current;
       setTimeout(() => {
         const pending = (pendingResultRef.current || '').trim();
-        if (pending && pending !== lastAppendedRef.current) {
-          lastAppendedRef.current = pending;
-          setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
-        }
         pendingResultRef.current = '';
         setPartialResult('');
         if (wasUserStop) {
+          if (pending && pending !== lastAppendedRef.current) {
+            lastAppendedRef.current = pending;
+            setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
+          }
           setIsRecording(false);
         } else {
           if (Voice) Voice.start('en-US').catch(() => {});
