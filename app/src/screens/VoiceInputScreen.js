@@ -51,6 +51,8 @@ export default function VoiceInputScreen() {
   const userStoppedRef = useRef(false);
   const transcriptRef = useRef(transcript);
   const stopHandledRef = useRef(false);
+  const pendingStartRef = useRef(false);
+  const startTimeoutRef = useRef(null);
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -114,19 +116,26 @@ export default function VoiceInputScreen() {
     };
 
     const onSpeechStart = () => {
+      if (startTimeoutRef.current) {
+        clearTimeout(startTimeoutRef.current);
+        startTimeoutRef.current = null;
+      }
+      pendingStartRef.current = false;
       userStoppedRef.current = false;
       stopHandledRef.current = false;
       lastResultRef.current = '';
       setSpeechError(null);
+      setIsRecording(true);
     };
 
     const onSpeechResults = (e) => {
       const text = getTextFromEvent(e);
-      if (text) lastResultRef.current = text;
+      if (text && !userStoppedRef.current) lastResultRef.current = text;
       if (!userStoppedRef.current) return;
+      // Claim append immediately so only one handler (this or onSpeechEnd) ever appends
       if (stopHandledRef.current) return;
       stopHandledRef.current = true;
-      const toAppend = (lastResultRef.current || text || '').trim();
+      const toAppend = (text || lastResultRef.current || '').trim();
       lastResultRef.current = '';
       if (toAppend) {
         setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
@@ -154,6 +163,11 @@ export default function VoiceInputScreen() {
     };
 
     const onSpeechError = (e) => {
+      if (startTimeoutRef.current) {
+        clearTimeout(startTimeoutRef.current);
+        startTimeoutRef.current = null;
+      }
+      pendingStartRef.current = false;
       const toAppend = (lastResultRef.current || '').trim();
       if (toAppend) {
         setTranscript((prev) => (prev ? prev + ' ' + toAppend : toAppend));
@@ -196,8 +210,9 @@ export default function VoiceInputScreen() {
       }
       return;
     }
-    // Starting: set recording state immediately, then request permission and start engine
-    setIsRecording(true);
+    // Starting: only show recording after engine actually starts (onSpeechStart). Prevent double-start.
+    if (pendingStartRef.current) return;
+    pendingStartRef.current = true;
     setSpeechError(null);
     try {
       const hasPermission = await ensureMicPermission();
@@ -207,13 +222,21 @@ export default function VoiceInputScreen() {
           'Please allow microphone access to use voice input for expenses.',
           [{ text: 'OK' }]
         );
-        setIsRecording(false);
+        pendingStartRef.current = false;
         return;
       }
       await Voice.start('en-US');
+      // isRecording is set in onSpeechStart when the engine actually starts.
+      // If onSpeechStart never fires (e.g. cold start), allow retry after a timeout.
+      startTimeoutRef.current = setTimeout(() => {
+        startTimeoutRef.current = null;
+        if (pendingStartRef.current) {
+          pendingStartRef.current = false;
+        }
+      }, 5000);
     } catch (e) {
+      pendingStartRef.current = false;
       setSpeechError(e.message || 'Failed to start recording');
-      setIsRecording(false);
     }
   };
 
