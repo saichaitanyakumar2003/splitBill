@@ -49,6 +49,8 @@ export default function VoiceInputScreen() {
   const [speechError, setSpeechError] = useState(null);
   const listenersRef = useRef([]);
   const pendingResultRef = useRef('');
+  const userStoppedRef = useRef(false);
+  const lastAppendedRef = useRef('');
 
   useEffect(() => {
     setVoiceInputDraft(transcript);
@@ -102,6 +104,8 @@ export default function VoiceInputScreen() {
     if (!Voice) return;
 
     const onSpeechStart = () => {
+      userStoppedRef.current = false;
+      lastAppendedRef.current = '';
       setSpeechError(null);
       setPartialResult('');
       pendingResultRef.current = '';
@@ -109,12 +113,18 @@ export default function VoiceInputScreen() {
     };
     const onSpeechEnd = () => {
       const pending = (pendingResultRef.current || '').trim();
-      if (pending) {
+      if (pending && pending !== lastAppendedRef.current) {
+        lastAppendedRef.current = pending;
         setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
       }
       pendingResultRef.current = '';
       setPartialResult('');
-      setIsRecording(false);
+      if (userStoppedRef.current) {
+        setIsRecording(false);
+      } else {
+        // Engine ended (e.g. silence) but user did not tap stop — keep recording by restarting.
+        if (Voice) Voice.start('en-US').catch(() => {});
+      }
     };
     const getTextFromEvent = (e) => {
       const value = e?.value ?? e?.results?.[0]?.value;
@@ -135,7 +145,8 @@ export default function VoiceInputScreen() {
     };
     const onSpeechError = (e) => {
       const pending = (pendingResultRef.current || '').trim();
-      if (pending) {
+      if (pending && pending !== lastAppendedRef.current) {
+        lastAppendedRef.current = pending;
         setTranscript((prev) => (prev ? prev + ' ' + pending : pending));
       }
       pendingResultRef.current = '';
@@ -168,6 +179,7 @@ export default function VoiceInputScreen() {
       return;
     }
     if (isRecording) {
+      userStoppedRef.current = true;
       setSpeechError(null);
       try {
         await Voice.stop();
@@ -508,7 +520,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#E85A24',
-    textDecorationLine: 'underline',
+    marginRight: 12,
   },
   previewInput: {
     backgroundColor: '#F8F8F8',
