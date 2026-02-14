@@ -17,6 +17,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getVoiceInputDraft, setVoiceInputDraft, clearVoiceInputDraft } from '../store/voiceInputDraft';
 import { authGet } from '../utils/apiHelper';
+import { api } from '../api/client';
+import { parseVoiceWithGemini } from '../utils/geminiVoiceParse';
 
 const isAndroid = Platform.OS === 'android';
 
@@ -56,6 +58,8 @@ export default function VoiceInputScreen() {
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(null); // single selection only: { id, name } or null
   const [expenseName, setExpenseName] = useState('');
+  const [geminiError, setGeminiError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -225,6 +229,45 @@ export default function VoiceInputScreen() {
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
+  // Error messages that mean Gemini couldn't produce valid JSON (hallucination / unclear preview)
+  const PARSE_ERROR_MESSAGES = [
+    'No response from Gemini',
+    'Failed to parse voice response',
+    'Invalid response: missing payer name',
+    'Invalid response: totalAmount must be a positive number',
+  ];
+  const isParseOrHallucinationError = (msg) =>
+    PARSE_ERROR_MESSAGES.some((m) => (msg || '').includes(m));
+
+  const handleContinue = async () => {
+    if (!canContinue || isSubmitting) return;
+    setGeminiError(null);
+    setIsSubmitting(true);
+    try {
+      const config = await api.getOcrConfig();
+      const voiceResult = await parseVoiceWithGemini(displayValue, config.apiKey);
+      const groupName = selectedGroup ? selectedGroup.name : groupSearchQuery.trim();
+      const groupId = selectedGroup ? selectedGroup.id : null;
+      const isNewGroup = !selectedGroup;
+      navigation.navigate('VoicePreview', {
+        groupName,
+        groupId,
+        expenseName: expenseName.trim(),
+        voiceResult,
+        isNewGroup,
+      });
+    } catch (err) {
+      const msg = err?.message || '';
+      if (isParseOrHallucinationError(msg)) {
+        setGeminiError('Please improve the preview to make better understanding.');
+      } else {
+        setGeminiError(msg || 'Failed to parse voice input. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Unavailable state: orange top + white card with message
   if (voiceUnavailable) {
     return (
@@ -305,6 +348,14 @@ export default function VoiceInputScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+              {geminiError ? (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{geminiError}</Text>
+                  <Pressable onPress={() => setGeminiError(null)} hitSlop={8}>
+                    <Text style={styles.retryText}>Dismiss</Text>
+                  </Pressable>
+                </View>
+              ) : null}
               <View style={styles.recordSection}>
                 <Pressable
                   style={({ pressed }) => [
@@ -415,7 +466,6 @@ export default function VoiceInputScreen() {
               </View>
             </ScrollView>
 
-            {/* Continue is intentionally non-functional for now - fixed at bottom */}
             <View style={styles.continueButtonContainer}>
               <Pressable
                 style={[
@@ -423,12 +473,16 @@ export default function VoiceInputScreen() {
                   canContinue && styles.continueButtonEnabled,
                   !canContinue && styles.continueButtonDisabled,
                 ]}
-                onPress={() => {}}
-                disabled={!canContinue}
+                onPress={handleContinue}
+                disabled={!canContinue || isSubmitting}
               >
-                <Text style={[styles.continueButtonText, canContinue && styles.continueButtonTextEnabled]}>
-                  Continue
-                </Text>
+                {isSubmitting ? (
+                  <Text style={[styles.continueButtonText, styles.continueButtonTextEnabled]}>Processing…</Text>
+                ) : (
+                  <Text style={[styles.continueButtonText, canContinue && styles.continueButtonTextEnabled]}>
+                    Continue
+                  </Text>
+                )}
               </Pressable>
             </View>
           </KeyboardAvoidingView>

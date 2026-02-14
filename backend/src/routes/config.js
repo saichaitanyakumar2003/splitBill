@@ -4,8 +4,7 @@ const { authenticate } = require('../middleware/auth');
 
 /**
  * GET /api/config/ocr
- * Returns OCR configuration (Gemini API key) for authenticated users
- * This allows client-side OCR processing for better latency
+ * Returns GEMINI_API_KEY for authenticated users (used for OCR and voice parse on frontend).
  */
 router.get('/ocr', authenticate, (req, res) => {
   console.log('🔑 GET /api/config/ocr - User:', req.user?.mailId);
