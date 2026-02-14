@@ -113,7 +113,10 @@ export default function HelpCenterScreen() {
                 />
               )}
             </Pressable>
-            <Text style={androidStyles.headerTitle}>Help Center</Text>
+            <View style={androidStyles.headerTitleWrap}>
+              <Text style={androidStyles.headerTitle} numberOfLines={1}>Help Center</Text>
+            </View>
+            <View style={androidStyles.headerSpacer} />
           </Animated.View>
 
           {/* Decorative Icon */}
@@ -595,11 +598,21 @@ const androidStyles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     transform: [{ scale: 0.95 }],
   },
+  headerTitleWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 0,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#FFF',
-    marginLeft: 12,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
   },
   decorativeIconContainer: {
     alignItems: 'center',
