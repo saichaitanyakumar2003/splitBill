@@ -1610,6 +1610,10 @@ export default function GroupsScreen({ route }) {
   // Get current expense for modal
   const currentExpense = activeExpenseIndex !== null && groupDetails?.expenses?.[activeExpenseIndex];
   const expenseMembers = currentExpense ? getExpenseMembers(currentExpense) : [];
+  const payerId = currentExpense?.payer || currentExpense?.paidBy;
+  const modalTotal = parseFloat(currentExpense?.totalAmount || currentExpense?.amount || 0) || 0;
+  const sumOfNonPayerAmounts = expenseMembers.filter(m => (m.mailId || '').toLowerCase() !== (payerId || '').toLowerCase()).reduce((s, m) => s + (parseFloat(m.amount) || 0), 0);
+  const payerDisplayAmount = modalTotal - sumOfNonPayerAmounts;
 
   // Android-specific layout
   if (isAndroid) {
@@ -1691,31 +1695,24 @@ export default function GroupsScreen({ route }) {
                     </Text>
                   </View>
 
-                  {(currentExpense.payer || currentExpense.paidBy) && (
-                    <View style={styles.modalPayerRow}>
-                      <Text style={styles.modalPayerLabel}>Paid by:</Text>
-                      <Text style={styles.modalPayerName} numberOfLines={1}>
-                        {currentExpense.paidByName || getMemberName(currentExpense.payer || currentExpense.paidBy)}
-                      </Text>
-                    </View>
-                  )}
-
                   <ScrollView style={styles.membersList}>
-                    {expenseMembers.map((member, index) => (
-                      <View key={member.mailId || index} style={styles.memberRow}>
-                        <View style={styles.memberInfo}>
-                          <Text style={styles.memberName}>{member.name}</Text>
-                          {member.mailId === (currentExpense.payer || currentExpense.paidBy) && (
-                            <Text style={styles.payerBadge}>Payer</Text>
-                          )}
+                    {expenseMembers.map((member, index) => {
+                      const isPayer = (member.mailId || '').toLowerCase() === (payerId || '').toLowerCase();
+                      const displayAmount = isPayer ? payerDisplayAmount : (parseFloat(member.amount) || 0);
+                      return (
+                        <View key={member.mailId || index} style={styles.memberRow}>
+                          <View style={styles.memberInfo}>
+                            <Text style={styles.memberName}>{member.name}</Text>
+                            {isPayer && <Text style={styles.payerBadge}>Payer</Text>}
+                          </View>
+                          <View style={styles.amountDisplay}>
+                            <Text style={styles.memberAmount}>
+                              ₹{displayAmount.toFixed(2)}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.amountDisplay}>
-                          <Text style={styles.memberAmount}>
-                            ₹{parseFloat(member.amount || 0).toFixed(2)}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </ScrollView>
                 </>
               )}
@@ -2293,31 +2290,24 @@ export default function GroupsScreen({ route }) {
                   </Text>
                 </View>
 
-                {(currentExpense.payer || currentExpense.paidBy) && (
-                  <View style={styles.modalPayerRow}>
-                    <Text style={styles.modalPayerLabel}>Paid by:</Text>
-                    <Text style={styles.modalPayerName} numberOfLines={1}>
-                      {currentExpense.paidByName || getMemberName(currentExpense.payer || currentExpense.paidBy)}
-                    </Text>
-                  </View>
-                )}
-
                 <ScrollView style={styles.membersList}>
-                  {expenseMembers.map((member, index) => (
-                    <View key={member.mailId || index} style={styles.memberRow}>
-                      <View style={styles.memberInfo}>
-                        <Text style={styles.memberName}>{member.name}</Text>
-                        {member.mailId === (currentExpense.payer || currentExpense.paidBy) && (
-                          <Text style={styles.payerBadge}>Payer</Text>
-                        )}
+                  {expenseMembers.map((member, index) => {
+                    const isPayer = (member.mailId || '').toLowerCase() === (payerId || '').toLowerCase();
+                    const displayAmount = isPayer ? payerDisplayAmount : (parseFloat(member.amount) || 0);
+                    return (
+                      <View key={member.mailId || index} style={styles.memberRow}>
+                        <View style={styles.memberInfo}>
+                          <Text style={styles.memberName}>{member.name}</Text>
+                          {isPayer && <Text style={styles.payerBadge}>Payer</Text>}
+                        </View>
+                        <View style={styles.amountDisplay}>
+                          <Text style={styles.memberAmount}>
+                            ₹{displayAmount.toFixed(2)}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.amountDisplay}>
-                        <Text style={styles.memberAmount}>
-                          ₹{parseFloat(member.amount || 0).toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </ScrollView>
               </>
             )}
@@ -3716,24 +3706,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FF6B35',
-  },
-  modalPayerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 8,
-  },
-  modalPayerLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginRight: 8,
-  },
-  modalPayerName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#333',
-    flex: 1,
   },
   membersList: {
     maxHeight: 300,
