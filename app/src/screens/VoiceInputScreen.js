@@ -294,8 +294,11 @@ export default function VoiceInputScreen() {
                 <Ionicons name="arrow-back" size={24} color="#E85A24" style={pressed && { opacity: 0.7 }} />
               )}
             </Pressable>
-<Text style={styles.headerTitleCentered} pointerEvents="none">Voice input</Text>
-        </View>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.headerTitleCentered} numberOfLines={1}>Voice input</Text>
+            </View>
+            <View style={styles.headerSpacer} />
+          </View>
         <View style={styles.whiteContentArea}>
           <View style={styles.unavailableBox}>
               <View style={styles.unavailableIconCircle}>
@@ -334,7 +337,10 @@ export default function VoiceInputScreen() {
               <Ionicons name="arrow-back" size={24} color="#E85A24" style={pressed && { opacity: 0.7 }} />
             )}
           </Pressable>
-          <Text style={styles.headerTitleCentered} pointerEvents="none">Voice input</Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitleCentered} numberOfLines={1}>Voice input</Text>
+          </View>
+          <View style={styles.headerSpacer} />
         </View>
 
         <View style={styles.decorativeIconContainer}>
@@ -572,14 +578,21 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     position: 'relative',
   },
+  headerTitleWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 0,
+  },
   headerTitleCentered: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
     fontSize: 20,
     fontWeight: '700',
     color: '#FFF',
     textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
   },
   backButton: {
     width: 44,

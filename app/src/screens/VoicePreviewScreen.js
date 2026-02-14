@@ -117,26 +117,97 @@ export default function VoicePreviewScreen() {
     fetchGroup();
   }, [existingGroupId]);
 
-  // Pick best match from search results: exact match > name contains query > query contains name > first
-  const pickBestMatch = useCallback((query, results) => {
-    if (!results || results.length === 0) return null;
-    if (results.length === 1) return results[0];
-    const q = (query || '').trim().toLowerCase();
-    const exact = results.find((r) => (r.name || '').toLowerCase() === q || (r.mailId || '').split('@')[0].toLowerCase() === q);
-    if (exact) return exact;
-    const nameContains = results.find((r) => (r.name || '').toLowerCase().includes(q));
-    if (nameContains) return nameContains;
-    const queryContains = results.find((r) => q.includes((r.name || '').toLowerCase()));
-    if (queryContains) return queryContains;
-    return results[0];
+  // Levenshtein edit distance
+  const levenshtein = useCallback((a, b) => {
+    const sa = (a || '').toLowerCase();
+    const sb = (b || '').toLowerCase();
+    if (sa.length === 0) return sb.length;
+    if (sb.length === 0) return sa.length;
+    const matrix = [];
+    for (let i = 0; i <= sb.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= sa.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= sb.length; i++) {
+      for (let j = 1; j <= sa.length; j++) {
+        const cost = sa[j - 1] === sb[i - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return matrix[sb.length][sa.length];
   }, []);
 
-  // Auto-select split members: search for each name and pick best matching result (runs once)
+  // Similarity score 0–1: exact/contains get high score; else based on edit distance
+  const getSimilarityScore = useCallback((query, candidate) => {
+    const q = (query || '').trim().toLowerCase();
+    const c = (candidate || '').trim().toLowerCase();
+    if (!q || !c) return 0;
+    if (q === c) return 1;
+    if (c.includes(q) || q.includes(c)) return 0.95;
+    const maxLen = Math.max(q.length, c.length);
+    const dist = levenshtein(q, c);
+    return Math.max(0, 1 - dist / maxLen);
+  }, [levenshtein]);
+
+  // Pick best match: score each result and return the one with highest score (if above threshold)
+  const SIMILARITY_THRESHOLD = 0.35;
+  const pickBestMatch = useCallback((query, results) => {
+    if (!results || results.length === 0) return null;
+    if (results.length === 1) {
+      const r = results[0];
+      const nameScore = getSimilarityScore(query, r.name || '');
+      const emailScore = getSimilarityScore(query, (r.mailId || '').split('@')[0] || '');
+      return (nameScore >= SIMILARITY_THRESHOLD || emailScore >= SIMILARITY_THRESHOLD) ? r : null;
+    }
+    const scored = results.map((r) => {
+      const nameScore = getSimilarityScore(query, r.name || '');
+      const emailScore = getSimilarityScore(query, (r.mailId || '').split('@')[0] || '');
+      const score = Math.max(nameScore, emailScore);
+      return { result: r, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0];
+    return best && best.score >= SIMILARITY_THRESHOLD ? best.result : null;
+  }, [getSimilarityScore]);
+
+  // Auto-select payer by similarity (when not "me"/"I" or exact match) and split members (runs once)
   const autoSelectAttempted = React.useRef(false);
   useEffect(() => {
-    if (splitSelections.length === 0 || autoSelectAttempted.current) return;
+    if (autoSelectAttempted.current) return;
     if (existingGroupId && groupMembers.length === 0) return;
     const run = async () => {
+      // Payer: if not yet selected and voice gave a name that isn't "me"/"I", pick by similarity
+      const p = (payerNameFromVoice || '').trim().toLowerCase();
+      const isMe = p === 'me' || p === 'i' || p === 'myself';
+      if (!payerSelected && p && !isMe && user) {
+        let payerCandidates = [];
+        if (groupMembers.length > 0) {
+          payerCandidates = [...groupMembers];
+          const userInGroup = payerCandidates.some((m) => m.mailId === user.mailId);
+          if (!userInGroup) {
+            payerCandidates.push({ mailId: user.mailId, name: user.name || user.mailId.split('@')[0] });
+          }
+        } else {
+          try {
+            const response = await authGet(`/auth/search?q=${encodeURIComponent(payerNameFromVoice.trim())}&forPayer=true`);
+            const data = await response.json();
+            if (data.success && data.data && data.data.length > 0) {
+              payerCandidates = data.data;
+            }
+          } catch (e) {
+            console.warn('Payer auto-select search error', e);
+          }
+        }
+        if (payerCandidates.length > 0) {
+          const bestPayer = pickBestMatch(payerNameFromVoice.trim(), payerCandidates);
+          if (bestPayer) {
+            setPayerSelected({ mailId: bestPayer.mailId, name: bestPayer.name || bestPayer.mailId });
+          }
+        }
+      }
+
       let next = [...splitSelections];
       for (let i = 0; i < next.length; i++) {
         if (next[i].selectedUser) continue;
@@ -148,13 +219,7 @@ export default function VoicePreviewScreen() {
           continue;
         }
         if (groupMembers.length > 0) {
-          const matches = groupMembers.filter(
-            (m) =>
-              (m.name && m.name.toLowerCase().includes(nameLower)) ||
-              (m.name && nameLower.includes(m.name.toLowerCase())) ||
-              (m.mailId && m.mailId.split('@')[0].toLowerCase() === nameLower)
-          );
-          const best = matches.length === 1 ? matches[0] : pickBestMatch(nameFromVoice, matches);
+          const best = pickBestMatch(nameFromVoice, groupMembers);
           if (best) {
             next[i] = { ...next[i], selectedUser: { mailId: best.mailId, name: best.name || best.mailId } };
           }
@@ -411,21 +476,12 @@ export default function VoicePreviewScreen() {
                         {payerSelected.mailId === user?.mailId ? `${payerSelected.name} (You)` : payerSelected.name}
                       </Text>
                     ) : (
-                      <Text style={styles.placeholderText}>
+                      <Text style={styles.placeholderText} numberOfLines={1}>
                         Search &quot;{payerNameFromVoice}&quot; or select who paid
                       </Text>
                     )}
                     <Text style={styles.dropdownArrow}>{isPayerDropdownOpen ? '▲' : '▼'}</Text>
                   </TouchableOpacity>
-                  {payerSelected ? (
-                    <Pressable
-                      onPress={() => { setPayerSelected(null); setIsPayerDropdownOpen(true); }}
-                      style={styles.deselectButton}
-                      hitSlop={8}
-                    >
-                      <Ionicons name="close-circle" size={22} color="#999" />
-                    </Pressable>
-                  ) : null}
                 </View>
 
                 {isPayerDropdownOpen && (
@@ -486,53 +542,64 @@ export default function VoicePreviewScreen() {
                     .filter(Boolean);
                   return (
                     <View key={index} style={styles.splitMemberCard}>
+                      {/* Line 1: user selection + delete icon */}
                       <View style={styles.splitMemberRow}>
-                      <View style={styles.splitMemberLeft}>
-                        <View style={[styles.memberSelectTrigger, hasError && styles.inputError]}>
-                          <TouchableOpacity
-                            style={styles.memberSelectTouchable}
-                            onPress={() =>
-                              setSplitSearchState((prev) => ({
-                                ...prev,
-                                [index]: { ...prev[index], dropdownOpen: !prev[index]?.dropdownOpen },
-                              }))
-                            }
-                            activeOpacity={0.7}
-                          >
-                            {item.selectedUser ? (
-                              <Text style={styles.memberSelectText} numberOfLines={1}>
-                                {item.selectedUser.name}
-                              </Text>
-                            ) : (
-                              <Text style={styles.placeholderText} numberOfLines={1}>
-                                {item.nameFromVoice} — select user
-                              </Text>
-                            )}
-                            <Text style={styles.dropdownArrow}>
-                              {state.dropdownOpen ? '▲' : '▼'}
-                            </Text>
-                          </TouchableOpacity>
-                          {item.selectedUser ? (
-                            <Pressable
-                              onPress={() => setSplitSelection(index, null)}
-                              style={styles.deselectButton}
-                              hitSlop={8}
+                        <View style={styles.splitMemberLeft}>
+                          <View style={[styles.memberSelectTrigger, hasError && styles.inputError]}>
+                            <TouchableOpacity
+                              style={styles.memberSelectTouchable}
+                              onPress={() =>
+                                setSplitSearchState((prev) => ({
+                                  ...prev,
+                                  [index]: { ...prev[index], dropdownOpen: !prev[index]?.dropdownOpen },
+                                }))
+                              }
+                              activeOpacity={0.7}
                             >
-                              <Ionicons name="close-circle" size={22} color="#999" />
-                            </Pressable>
-                          ) : null}
-                        </View>
+                              {item.selectedUser ? (
+                                <Text style={styles.memberSelectText} numberOfLines={1}>
+                                  {item.selectedUser.name}
+                                </Text>
+                              ) : (
+                                <Text style={styles.placeholderText} numberOfLines={1}>
+                                  {item.nameFromVoice} — select user
+                                </Text>
+                              )}
+                              <Text style={styles.dropdownArrow}>
+                                {state.dropdownOpen ? '▲' : '▼'}
+                              </Text>
+                            </TouchableOpacity>
+                            {item.selectedUser ? (
+                              <Pressable
+                                onPress={() => setSplitSelection(index, null)}
+                                style={styles.deselectButton}
+                                hitSlop={8}
+                              >
+                                <Ionicons name="close-circle" size={22} color="#999" />
+                              </Pressable>
+                            ) : null}
+                          </View>
 
-                        {state.dropdownOpen && (
-                          <SplitMemberSearch
-                            nameFromVoice={item.nameFromVoice}
-                            onSelect={(user) => setSplitSelection(index, user)}
-                            payerMailId={payerSelected?.mailId}
-                            selectedMailIds={otherSelectedMailIds}
-                          />
-                        )}
+                          {state.dropdownOpen && (
+                            <SplitMemberSearch
+                              nameFromVoice={item.nameFromVoice}
+                              onSelect={(user) => setSplitSelection(index, user)}
+                              payerMailId={payerSelected?.mailId}
+                              selectedMailIds={otherSelectedMailIds}
+                            />
+                          )}
+                        </View>
+                        <Pressable
+                          onPress={() => removeSplitMember(index)}
+                          style={styles.deleteMemberButton}
+                          hitSlop={8}
+                        >
+                          <Ionicons name="trash-outline" size={22} color="#C62828" />
+                        </Pressable>
                       </View>
-                      <View style={styles.splitAmountWrap}>
+                      {/* Line 2: Amount to be paid label (orange) + number box */}
+                      <View style={styles.splitAmountSection}>
+                        <Text style={styles.splitAmountLabel}>Amount to be paid:</Text>
                         <View style={styles.splitAmountInputRow}>
                           <Text style={styles.splitAmountPrefix}>₹</Text>
                           <TextInput
@@ -544,16 +611,7 @@ export default function VoicePreviewScreen() {
                             placeholderTextColor="#999"
                           />
                         </View>
-                        <Text style={styles.splitAmountHint}>to pay</Text>
                       </View>
-                      <Pressable
-                        onPress={() => removeSplitMember(index)}
-                        style={styles.deleteMemberButton}
-                        hitSlop={8}
-                      >
-                        <Ionicons name="trash-outline" size={22} color="#C62828" />
-                      </Pressable>
-                    </View>
                     </View>
                   );
                 })}
@@ -781,6 +839,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    alignSelf: 'stretch',
     backgroundColor: '#F8F8F8',
     borderRadius: 12,
     borderWidth: 1,
@@ -802,6 +861,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     flex: 1,
+    minWidth: 0,
   },
   deselectButton: {
     padding: 4,
@@ -811,11 +871,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     flex: 1,
+    minWidth: 0,
   },
   dropdownArrow: {
     fontSize: 12,
     color: '#666',
     marginLeft: 8,
+    alignSelf: 'center',
   },
   dropdownContent: {
     backgroundColor: '#FFF',
@@ -928,6 +990,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     flex: 1,
+    minWidth: 0,
   },
   splitMemberDropdown: {
     marginTop: 4,
@@ -938,9 +1001,16 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     overflow: 'hidden',
   },
-  splitAmountWrap: {
-    alignItems: 'flex-end',
-    minWidth: 100,
+  splitAmountSection: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  splitAmountLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E85A24',
   },
   splitAmountInputRow: {
     flexDirection: 'row',
@@ -951,6 +1021,8 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     paddingHorizontal: 10,
     paddingVertical: 6,
+    minWidth: 100,
+    marginLeft: 8,
   },
   splitAmountPrefix: {
     fontSize: 14,
@@ -963,11 +1035,6 @@ const styles = StyleSheet.create({
     color: '#333',
     minWidth: 56,
     padding: 0,
-  },
-  splitAmountHint: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
   },
   inputError: {
     borderColor: '#C62828',
