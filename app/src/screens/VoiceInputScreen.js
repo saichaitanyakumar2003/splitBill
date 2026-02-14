@@ -217,7 +217,8 @@ export default function VoiceInputScreen() {
   const canContinue =
     transcript.trim().length > 0 &&
     !isRecording &&
-    hasGroupOrName;
+    hasGroupOrName &&
+    expenseName.trim().length > 0;
   const voiceUnavailable = !Voice;
 
   const handleBack = () => {
