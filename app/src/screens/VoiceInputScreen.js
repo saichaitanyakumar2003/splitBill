@@ -81,9 +81,11 @@ export default function VoiceInputScreen() {
     fetchGroups();
   }, [fetchGroups]);
 
-  const filteredGroups = groupSearchQuery.trim()
-    ? groups.filter((g) => g.name.toLowerCase().includes(groupSearchQuery.toLowerCase().trim()))
-    : groups;
+  // Show matching active groups only when user has typed something (not out of the box)
+  const searchTrimmed = groupSearchQuery.trim();
+  const filteredGroups = searchTrimmed
+    ? groups.filter((g) => g.name.toLowerCase().includes(searchTrimmed.toLowerCase()))
+    : [];
 
   const hasGroupOrName = selectedGroup !== null || groupSearchQuery.trim().length > 0;
 
@@ -324,7 +326,9 @@ export default function VoiceInputScreen() {
               <View style={styles.groupSection}>
                 <Text style={styles.groupLabel}>Group</Text>
                 <View style={styles.groupSearchWrapper}>
-                  <Ionicons name="search" size={20} color="#999" style={styles.groupSearchIcon} />
+                  <View style={styles.groupSearchIconWrap}>
+                    <Ionicons name="search" size={20} color="#E85A24" style={styles.groupSearchIcon} />
+                  </View>
                   <TextInput
                     style={styles.groupSearchInput}
                     placeholder="Search active groups or enter name for new group"
@@ -346,7 +350,7 @@ export default function VoiceInputScreen() {
                     <ActivityIndicator size="small" color="#E85A24" />
                     <Text style={styles.groupListLoadingText}>Loading groups...</Text>
                   </View>
-                ) : filteredGroups.length > 0 ? (
+                ) : searchTrimmed.length > 0 && filteredGroups.length > 0 ? (
                   <ScrollView
                     style={styles.groupListScroll}
                     nestedScrollEnabled
@@ -371,10 +375,10 @@ export default function VoiceInputScreen() {
                       );
                     })}
                   </ScrollView>
-                ) : groupSearchQuery.trim() ? (
+                ) : searchTrimmed.length > 0 && filteredGroups.length === 0 ? (
                   <View style={styles.groupNewHint}>
                     <Text style={styles.groupNewHintText}>
-                      No match. &quot;{groupSearchQuery.trim()}&quot; will be created as new group.
+                      No match. &quot;{searchTrimmed}&quot; will be created as new group.
                     </Text>
                   </View>
                 ) : null}
@@ -583,8 +587,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     minHeight: 48,
   },
-  groupSearchIcon: {
+  groupSearchIconWrap: {
     marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  groupSearchIcon: {
+    opacity: 1,
   },
   groupSearchInput: {
     flex: 1,
