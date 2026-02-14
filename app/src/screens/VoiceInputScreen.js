@@ -54,7 +54,8 @@ export default function VoiceInputScreen() {
   const [groups, setGroups] = useState([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState(null); // { id, name } or null
+  const [selectedGroup, setSelectedGroup] = useState(null); // single selection only: { id, name } or null
+  const [expenseName, setExpenseName] = useState('');
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -353,8 +354,8 @@ export default function VoiceInputScreen() {
                       showsVerticalScrollIndicator={false}
                     >
                       {filteredGroups.map((g, index) => {
-                        const id = g._id || g.id;
-                        const isSelected = selectedGroup && selectedGroup.id === id;
+                        const id = String(g._id || g.id);
+                        const isSelected = selectedGroup != null && String(selectedGroup.id) === id;
                         return (
                           <React.Fragment key={id}>
                             <Pressable
@@ -380,6 +381,17 @@ export default function VoiceInputScreen() {
                     </View>
                   ) : null}
                 </View>
+              </View>
+
+              <View style={styles.expenseNameSection}>
+                <Text style={styles.expenseNameLabel}>Expense name</Text>
+                <TextInput
+                  style={styles.expenseNameInput}
+                  placeholder="Enter expense name"
+                  placeholderTextColor="#999"
+                  value={expenseName}
+                  onChangeText={setExpenseName}
+                />
               </View>
 
               <View style={styles.previewSection}>
@@ -638,6 +650,26 @@ const styles = StyleSheet.create({
   },
   groupNewHintText: {
     fontSize: 14,
+    color: '#333',
+  },
+  expenseNameSection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  expenseNameLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  expenseNameInput: {
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
     color: '#333',
   },
   previewSection: {
