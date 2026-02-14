@@ -377,62 +377,80 @@ export default function VoiceInputScreen() {
               <View style={styles.groupSection}>
                 <Text style={styles.groupLabel}>Group</Text>
                 <View style={styles.groupSearchBox}>
-                  <View style={styles.groupSearchInputRow}>
-                    <View style={styles.groupSearchIconWrap}>
-                      <Ionicons name="search" size={20} color="#E85A24" style={styles.groupSearchIcon} />
+                  {selectedGroup ? (
+                    <View style={styles.groupSelectedRow}>
+                      <View style={styles.groupSelectedLeft}>
+                        <Ionicons name="checkmark-circle" size={24} color="#E85A24" style={styles.groupSelectedIcon} />
+                        <Text style={styles.groupSelectedName} numberOfLines={1}>{selectedGroup.name}</Text>
+                      </View>
+                      <Pressable
+                        onPress={() => { setSelectedGroup(null); setGroupSearchQuery(''); }}
+                        style={styles.groupChangeButton}
+                        hitSlop={8}
+                      >
+                        <Text style={styles.groupChangeButtonText}>Change</Text>
+                        <Ionicons name="pencil" size={18} color="#E85A24" />
+                      </Pressable>
                     </View>
-                    <TextInput
-                      style={styles.groupSearchInput}
-                      placeholder="Search active groups or enter name for new group"
-                      placeholderTextColor="#999"
-                      value={groupSearchQuery}
-                      onChangeText={(text) => {
-                        setGroupSearchQuery(text);
-                        setSelectedGroup(null);
-                      }}
-                    />
-                    <View style={styles.groupSearchClearWrap}>
-                      {groupSearchQuery.length > 0 && (
-                        <Pressable onPress={() => { setGroupSearchQuery(''); setSelectedGroup(null); }} hitSlop={8}>
-                          <Ionicons name="close-circle" size={20} color="#999" />
-                        </Pressable>
-                      )}
-                    </View>
-                  </View>
-                  {searchTrimmed.length > 0 && filteredGroups.length > 0 ? (
-                    <ScrollView
-                      style={styles.groupListScroll}
-                      nestedScrollEnabled
-                      keyboardShouldPersistTaps="handled"
-                      showsVerticalScrollIndicator={false}
-                    >
-                      {filteredGroups.map((g, index) => {
-                        const id = String(g._id || g.id);
-                        const isSelected = selectedGroup != null && String(selectedGroup.id) === id;
-                        return (
-                          <React.Fragment key={id}>
-                            <Pressable
-                              style={[styles.groupItem, isSelected && styles.groupItemSelected]}
-                              onPress={() => {
-                                setSelectedGroup({ id, name: g.name });
-                                setGroupSearchQuery(g.name);
-                              }}
-                            >
-                              <Text style={styles.groupItemName} numberOfLines={1}>{g.name}</Text>
-                              {isSelected && <Ionicons name="checkmark-circle" size={22} color="#E85A24" />}
+                  ) : (
+                    <>
+                      <View style={styles.groupSearchInputRow}>
+                        <View style={styles.groupSearchIconWrap}>
+                          <Ionicons name="search" size={20} color="#E85A24" style={styles.groupSearchIcon} />
+                        </View>
+                        <TextInput
+                          style={styles.groupSearchInput}
+                          placeholder="Search groups or add new group"
+                          placeholderTextColor="#999"
+                          value={groupSearchQuery}
+                          onChangeText={(text) => {
+                            setGroupSearchQuery(text);
+                            setSelectedGroup(null);
+                          }}
+                        />
+                        <View style={styles.groupSearchClearWrap}>
+                          {groupSearchQuery.length > 0 && (
+                            <Pressable onPress={() => { setGroupSearchQuery(''); setSelectedGroup(null); }} hitSlop={8}>
+                              <Ionicons name="close-circle" size={20} color="#999" />
                             </Pressable>
-                            {index < filteredGroups.length - 1 ? <View style={styles.groupItemSeparator} /> : null}
-                          </React.Fragment>
-                        );
-                      })}
-                    </ScrollView>
-                  ) : searchTrimmed.length > 0 && !groupsLoading && filteredGroups.length === 0 ? (
-                    <View style={styles.groupNewHint}>
-                      <Text style={styles.groupNewHintText}>
-                        No match. &quot;{searchTrimmed}&quot; will be created as new group.
-                      </Text>
-                    </View>
-                  ) : null}
+                          )}
+                        </View>
+                      </View>
+                      {searchTrimmed.length > 0 && filteredGroups.length > 0 ? (
+                        <ScrollView
+                          style={styles.groupListScroll}
+                          nestedScrollEnabled
+                          keyboardShouldPersistTaps="handled"
+                          showsVerticalScrollIndicator={false}
+                        >
+                          {filteredGroups.map((g, index) => {
+                            const id = String(g._id || g.id);
+                            return (
+                              <React.Fragment key={id}>
+                                <Pressable
+                                  style={styles.groupItem}
+                                  onPress={() => {
+                                    setSelectedGroup({ id, name: g.name });
+                                    setGroupSearchQuery(g.name);
+                                  }}
+                                >
+                                  <Text style={styles.groupItemName} numberOfLines={1}>{g.name}</Text>
+                                  <Ionicons name="chevron-forward" size={20} color="#999" />
+                                </Pressable>
+                                {index < filteredGroups.length - 1 ? <View style={styles.groupItemSeparator} /> : null}
+                              </React.Fragment>
+                            );
+                          })}
+                        </ScrollView>
+                      ) : searchTrimmed.length > 0 && !groupsLoading && filteredGroups.length === 0 ? (
+                        <View style={styles.groupNewHint}>
+                          <Text style={styles.groupNewHintText}>
+                            No match. &quot;{searchTrimmed}&quot; will be created as new group.
+                          </Text>
+                        </View>
+                      ) : null}
+                    </>
+                  )}
                 </View>
               </View>
 
@@ -486,7 +504,7 @@ export default function VoiceInputScreen() {
         </View>
       </LinearGradient>
 
-      {/* Processing modal - same style as image processing */}
+      {/* Processing modal - same style as image processing (white card, orange spinner) */}
       <Modal
         visible={isSubmitting}
         transparent
@@ -495,7 +513,8 @@ export default function VoiceInputScreen() {
         <View style={styles.processingOverlay}>
           <View style={styles.processingContent}>
             <ActivityIndicator size="large" color="#E85A24" />
-            <Text style={styles.processingText}>Please wait while we are processing...</Text>
+            <Text style={styles.processingTitle}>Please wait a moment</Text>
+            <Text style={styles.processingSubtext}>Processing your voice input....</Text>
           </View>
         </View>
       </Modal>
@@ -625,18 +644,36 @@ const styles = StyleSheet.create({
   },
   processingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   processingContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 32,
+    width: '80%',
+    maxWidth: 320,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  processingText: {
-    marginTop: 20,
+  processingTitle: {
     fontSize: 18,
-    color: '#FFF',
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  processingSubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   modalOverlay: {
     flex: 1,
@@ -774,6 +811,41 @@ const styles = StyleSheet.create({
     width: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  groupSelectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    minHeight: 52,
+  },
+  groupSelectedLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  groupSelectedIcon: {
+    marginRight: 10,
+  },
+  groupSelectedName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  groupChangeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    gap: 4,
+  },
+  groupChangeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E85A24',
   },
   groupListScroll: {
     maxHeight: 160,

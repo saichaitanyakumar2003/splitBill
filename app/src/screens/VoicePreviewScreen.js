@@ -36,21 +36,31 @@ export default function VoicePreviewScreen() {
   const [isPayerSearching, setIsPayerSearching] = useState(false);
   const [isPayerDropdownOpen, setIsPayerDropdownOpen] = useState(false);
 
-  // splitSelections: for each voice split member, { nameFromVoice, amount, selectedUser: { mailId, name } | null }
-  const [splitSelections, setSplitSelections] = useState(() =>
-    (voiceResult?.splitMembers || []).map((m) => ({
-      nameFromVoice: m.name,
-      amount: m.amount,
-      selectedUser: null,
-    }))
-  );
+  // splitSelections: only non-payer members (payer excluded so they don't owe themselves)
+  const [splitSelections, setSplitSelections] = useState(() => {
+    const payerName = (voiceResult?.payer?.name ?? '').trim().toLowerCase();
+    const excludePayer = (name) => {
+      const n = (name || '').trim().toLowerCase();
+      if (!n || n === 'me' || n === 'i' || n === 'myself') return true;
+      if (n === payerName) return true;
+      if (payerName && (n.includes(payerName) || payerName.includes(n))) return true;
+      return false;
+    };
+    return (voiceResult?.splitMembers || [])
+      .filter((m) => !excludePayer(m.name))
+      .map((m) => ({
+        nameFromVoice: m.name,
+        amount: m.amount,
+        selectedUser: null,
+      }));
+  });
   // Per-row search: index -> { query, results, searching, dropdownOpen }
   const [splitSearchState, setSplitSearchState] = useState({});
   const [error, setError] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
 
   const totalAmount = voiceResult?.totalAmount ?? 0;
-  const payerNameFromVoice = voiceResult?.payer?.name ?? '';
+  const payerNameFromVoice = (voiceResult?.payer?.name ?? '').trim().toLowerCase();
 
   const paramsValid = Boolean(groupName && expenseName && voiceResult?.payer && Array.isArray(voiceResult?.splitMembers));
 
@@ -107,39 +117,57 @@ export default function VoicePreviewScreen() {
     fetchGroup();
   }, [existingGroupId]);
 
-  // Auto-select split members: first try group members by name match, else search API (runs once when group members loaded or no group)
+  // Pick best match from search results: exact match > name contains query > query contains name > first
+  const pickBestMatch = useCallback((query, results) => {
+    if (!results || results.length === 0) return null;
+    if (results.length === 1) return results[0];
+    const q = (query || '').trim().toLowerCase();
+    const exact = results.find((r) => (r.name || '').toLowerCase() === q || (r.mailId || '').split('@')[0].toLowerCase() === q);
+    if (exact) return exact;
+    const nameContains = results.find((r) => (r.name || '').toLowerCase().includes(q));
+    if (nameContains) return nameContains;
+    const queryContains = results.find((r) => q.includes((r.name || '').toLowerCase()));
+    if (queryContains) return queryContains;
+    return results[0];
+  }, []);
+
+  // Auto-select split members: search for each name and pick best matching result (runs once)
   const autoSelectAttempted = React.useRef(false);
   useEffect(() => {
     if (splitSelections.length === 0 || autoSelectAttempted.current) return;
-    if (existingGroupId && groupMembers.length === 0) return; // wait for group members
+    if (existingGroupId && groupMembers.length === 0) return;
     const run = async () => {
       let next = [...splitSelections];
       for (let i = 0; i < next.length; i++) {
         if (next[i].selectedUser) continue;
-        const nameFromVoice = (next[i].nameFromVoice || '').trim().toLowerCase();
-        if (!nameFromVoice) continue;
-        if ((nameFromVoice === 'me' || nameFromVoice === 'i') && user) {
+        const nameFromVoice = (next[i].nameFromVoice || '').trim();
+        const nameLower = nameFromVoice.toLowerCase();
+        if (!nameLower) continue;
+        if ((nameLower === 'me' || nameLower === 'i') && user) {
           next[i] = { ...next[i], selectedUser: { mailId: user.mailId, name: user.name || 'You' } };
           continue;
         }
         if (groupMembers.length > 0) {
           const matches = groupMembers.filter(
             (m) =>
-              (m.name && m.name.toLowerCase().includes(nameFromVoice)) ||
-              (m.name && nameFromVoice.includes(m.name.toLowerCase())) ||
-              (m.mailId && m.mailId.split('@')[0].toLowerCase() === nameFromVoice)
+              (m.name && m.name.toLowerCase().includes(nameLower)) ||
+              (m.name && nameLower.includes(m.name.toLowerCase())) ||
+              (m.mailId && m.mailId.split('@')[0].toLowerCase() === nameLower)
           );
-          if (matches.length === 1) {
-            next[i] = { ...next[i], selectedUser: { mailId: matches[0].mailId, name: matches[0].name || matches[0].mailId } };
+          const best = matches.length === 1 ? matches[0] : pickBestMatch(nameFromVoice, matches);
+          if (best) {
+            next[i] = { ...next[i], selectedUser: { mailId: best.mailId, name: best.name || best.mailId } };
           }
           continue;
         }
         try {
-          const response = await authGet(`/auth/search?q=${encodeURIComponent(next[i].nameFromVoice.trim())}&forPayer=true`);
+          const response = await authGet(`/auth/search?q=${encodeURIComponent(nameFromVoice)}&forPayer=true`);
           const data = await response.json();
-          if (data.success && data.data && data.data.length === 1) {
-            const u = data.data[0];
-            next[i] = { ...next[i], selectedUser: { mailId: u.mailId, name: u.name || u.mailId } };
+          if (data.success && data.data && data.data.length > 0) {
+            const best = pickBestMatch(nameFromVoice, data.data);
+            if (best) {
+              next[i] = { ...next[i], selectedUser: { mailId: best.mailId, name: best.name || best.mailId } };
+            }
           }
         } catch (e) {
           console.warn('Auto-select search error', e);
@@ -149,7 +177,7 @@ export default function VoicePreviewScreen() {
       autoSelectAttempted.current = true;
     };
     run();
-  }, [existingGroupId, groupMembers.length, splitSelections.length]);
+  }, [existingGroupId, groupMembers.length, splitSelections.length, user, pickBestMatch]);
 
   // Payer search
   useEffect(() => {
@@ -457,7 +485,8 @@ export default function VoicePreviewScreen() {
                     .map((s, idx) => (idx !== index ? s.selectedUser?.mailId : null))
                     .filter(Boolean);
                   return (
-                    <View key={index} style={styles.splitMemberRow}>
+                    <View key={index} style={styles.splitMemberCard}>
+                      <View style={styles.splitMemberRow}>
                       <View style={styles.splitMemberLeft}>
                         <View style={[styles.memberSelectTrigger, hasError && styles.inputError]}>
                           <TouchableOpacity
@@ -524,6 +553,7 @@ export default function VoicePreviewScreen() {
                       >
                         <Ionicons name="trash-outline" size={22} color="#C62828" />
                       </Pressable>
+                    </View>
                     </View>
                   );
                 })}
@@ -850,12 +880,23 @@ const styles = StyleSheet.create({
   addMemberButton: {
     padding: 4,
   },
+  splitMemberCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   splitMemberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingVertical: 4,
   },
   deleteMemberButton: {
     padding: 4,
