@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { apiFetch, reportNetworkError, setAuthToken } from '../utils/apiHelper';
+import { encryptWithPublicKey } from '../utils/passwordEncrypt';
+import { RSA_PUBLIC_KEY } from '../config/rsaPublicKey';
 import ENV from '../config/env';
 import { initializePushNotifications } from '../utils/notifications';
 
@@ -163,16 +165,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Login with email and password
+   * Login: send password encrypted with RSA public key when configured; else plain (backend decrypts or uses raw).
    */
   const login = async (email, password) => {
     try {
+      const payload = RSA_PUBLIC_KEY
+        ? (encryptWithPublicKey(RSA_PUBLIC_KEY, password) || password)
+        : password;
       const response = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password: payload }),
       });
       
       const data = await response.json();
@@ -191,16 +196,19 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Register new user
+   * Register: send password encrypted with RSA public key when configured; else plain.
    */
   const register = async (email, password, name, phone_number = null) => {
     try {
+      const payload = RSA_PUBLIC_KEY
+        ? (encryptWithPublicKey(RSA_PUBLIC_KEY, password) || password)
+        : password;
       const response = await apiFetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, name, phone_number }),
+        body: JSON.stringify({ email, password: payload, name, phone_number }),
       });
       
       const data = await response.json();
@@ -417,21 +425,23 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Change user password
+   * Change password: send new password encrypted with RSA public key when configured; else plain.
    */
   const changePassword = async (currentPassword, newPassword) => {
     try {
       if (!token) {
         return { success: false, message: 'Not authenticated' };
       }
-
+      const payload = RSA_PUBLIC_KEY
+        ? (encryptWithPublicKey(RSA_PUBLIC_KEY, newPassword) || newPassword)
+        : newPassword;
       const response = await apiFetch(`${API_BASE_URL}/auth/password`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify({ newPassword: payload }),
       });
 
       const data = await response.json();

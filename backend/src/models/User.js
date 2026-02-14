@@ -54,6 +54,7 @@ const UserSchema = new mongoose.Schema({
 
 UserSchema.index({ name: 'text', _id: 'text' });
 
+/** Bcrypt plain password for storage (backend receives plain after RSA decrypt). */
 UserSchema.statics.hashPassword = async function(password) {
   return bcrypt.hash(password, 12);
 };
@@ -122,35 +123,27 @@ UserSchema.statics.searchUsers = async function(query, excludeMailId = null, lim
   return results.slice(0, limit).map(({ mailId, name }) => ({ mailId, name }));
 };
 
+/** Compare plain password (decrypted on backend) with stored bcrypt hash. */
 UserSchema.methods.verifyPassword = async function(password) {
-  // First check original password
   const originalMatch = await bcrypt.compare(password, this.pswd);
-  if (originalMatch) {
-    return { valid: true, usedTempPassword: false };
-  }
-  
-  // If original password doesn't match, check temporary password
+  if (originalMatch) return { valid: true, usedTempPassword: false };
+
   if (this.tempPassword && this.tempPasswordExpiry) {
-    // Check if temp password has expired
     if (new Date() > this.tempPasswordExpiry) {
-      // Temp password expired, clear it
       this.tempPassword = null;
       this.tempPasswordExpiry = null;
       await this.save();
       return { valid: false, usedTempPassword: false };
     }
-    
-    // Check temp password
     const tempMatch = await bcrypt.compare(password, this.tempPassword);
-    if (tempMatch) {
-      return { valid: true, usedTempPassword: true };
-    }
+    if (tempMatch) return { valid: true, usedTempPassword: true };
   }
-  
+
   return { valid: false, usedTempPassword: false };
 };
 
-// Method to set temporary password with expiry (30 minutes)
+// Method to set temporary password with expiry (30 minutes).
+// Stored as bcrypt(plainTemp). Client encrypts temp password and sends; backend decrypts and compares.
 UserSchema.methods.setTempPassword = async function(tempPassword) {
   this.tempPassword = await bcrypt.hash(tempPassword, 12);
   this.tempPasswordExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes

@@ -8,6 +8,7 @@ const ConsolidatedEdges = require('../models/ConsolidatedEdges');
 const EditHistory = require('../models/EditHistory');
 const { authenticate } = require('../middleware/auth');
 const { sendPasswordResetEmail, generateTemporaryPassword } = require('../utils/email');
+const { getPlainPassword } = require('../utils/rsa'); // when RSA_PRIVATE_KEY is set, decrypts password
 
 const GOOGLE_WEB_CLIENT_ID = process.env.SPLITBILL_GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
@@ -18,16 +19,19 @@ const SESSION_DAYS = 30;
 const getSessionExp = () => new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 const genToken = (mailId, name) => jwt.sign({ mailId, name }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
+// Password is sent encrypted (RSA public key). We decrypt with private key, then bcrypt for storage.
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, phone } = req.body;
     if (!email || !password || !name) return res.status(400).json({ success: false, message: 'Email, password, name required' });
-    
+    const plainPassword = getPlainPassword(password);
+    if (!plainPassword) return res.status(400).json({ success: false, message: 'Invalid password' });
+
     if (await User.findById(email.toLowerCase())) {
       return res.status(409).json({ success: false, message: 'Account exists' });
     }
 
-    const user = await User.createUser(email, password, { name, phone: phone || '', groupIds: [], friends: [] });
+    const user = await User.createUser(email, plainPassword, { name, phone: phone || '', groupIds: [], friends: [] });
     user.sessionExpiresAt = getSessionExp();
     await user.save();
 
@@ -35,15 +39,18 @@ router.post('/register', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Password is sent encrypted (RSA). We decrypt, then bcrypt compare.
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+    const plainPassword = getPlainPassword(password);
+    if (!plainPassword) return res.status(401).json({ success: false, message: 'Wrong password' });
 
     const user = await User.findByMailIdWithPassword(email);
     if (!user) return res.status(401).json({ success: false, message: 'Account not found' });
     
-    const passwordResult = await user.verifyPassword(password);
+    const passwordResult = await user.verifyPassword(plainPassword);
     if (!passwordResult.valid) return res.status(401).json({ success: false, message: 'Wrong password' });
 
     user.sessionExpiresAt = getSessionExp();
@@ -188,19 +195,20 @@ router.put('/profile', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// newPassword is sent encrypted (RSA). We decrypt, then bcrypt for storage.
 router.put('/password', authenticate, async (req, res) => {
   try {
     const { newPassword } = req.body;
-    
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword) return res.status(400).json({ success: false, message: 'New password required' });
+    const plainNewPassword = getPlainPassword(newPassword);
+    if (!plainNewPassword || plainNewPassword.length < 6) {
       return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
     }
 
     const user = await User.findByMailIdWithPassword(req.user.mailId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Update password and clear any temporary password
-    user.pswd = await User.hashPassword(newPassword);
+    user.pswd = await User.hashPassword(plainNewPassword);
     user.tempPassword = null;
     user.tempPasswordExpiry = null;
     await user.save();

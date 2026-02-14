@@ -1,6 +1,7 @@
 // SplitBill Backend Server v1.0.1
 // Deployed via GitHub Actions → Render
 require('dotenv').config();
+require('./utils/loadZshrcRsa'); // load RSA_PRIVATE_KEY from ~/.zshrc if not in .env
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
