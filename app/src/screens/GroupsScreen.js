@@ -1614,6 +1614,13 @@ export default function GroupsScreen({ route }) {
   const modalTotal = parseFloat(currentExpense?.totalAmount || currentExpense?.amount || 0) || 0;
   const sumOfNonPayerAmounts = expenseMembers.filter(m => (m.mailId || '').toLowerCase() !== (payerId || '').toLowerCase()).reduce((s, m) => s + (parseFloat(m.amount) || 0), 0);
   const payerDisplayAmount = modalTotal - sumOfNonPayerAmounts;
+  // Fallback for voice expenses: payer is not in payees list, so add them with (total - sum of others)
+  const payerInList = !!payerId && expenseMembers.some(m => (m.mailId || '').toLowerCase() === (payerId || '').toLowerCase());
+  const sumOfListedAmounts = expenseMembers.reduce((s, m) => s + (parseFloat(m.amount) || 0), 0);
+  const payerAmountWhenNotInList = modalTotal - sumOfListedAmounts;
+  const displayMembers = payerId && !payerInList
+    ? [{ mailId: payerId, name: currentExpense.paidByName || getMemberName(payerId), amount: payerAmountWhenNotInList }, ...expenseMembers]
+    : expenseMembers;
 
   // Android-specific layout
   if (isAndroid) {
@@ -1696,9 +1703,9 @@ export default function GroupsScreen({ route }) {
                   </View>
 
                   <ScrollView style={styles.membersList}>
-                    {expenseMembers.map((member, index) => {
+                    {displayMembers.map((member, index) => {
                       const isPayer = (member.mailId || '').toLowerCase() === (payerId || '').toLowerCase();
-                      const displayAmount = isPayer ? payerDisplayAmount : (parseFloat(member.amount) || 0);
+                      const displayAmount = isPayer ? (payerInList ? payerDisplayAmount : (parseFloat(member.amount) || 0)) : (parseFloat(member.amount) || 0);
                       return (
                         <View key={member.mailId || index} style={styles.memberRow}>
                           <View style={styles.memberInfo}>
@@ -2291,9 +2298,9 @@ export default function GroupsScreen({ route }) {
                 </View>
 
                 <ScrollView style={styles.membersList}>
-                  {expenseMembers.map((member, index) => {
+                  {displayMembers.map((member, index) => {
                     const isPayer = (member.mailId || '').toLowerCase() === (payerId || '').toLowerCase();
-                    const displayAmount = isPayer ? payerDisplayAmount : (parseFloat(member.amount) || 0);
+                    const displayAmount = isPayer ? (payerInList ? payerDisplayAmount : (parseFloat(member.amount) || 0)) : (parseFloat(member.amount) || 0);
                     return (
                       <View key={member.mailId || index} style={styles.memberRow}>
                         <View style={styles.memberInfo}>
