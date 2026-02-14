@@ -61,6 +61,96 @@ export default function VoicePreviewScreen() {
     }
   }, [paramsValid, navigation]);
 
+  // Auto-select payer if voice said "me"/"I" or name matches current user
+  useEffect(() => {
+    if (!user || payerSelected) return;
+    const p = (payerNameFromVoice || '').trim().toLowerCase();
+    const meMatch = p === 'me' || p === 'i' || p === 'myself';
+    const nameMatch = user.name && p === user.name.trim().toLowerCase();
+    const emailMatch = user.mailId && p === user.mailId.split('@')[0].toLowerCase();
+    if (meMatch || nameMatch || emailMatch) {
+      setPayerSelected({ mailId: user.mailId, name: user.name || 'You' });
+    }
+  }, [user, payerNameFromVoice, payerSelected]);
+
+  // Fetch group members when existing group and try to auto-match split member names
+  const [groupMembers, setGroupMembers] = useState([]);
+  useEffect(() => {
+    if (!existingGroupId) return;
+    const fetchGroup = async () => {
+      try {
+        const response = await authGet(`/groups/${existingGroupId}`);
+        const data = await response.json();
+        if (data?.expenses) {
+          const membersMap = new Map();
+          data.expenses.forEach((exp) => {
+            if (exp.payer) {
+              const email = exp.payer.toLowerCase();
+              if (!membersMap.has(email)) {
+                membersMap.set(email, { mailId: email, name: email.split('@')[0] });
+              }
+            }
+            (exp.payees || []).forEach((p) => {
+              const mailId = (typeof p === 'object' ? p?.mailId : p)?.toLowerCase();
+              const name = typeof p === 'object' ? p?.name : null;
+              if (mailId && !membersMap.has(mailId)) {
+                membersMap.set(mailId, { mailId, name: name || mailId.split('@')[0] });
+              }
+            });
+          });
+          setGroupMembers(Array.from(membersMap.values()));
+        }
+      } catch (e) {
+        console.error('VoicePreview: fetch group error', e);
+      }
+    };
+    fetchGroup();
+  }, [existingGroupId]);
+
+  // Auto-select split members: first try group members by name match, else search API (runs once when group members loaded or no group)
+  const autoSelectAttempted = React.useRef(false);
+  useEffect(() => {
+    if (splitSelections.length === 0 || autoSelectAttempted.current) return;
+    if (existingGroupId && groupMembers.length === 0) return; // wait for group members
+    const run = async () => {
+      let next = [...splitSelections];
+      for (let i = 0; i < next.length; i++) {
+        if (next[i].selectedUser) continue;
+        const nameFromVoice = (next[i].nameFromVoice || '').trim().toLowerCase();
+        if (!nameFromVoice) continue;
+        if ((nameFromVoice === 'me' || nameFromVoice === 'i') && user) {
+          next[i] = { ...next[i], selectedUser: { mailId: user.mailId, name: user.name || 'You' } };
+          continue;
+        }
+        if (groupMembers.length > 0) {
+          const matches = groupMembers.filter(
+            (m) =>
+              (m.name && m.name.toLowerCase().includes(nameFromVoice)) ||
+              (m.name && nameFromVoice.includes(m.name.toLowerCase())) ||
+              (m.mailId && m.mailId.split('@')[0].toLowerCase() === nameFromVoice)
+          );
+          if (matches.length === 1) {
+            next[i] = { ...next[i], selectedUser: { mailId: matches[0].mailId, name: matches[0].name || matches[0].mailId } };
+          }
+          continue;
+        }
+        try {
+          const response = await authGet(`/auth/search?q=${encodeURIComponent(next[i].nameFromVoice.trim())}&forPayer=true`);
+          const data = await response.json();
+          if (data.success && data.data && data.data.length === 1) {
+            const u = data.data[0];
+            next[i] = { ...next[i], selectedUser: { mailId: u.mailId, name: u.name || u.mailId } };
+          }
+        } catch (e) {
+          console.warn('Auto-select search error', e);
+        }
+      }
+      setSplitSelections(next);
+      autoSelectAttempted.current = true;
+    };
+    run();
+  }, [existingGroupId, groupMembers.length, splitSelections.length]);
+
   // Payer search
   useEffect(() => {
     const search = async () => {
@@ -97,10 +187,21 @@ export default function VoicePreviewScreen() {
   const setSplitSelection = (index, selectedUser) => {
     setSplitSelections((prev) => {
       const next = [...prev];
-      if (next[index]) next[index] = { ...next[index], selectedUser };
+      if (next[index]) next[index] = { ...next[index], selectedUser: selectedUser ?? null };
       return next;
     });
-    setSplitSearchState((prev) => ({ ...prev, [index]: { ...prev[index], dropdownOpen: false } }));
+    setSplitSearchState((prev) => ({ ...prev, [index]: { ...prev[index], dropdownOpen: selectedUser ? false : true } }));
+  };
+
+  const setSplitAmount = (index, value) => {
+    const cleaned = value.replace(/[^0-9.]/g, '');
+    const num = cleaned === '' ? 0 : parseFloat(cleaned);
+    if (cleaned !== '' && Number.isNaN(num)) return;
+    setSplitSelections((prev) => {
+      const next = [...prev];
+      if (next[index]) next[index] = { ...next[index], amount: cleaned === '' ? 0 : num };
+      return next;
+    });
   };
 
   const setSplitSearch = (index, query, results, searching, dropdownOpen) => {
@@ -113,10 +214,36 @@ export default function VoicePreviewScreen() {
   const payerHasError = false;
   const splitMemberHasError = (index) => !splitSelections[index]?.selectedUser;
   const allSplitMembersSelected = splitSelections.length > 0 && splitSelections.every((s) => s.selectedUser);
+  const hasZeroAmount = splitSelections.some((s) => !s.amount || s.amount <= 0);
+  const canCheckout =
+    payerSelected &&
+    allSplitMembersSelected &&
+    !hasZeroAmount &&
+    splitSelections.length > 0;
+
+  const addSplitMember = () => {
+    setSplitSelections((prev) => [...prev, { nameFromVoice: 'New member', amount: 0, selectedUser: null }]);
+  };
+
+  const removeSplitMember = (index) => {
+    setSplitSelections((prev) => prev.filter((_, i) => i !== index));
+    setSplitSearchState((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const idx = Number(k);
+        if (idx < index) next[idx] = v;
+        if (idx > index) next[idx - 1] = v;
+      });
+      return next;
+    });
+  };
 
   const handleCheckout = async () => {
-    if (!payerSelected || !allSplitMembersSelected) {
-      setError('Please select payer and match all split members.');
+    if (!canCheckout) {
+      if (!payerSelected) setError('Please select who paid.');
+      else if (!allSplitMembersSelected) setError('Please select a user for every split member.');
+      else if (hasZeroAmount) setError('Please enter an amount greater than 0 for each split member.');
+      else setError('Please complete all fields.');
       return;
     }
     setError(null);
@@ -143,18 +270,20 @@ export default function VoicePreviewScreen() {
       });
       const data = await response.json();
       if (data.success) {
+        const membersList = [payerSelected, ...splitSelections.map((s) => s.selectedUser).filter(Boolean)];
         navigation.navigate('SplitSummary', {
           groupId: data.data.groupId,
           groupName: data.data.groupName,
-          consolidatedExpenses: data.data.consolidatedExpenses,
+          consolidatedExpenses: data.data.consolidatedExpenses || [],
           expenses: [
             {
               title: expenseName,
               totalAmount,
               paidBy: payerSelected.mailId,
               paidByName: payerSelected.name,
+              memberCount: membersList.length,
               splits,
-              members: [payerSelected, ...splitSelections.map((s) => s.selectedUser)],
+              members: membersList,
             },
           ],
         });
@@ -195,9 +324,10 @@ export default function VoicePreviewScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#E85A24" />
           </Pressable>
-          <Text style={styles.headerTitleCentered} pointerEvents="none">
+          <Text style={styles.headerTitle} numberOfLines={1}>
             Voice preview
           </Text>
+          <View style={styles.headerRight} />
         </View>
 
         <View style={styles.decorativeIconContainer}>
@@ -238,26 +368,37 @@ export default function VoicePreviewScreen() {
                   <Text style={styles.sectionLabel}>Paid by</Text>
                   <Text style={styles.totalPaidText}>Total paid: ₹{Number(totalAmount).toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity
-                  style={[
-                    styles.payerDropdownTrigger,
-                    isPayerDropdownOpen && styles.payerDropdownTriggerOpen,
-                    payerHasError && styles.inputError,
-                  ]}
-                  onPress={() => setIsPayerDropdownOpen(!isPayerDropdownOpen)}
-                  activeOpacity={0.8}
-                >
+                <View style={[
+                  styles.payerDropdownTrigger,
+                  isPayerDropdownOpen && styles.payerDropdownTriggerOpen,
+                  payerHasError && styles.inputError,
+                ]}>
+                  <TouchableOpacity
+                    style={styles.payerTriggerTouchable}
+                    onPress={() => setIsPayerDropdownOpen(!isPayerDropdownOpen)}
+                    activeOpacity={0.8}
+                  >
+                    {payerSelected ? (
+                      <Text style={styles.payerChipText} numberOfLines={1}>
+                        {payerSelected.mailId === user?.mailId ? `${payerSelected.name} (You)` : payerSelected.name}
+                      </Text>
+                    ) : (
+                      <Text style={styles.placeholderText}>
+                        Search &quot;{payerNameFromVoice}&quot; or select who paid
+                      </Text>
+                    )}
+                    <Text style={styles.dropdownArrow}>{isPayerDropdownOpen ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
                   {payerSelected ? (
-                    <Text style={styles.payerChipText} numberOfLines={1}>
-                      {payerSelected.mailId === user?.mailId ? `${payerSelected.name} (You)` : payerSelected.name}
-                    </Text>
-                  ) : (
-                    <Text style={styles.placeholderText}>
-                      Search &quot;{payerNameFromVoice}&quot; or select who paid
-                    </Text>
-                  )}
-                  <Text style={styles.dropdownArrow}>{isPayerDropdownOpen ? '▲' : '▼'}</Text>
-                </TouchableOpacity>
+                    <Pressable
+                      onPress={() => { setPayerSelected(null); setIsPayerDropdownOpen(true); }}
+                      style={styles.deselectButton}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#999" />
+                    </Pressable>
+                  ) : null}
+                </View>
 
                 {isPayerDropdownOpen && (
                   <View style={styles.dropdownContent}>
@@ -303,7 +444,12 @@ export default function VoicePreviewScreen() {
 
               {/* Split members: name from JSON + search/select + amount; red border if no match */}
               <View style={styles.splitSection}>
-                <Text style={styles.sectionLabel}>Split members</Text>
+                <View style={styles.splitSectionHeader}>
+                  <Text style={styles.sectionLabel}>Split members</Text>
+                  <Pressable onPress={addSplitMember} style={styles.addMemberButton} hitSlop={8}>
+                    <Ionicons name="add-circle" size={28} color="#FF6B35" />
+                  </Pressable>
+                </View>
                 {splitSelections.map((item, index) => {
                   const state = splitSearchState[index] || {};
                   const hasError = splitMemberHasError(index);
@@ -311,30 +457,42 @@ export default function VoicePreviewScreen() {
                     .map((s, idx) => (idx !== index ? s.selectedUser?.mailId : null))
                     .filter(Boolean);
                   return (
-                    <View key={index} style={[styles.splitMemberRow, hasError && styles.splitMemberRowError]}>
+                    <View key={index} style={styles.splitMemberRow}>
                       <View style={styles.splitMemberLeft}>
-                        <TouchableOpacity
-                          style={[styles.memberSelectTrigger, hasError && styles.inputError]}
-                          onPress={() =>
-                            setSplitSearchState((prev) => ({
-                              ...prev,
-                              [index]: { ...prev[index], dropdownOpen: !prev[index]?.dropdownOpen },
-                            }))
-                          }
-                        >
+                        <View style={[styles.memberSelectTrigger, hasError && styles.inputError]}>
+                          <TouchableOpacity
+                            style={styles.memberSelectTouchable}
+                            onPress={() =>
+                              setSplitSearchState((prev) => ({
+                                ...prev,
+                                [index]: { ...prev[index], dropdownOpen: !prev[index]?.dropdownOpen },
+                              }))
+                            }
+                            activeOpacity={0.7}
+                          >
+                            {item.selectedUser ? (
+                              <Text style={styles.memberSelectText} numberOfLines={1}>
+                                {item.selectedUser.name}
+                              </Text>
+                            ) : (
+                              <Text style={styles.placeholderText} numberOfLines={1}>
+                                {item.nameFromVoice} — select user
+                              </Text>
+                            )}
+                            <Text style={styles.dropdownArrow}>
+                              {state.dropdownOpen ? '▲' : '▼'}
+                            </Text>
+                          </TouchableOpacity>
                           {item.selectedUser ? (
-                            <Text style={styles.memberSelectText} numberOfLines={1}>
-                              {item.selectedUser.name}
-                            </Text>
-                          ) : (
-                            <Text style={styles.placeholderText} numberOfLines={1}>
-                              {item.nameFromVoice} — select user
-                            </Text>
-                          )}
-                          <Text style={styles.dropdownArrow}>
-                            {state.dropdownOpen ? '▲' : '▼'}
-                          </Text>
-                        </TouchableOpacity>
+                            <Pressable
+                              onPress={() => setSplitSelection(index, null)}
+                              style={styles.deselectButton}
+                              hitSlop={8}
+                            >
+                              <Ionicons name="close-circle" size={22} color="#999" />
+                            </Pressable>
+                          ) : null}
+                        </View>
 
                         {state.dropdownOpen && (
                           <SplitMemberSearch
@@ -346,9 +504,26 @@ export default function VoicePreviewScreen() {
                         )}
                       </View>
                       <View style={styles.splitAmountWrap}>
-                        <Text style={styles.splitAmountLabel}>₹{Number(item.amount).toFixed(2)}</Text>
+                        <View style={styles.splitAmountInputRow}>
+                          <Text style={styles.splitAmountPrefix}>₹</Text>
+                          <TextInput
+                            style={styles.splitAmountInput}
+                            value={item.amount === 0 ? '' : String(item.amount)}
+                            onChangeText={(v) => setSplitAmount(index, v)}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor="#999"
+                          />
+                        </View>
                         <Text style={styles.splitAmountHint}>to pay</Text>
                       </View>
+                      <Pressable
+                        onPress={() => removeSplitMember(index)}
+                        style={styles.deleteMemberButton}
+                        hitSlop={8}
+                      >
+                        <Ionicons name="trash-outline" size={22} color="#C62828" />
+                      </Pressable>
                     </View>
                   );
                 })}
@@ -359,12 +534,14 @@ export default function VoicePreviewScreen() {
                   <Text style={styles.errorText}>⚠️ {error}</Text>
                 </View>
               ) : null}
+            </ScrollView>
 
-              {/* Checkout Button - same as GroupPreviewScreen */}
+            {/* Checkout Button - outside scroll, fixed at bottom like GroupPreview */}
+            <View style={styles.checkoutButtonContainer}>
               <TouchableOpacity
-                style={[styles.createButton, isCreating && styles.createButtonDisabled]}
+                style={[styles.createButton, (!canCheckout || isCreating) && styles.createButtonDisabled]}
                 onPress={handleCheckout}
-                disabled={!payerSelected || !allSplitMembersSelected || isCreating}
+                disabled={!canCheckout || isCreating}
                 activeOpacity={0.8}
               >
                 {isCreating ? (
@@ -373,7 +550,7 @@ export default function VoicePreviewScreen() {
                   <Text style={styles.createButtonText}>Checkout</Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
+            </View>
           </KeyboardAvoidingView>
         </View>
       </LinearGradient>
@@ -461,19 +638,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: Platform.OS === 'ios' ? 56 : 55,
     paddingHorizontal: 20,
     paddingBottom: 24,
-    position: 'relative',
   },
-  headerTitleCentered: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+  headerTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: '700',
     color: '#FFF',
     textAlign: 'center',
+  },
+  headerRight: {
+    width: 44,
   },
   backButton: {
     width: 44,
@@ -584,10 +762,20 @@ const styles = StyleSheet.create({
   payerDropdownTriggerOpen: {
     borderColor: '#E85A24',
   },
+  payerTriggerTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   payerChipText: {
     fontSize: 16,
     color: '#333',
     flex: 1,
+  },
+  deselectButton: {
+    padding: 4,
+    marginLeft: 4,
   },
   placeholderText: {
     fontSize: 16,
@@ -653,6 +841,15 @@ const styles = StyleSheet.create({
   splitSection: {
     marginBottom: 24,
   },
+  splitSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  addMemberButton: {
+    padding: 4,
+  },
   splitMemberRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -660,13 +857,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 4,
   },
-  splitMemberRowError: {
-    borderWidth: 2,
-    borderColor: '#C62828',
-    borderRadius: 12,
-    padding: 8,
-    marginBottom: 12,
-    marginHorizontal: -4,
+  deleteMemberButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   splitMemberLeft: {
     flex: 1,
@@ -684,6 +877,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 44,
   },
+  memberSelectTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   memberSelectText: {
     fontSize: 15,
     color: '#333',
@@ -700,16 +899,34 @@ const styles = StyleSheet.create({
   },
   splitAmountWrap: {
     alignItems: 'flex-end',
+    minWidth: 100,
   },
-  splitAmountLabel: {
+  splitAmountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F8F8',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  splitAmountPrefix: {
+    fontSize: 14,
+    color: '#333',
+    marginRight: 4,
+  },
+  splitAmountInput: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    minWidth: 56,
+    padding: 0,
   },
   splitAmountHint: {
     fontSize: 12,
     color: '#666',
-    marginTop: 2,
+    marginTop: 4,
   },
   inputError: {
     borderColor: '#C62828',
@@ -724,13 +941,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
+  checkoutButtonContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+  },
   createButton: {
     backgroundColor: '#FF6B35',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   createButtonDisabled: {
     opacity: 0.7,

@@ -282,12 +282,32 @@ router.post('/checkout', async (req, res) => {
       name: exp.name || exp.title,
       payer: (exp.paidBy || exp.payer).toLowerCase().trim(),
       totalAmount: exp.totalAmount || exp.amount,
-      payees: Object.entries(exp.splits || {}).map(([mailId, amount]) => ({
-        mailId: mailId.toLowerCase().trim(),
+      payees: Object.entries(exp.splits || {}).map(([payeeMailId, amount]) => ({
+        mailId: (payeeMailId || '').toLowerCase().trim(),
         amount: parseFloat(amount)
       }))
     }));
-    
+
+    // Ensure all members (payer and payees) exist in DB
+    const allMemberMailIds = new Set();
+    for (const exp of formattedNewExpenses) {
+      if (exp.payer) allMemberMailIds.add(exp.payer);
+      for (const p of exp.payees || []) {
+        if (p.mailId) allMemberMailIds.add(p.mailId);
+      }
+    }
+    if (allMemberMailIds.size > 0) {
+      const existingUsers = await User.find({ _id: { $in: [...allMemberMailIds] } }).select('_id');
+      const existingIds = new Set(existingUsers.map(u => u._id));
+      const missing = [...allMemberMailIds].filter(id => !existingIds.has(id));
+      if (missing.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected members are not registered. Please select only members from the list.'
+        });
+      }
+    }
+
     if (groupId) {
       // Adding to existing group
       group = await Group.findById(groupId);

@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 import { getVoiceInputDraft, setVoiceInputDraft, clearVoiceInputDraft } from '../store/voiceInputDraft';
 import { authGet } from '../utils/apiHelper';
 import { api } from '../api/client';
@@ -47,6 +48,7 @@ function isIgnorableSpeechError(error) {
 
 export default function VoiceInputScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [transcript, setTranscript] = useState(() => getVoiceInputDraft());
   const [isRecording, setIsRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
@@ -247,7 +249,8 @@ export default function VoiceInputScreen() {
     setIsSubmitting(true);
     try {
       const config = await api.getOcrConfig();
-      const voiceResult = await parseVoiceWithGemini(displayValue, config.apiKey);
+      const userName = user?.name || user?.mailId?.split('@')[0] || 'Me';
+      const voiceResult = await parseVoiceWithGemini(displayValue, config.apiKey, userName);
       const groupName = selectedGroup ? selectedGroup.name : groupSearchQuery.trim();
       const groupId = selectedGroup ? selectedGroup.id : null;
       const isNewGroup = !selectedGroup;
@@ -388,11 +391,13 @@ export default function VoiceInputScreen() {
                         setSelectedGroup(null);
                       }}
                     />
-                    {groupSearchQuery.length > 0 && (
-                      <Pressable onPress={() => { setGroupSearchQuery(''); setSelectedGroup(null); }} hitSlop={8}>
-                        <Ionicons name="close-circle" size={20} color="#999" />
-                      </Pressable>
-                    )}
+                    <View style={styles.groupSearchClearWrap}>
+                      {groupSearchQuery.length > 0 && (
+                        <Pressable onPress={() => { setGroupSearchQuery(''); setSelectedGroup(null); }} hitSlop={8}>
+                          <Ionicons name="close-circle" size={20} color="#999" />
+                        </Pressable>
+                      )}
+                    </View>
                   </View>
                   {searchTrimmed.length > 0 && filteredGroups.length > 0 ? (
                     <ScrollView
@@ -759,9 +764,16 @@ const styles = StyleSheet.create({
   },
   groupSearchInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 16,
     color: '#333',
     paddingVertical: 12,
+    paddingRight: 8,
+  },
+  groupSearchClearWrap: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   groupListScroll: {
     maxHeight: 160,

@@ -23,8 +23,8 @@ Rules:
 - EQUAL SPLIT BY DEFAULT: If the user does NOT explicitly say who pays how much (e.g. no "Alice 200, Bob 300" or "split 500 between them"), treat it as equal split: list all people who are in the split and set amount for each to totalAmount / number of people. Round to 2 decimal places per amount; adjust the last person's amount if needed so the sum equals totalAmount.
 - If the text explicitly says "split equally" or "equal split", same as above: equal amounts for each split member.
 - If the text explicitly gives per-person amounts (e.g. "John pays 100, Mary 150"), use those amounts.
-- payer.name: who paid the full amount (e.g. "John", "Alice", "I paid" -> use "Me" or the speaker identifier).
-- Extract names as stated; they may be first names, nicknames, or "me"/"I".
+- payer.name: who paid the full amount. If the text says "me", "I", "I paid", "paid by me" or the speaker paid, set payer.name to the current user name given below. Otherwise use the name as stated (e.g. "John", "Alice").
+- Extract other names as stated; they may be first names or nicknames.
 - Return ONLY the JSON object. No \`\`\`json or markdown.`;
 
 const RATE_LIMIT_USER_MESSAGE = 'Rate limit reached. Please wait a minute and try again.';
@@ -67,9 +67,10 @@ async function callGeminiWithRetry(url, body, apiKey, maxRetries = 2) {
  * Call Gemini API with text only (no image).
  * @param {string} previewText - The voice/preview text to parse
  * @param {string} apiKey - Gemini API key
+ * @param {string} [userName] - Current user's display name; if payer is "me"/"I", payer.name will be set to this
  * @returns {Promise<{ payer: { name: string }, totalAmount: number, splitMembers: Array<{ name: string, amount: number }> }>}
  */
-export async function parseVoiceWithGemini(previewText, apiKey) {
+export async function parseVoiceWithGemini(previewText, apiKey, userName = 'Me') {
   if (!previewText || !previewText.trim()) {
     throw new Error('Preview text is empty');
   }
@@ -77,10 +78,13 @@ export async function parseVoiceWithGemini(previewText, apiKey) {
     throw new Error('API key is missing');
   }
 
+  const userLine = `Current user's name (the speaker): "${String(userName).trim()}". When the payer is me/I or the speaker, set payer.name to exactly this.`;
+  const fullPrompt = `${VOICE_PARSE_PROMPT}\n\n${userLine}\n\n---\n\nInput text:\n${previewText.trim()}`;
+
   const requestBody = {
     contents: [
       {
-        parts: [{ text: `${VOICE_PARSE_PROMPT}\n\n---\n\nInput text:\n${previewText.trim()}` }],
+        parts: [{ text: fullPrompt }],
       },
     ],
     generationConfig: {
