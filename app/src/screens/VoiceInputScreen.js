@@ -10,12 +10,14 @@ import {
   Alert,
   ScrollView,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getVoiceInputDraft, setVoiceInputDraft, clearVoiceInputDraft } from '../store/voiceInputDraft';
+import { authGet } from '../utils/apiHelper';
 
 const isAndroid = Platform.OS === 'android';
 
@@ -47,13 +49,43 @@ export default function VoiceInputScreen() {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [speechError, setSpeechError] = useState(null);
   const transcriptRef = useRef(transcript);
-  // Ignore duplicate result events from the engine
   const lastFinalRef = useRef('');
+
+  // Group: active groups list, search query, selected group (or typed name = new group)
+  const [groups, setGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState(null); // { id, name } or null
 
   useEffect(() => {
     transcriptRef.current = transcript;
     setVoiceInputDraft(transcript);
   }, [transcript]);
+
+  // Fetch active groups for group search
+  const fetchGroups = useCallback(async () => {
+    try {
+      const response = await authGet('/groups');
+      const data = await response.json();
+      const list = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
+      const activeGroups = list.filter((g) => g.status === 'active');
+      setGroups(activeGroups);
+    } catch (e) {
+      console.error('VoiceInput: fetch groups error', e);
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
+
+  const filteredGroups = groupSearchQuery.trim()
+    ? groups.filter((g) => g.name.toLowerCase().includes(groupSearchQuery.toLowerCase().trim()))
+    : groups;
+
+  const hasGroupOrName = selectedGroup !== null || groupSearchQuery.trim().length > 0;
 
   // Ask for mic permission only once. If already granted (e.g. after app restart), do not ask again.
   const ensureMicPermission = async () => {
@@ -180,7 +212,10 @@ export default function VoiceInputScreen() {
   };
 
   const displayValue = transcript;
-  const canContinue = transcript.trim().length > 0 && !isRecording;
+  const canContinue =
+    transcript.trim().length > 0 &&
+    !isRecording &&
+    hasGroupOrName;
   const voiceUnavailable = !Voice;
 
   const handleBack = () => {
@@ -285,6 +320,65 @@ export default function VoiceInputScreen() {
               {speechError ? (
                 <Text style={styles.speechErrorText}>{speechError}</Text>
               ) : null}
+
+              <View style={styles.groupSection}>
+                <Text style={styles.groupLabel}>Group</Text>
+                <View style={styles.groupSearchWrapper}>
+                  <Ionicons name="search" size={20} color="#999" style={styles.groupSearchIcon} />
+                  <TextInput
+                    style={styles.groupSearchInput}
+                    placeholder="Search active groups or enter name for new group"
+                    placeholderTextColor="#999"
+                    value={groupSearchQuery}
+                    onChangeText={(text) => {
+                      setGroupSearchQuery(text);
+                      setSelectedGroup(null);
+                    }}
+                  />
+                  {groupSearchQuery.length > 0 && (
+                    <Pressable onPress={() => { setGroupSearchQuery(''); setSelectedGroup(null); }} hitSlop={8}>
+                      <Ionicons name="close-circle" size={20} color="#999" />
+                    </Pressable>
+                  )}
+                </View>
+                {groupsLoading ? (
+                  <View style={styles.groupListLoading}>
+                    <ActivityIndicator size="small" color="#E85A24" />
+                    <Text style={styles.groupListLoadingText}>Loading groups...</Text>
+                  </View>
+                ) : filteredGroups.length > 0 ? (
+                  <ScrollView
+                    style={styles.groupListScroll}
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {filteredGroups.map((g) => {
+                      const id = g._id || g.id;
+                      const isSelected = selectedGroup && selectedGroup.id === id;
+                      return (
+                        <Pressable
+                          key={id}
+                          style={[styles.groupItem, isSelected && styles.groupItemSelected]}
+                          onPress={() => {
+                            setSelectedGroup({ id, name: g.name });
+                            setGroupSearchQuery(g.name);
+                          }}
+                        >
+                          <Text style={styles.groupItemName} numberOfLines={1}>{g.name}</Text>
+                          {isSelected && <Ionicons name="checkmark-circle" size={22} color="#E85A24" />}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                ) : groupSearchQuery.trim() ? (
+                  <View style={styles.groupNewHint}>
+                    <Text style={styles.groupNewHintText}>
+                      No match. &quot;{groupSearchQuery.trim()}&quot; will be created as new group.
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
 
               <View style={styles.previewSection}>
                 <View style={styles.previewLabelRow}>
@@ -468,6 +562,84 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     fontSize: 13,
+  },
+  groupSection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  groupLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  groupSearchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 12,
+    minHeight: 48,
+  },
+  groupSearchIcon: {
+    marginRight: 10,
+  },
+  groupSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    paddingVertical: 12,
+  },
+  groupListLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  groupListLoadingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  groupListScroll: {
+    maxHeight: 160,
+    marginTop: 8,
+  },
+  groupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  groupItemSelected: {
+    borderColor: '#E85A24',
+    backgroundColor: 'rgba(232, 90, 36, 0.08)',
+  },
+  groupItemName: {
+    fontSize: 15,
+    color: '#333',
+    flex: 1,
+  },
+  groupNewHint: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(232, 90, 36, 0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(232, 90, 36, 0.3)',
+  },
+  groupNewHintText: {
+    fontSize: 14,
+    color: '#333',
   },
   previewSection: {
     marginTop: 8,
