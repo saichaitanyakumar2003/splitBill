@@ -10,7 +10,6 @@ import {
   Alert,
   ScrollView,
   KeyboardAvoidingView,
-  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -346,12 +345,7 @@ export default function VoiceInputScreen() {
                       </Pressable>
                     )}
                   </View>
-                  {groupsLoading ? (
-                    <View style={styles.groupListLoading}>
-                      <ActivityIndicator size="small" color="#E85A24" />
-                      <Text style={styles.groupListLoadingText}>Loading groups...</Text>
-                    </View>
-                  ) : searchTrimmed.length > 0 && filteredGroups.length > 0 ? (
+                  {searchTrimmed.length > 0 && filteredGroups.length > 0 ? (
                     <ScrollView
                       style={styles.groupListScroll}
                       nestedScrollEnabled
@@ -378,7 +372,7 @@ export default function VoiceInputScreen() {
                         );
                       })}
                     </ScrollView>
-                  ) : searchTrimmed.length > 0 && filteredGroups.length === 0 ? (
+                  ) : searchTrimmed.length > 0 && !groupsLoading && filteredGroups.length === 0 ? (
                     <View style={styles.groupNewHint}>
                       <Text style={styles.groupNewHintText}>
                         No match. &quot;{searchTrimmed}&quot; will be created as new group.
@@ -607,19 +601,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     paddingVertical: 12,
-  },
-  groupListLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  groupListLoadingText: {
-    fontSize: 14,
-    color: '#666',
   },
   groupListScroll: {
     maxHeight: 160,
