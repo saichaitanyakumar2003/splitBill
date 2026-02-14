@@ -1,9 +1,10 @@
 /**
  * Parse voice/preview text with Gemini to extract expense structure as JSON.
  * Used from VoiceInputScreen when user taps Continue.
+ * Uses same model as bill scan (see geminiConfig.js).
  */
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+import { GEMINI_API_URL } from './geminiConfig';
 
 const VOICE_PARSE_PROMPT = `You are given a text that describes an expense (from voice or manual input). Extract the following and return ONLY valid JSON, no markdown or explanation.
 
@@ -25,6 +26,42 @@ Rules:
 - payer.name: who paid the full amount (e.g. "John", "Alice", "I paid" -> use "Me" or the speaker identifier).
 - Extract names as stated; they may be first names, nicknames, or "me"/"I".
 - Return ONLY the JSON object. No \`\`\`json or markdown.`;
+
+const RATE_LIMIT_USER_MESSAGE = 'Rate limit reached. Please wait a minute and try again.';
+
+function isRateLimitError(status, message) {
+  if (status === 429) return true;
+  const m = (message || '').toLowerCase();
+  return m.includes('rate limit') || m.includes('resource_exhausted') || m.includes('quota');
+}
+
+/**
+ * Call Gemini API with text only (no image). Retries on 429 (rate limit) with backoff.
+ */
+async function callGeminiWithRetry(url, body, apiKey, maxRetries = 2) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const waitMs = Math.min(12000 * attempt, 25000); // 12s, then 24s
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) return response;
+    const errBody = await response.json().catch(() => ({}));
+    const msg = errBody?.error?.message || `API Error: ${response.status}`;
+    lastError = { status: response.status, message: msg };
+    if (response.status === 429 && attempt < maxRetries) continue;
+    break;
+  }
+  if (lastError && isRateLimitError(lastError.status, lastError.message)) {
+    throw new Error(RATE_LIMIT_USER_MESSAGE);
+  }
+  throw new Error(lastError?.message || 'Request failed');
+}
 
 /**
  * Call Gemini API with text only (no image).
@@ -52,17 +89,11 @@ export async function parseVoiceWithGemini(previewText, apiKey) {
     },
   };
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
-    const msg = errBody?.error?.message || `API Error: ${response.status}`;
-    throw new Error(msg);
-  }
+  const response = await callGeminiWithRetry(
+    `${GEMINI_API_URL}?key=${apiKey}`,
+    requestBody,
+    apiKey
+  );
 
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;

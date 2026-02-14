@@ -10,6 +10,7 @@ import {
   Alert,
   ScrollView,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -260,6 +261,8 @@ export default function VoiceInputScreen() {
       const msg = err?.message || '';
       if (isParseOrHallucinationError(msg)) {
         setGeminiError('Please improve the preview to make better understanding.');
+      } else if (/rate limit|resource_exhausted|quota/i.test(msg)) {
+        setGeminiError('Rate limit reached. Please wait a minute and try again.');
       } else {
         setGeminiError(msg || 'Failed to parse voice input. Please try again.');
       }
@@ -348,14 +351,6 @@ export default function VoiceInputScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {geminiError ? (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorText}>{geminiError}</Text>
-                  <Pressable onPress={() => setGeminiError(null)} hitSlop={8}>
-                    <Text style={styles.retryText}>Dismiss</Text>
-                  </Pressable>
-                </View>
-              ) : null}
               <View style={styles.recordSection}>
                 <Pressable
                   style={({ pressed }) => [
@@ -488,6 +483,41 @@ export default function VoiceInputScreen() {
           </KeyboardAvoidingView>
         </View>
       </LinearGradient>
+
+      <Modal
+        visible={!!geminiError}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGeminiError(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Error</Text>
+              <Pressable
+                onPress={() => setGeminiError(null)}
+                style={styles.modalCloseButton}
+                hitSlop={12}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </Pressable>
+            </View>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              <Text style={styles.modalErrorText}>{geminiError}</Text>
+            </ScrollView>
+            <Pressable
+              style={styles.modalDismissButton}
+              onPress={() => setGeminiError(null)}
+            >
+              <Text style={styles.modalDismissButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -577,24 +607,62 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
   },
-  errorBanner: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 71, 87, 0.12)',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
-  errorText: {
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalScroll: {
+    maxHeight: 320,
+  },
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 24,
+  },
+  modalErrorText: {
+    fontSize: 14,
     color: '#C62828',
-    flex: 1,
-    fontSize: 14,
+    lineHeight: 22,
   },
-  retryText: {
-    color: '#E85A24',
+  modalDismissButton: {
+    backgroundColor: '#E85A24',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalDismissButtonText: {
+    color: '#FFF',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 14,
   },
   recordSection: {
     alignItems: 'center',

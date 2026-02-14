@@ -2,12 +2,12 @@
  * Client-side Gemini OCR
  * Calls Gemini API directly from the app for faster processing
  * Works on iOS, Android, and Web
+ * Uses same model as voice parse (see geminiConfig.js).
  */
 
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
-
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+import { GEMINI_API_URL, GEMINI_MODEL } from './geminiConfig';
 
 // OCR Prompt for bill extraction
 const OCR_PROMPT = `Analyze this bill/receipt image and extract the information in JSON format.
@@ -133,8 +133,16 @@ async function imageToBase64(imageUri) {
   }
 }
 
+function isRateLimitError(status, message) {
+  if (status === 429) return true;
+  const m = (message || '').toLowerCase();
+  return m.includes('rate limit') || m.includes('resource_exhausted') || m.includes('quota');
+}
+
+const RATE_LIMIT_MESSAGE = 'Rate limit reached. Please wait a minute and try again.';
+
 /**
- * Call Gemini API with the image
+ * Call Gemini API with the image. Retries on 429 (rate limit) with backoff.
  */
 async function callGeminiAPI(apiKey, base64Image) {
   const requestBody = {
@@ -157,21 +165,38 @@ async function callGeminiAPI(apiKey, base64Image) {
     },
   };
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
+  const url = `${GEMINI_API_URL}?key=${apiKey}`;
+  const maxRetries = 2;
+  let lastResponse;
+  let lastErrorBody;
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const waitMs = Math.min(12000 * attempt, 25000);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+    lastErrorBody = await response.json().catch(() => ({}));
+    const msg = lastErrorBody?.error?.message || `API Error: ${response.status}`;
+    if (response.status === 429 && attempt < maxRetries) continue;
+    if (isRateLimitError(response.status, msg)) {
+      throw new Error(RATE_LIMIT_MESSAGE);
+    }
+    throw new Error(msg);
   }
 
-  const data = await response.json();
-  return data;
+  if (lastErrorBody && isRateLimitError(0, lastErrorBody?.error?.message)) {
+    throw new Error(RATE_LIMIT_MESSAGE);
+  }
+  throw new Error(lastErrorBody?.error?.message || 'API request failed');
 }
 
 /**
@@ -346,7 +371,7 @@ function transformBillData(rawData) {
     currency: rawData.currency || 'INR',
     billType,
     ocrEngine: 'gemini',
-    modelUsed: 'gemini-2.5-flash',
+    modelUsed: GEMINI_MODEL,
   };
 }
 
