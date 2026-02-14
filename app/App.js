@@ -1111,7 +1111,7 @@ function HomeScreen({ navigation, route }) {
           onConfirm={handleLogoutConfirm}
         />
 
-        {/* Image Processing Modal */}
+        {/* Image Processing Modal - same error layout as Voice Input */}
         <Modal
           visible={isProcessingImage || !!processingError}
           transparent={true}
@@ -1123,7 +1123,7 @@ function HomeScreen({ navigation, route }) {
           }}
         >
           <View style={styles.processingModalOverlay}>
-            <View style={styles.processingModalContent}>
+            <View style={[styles.processingModalContent, processingError && styles.processingModalContentError]}>
               {isProcessingImage && !processingError && (
                 <>
                   <ActivityIndicator size="large" color="#FF6B35" />
@@ -1132,17 +1132,20 @@ function HomeScreen({ navigation, route }) {
                 </>
               )}
               {processingError && (
-                <>
-                  <Ionicons name="warning-outline" size={48} color="#E53935" />
-                  <Text style={styles.processingModalTitle}>Processing Failed</Text>
-                  <Text style={styles.processingModalText}>{processingError}</Text>
-                  <TouchableOpacity 
-                    style={styles.processingModalButton}
-                    onPress={() => setProcessingError(null)}
-                  >
-                    <Text style={styles.processingModalButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </>
+                <View style={styles.processingModalErrorCard}>
+                  <View style={styles.processingModalErrorHeader}>
+                    <Text style={styles.processingModalErrorTitle}>Error</Text>
+                    <Pressable onPress={() => setProcessingError(null)} style={styles.processingModalCloseButton} hitSlop={12}>
+                      <Ionicons name="close" size={24} color="#333" />
+                    </Pressable>
+                  </View>
+                  <ScrollView style={styles.processingModalErrorScroll} contentContainerStyle={styles.processingModalErrorScrollContent} showsVerticalScrollIndicator>
+                    <Text style={styles.processingModalErrorText}>{processingError}</Text>
+                  </ScrollView>
+                  <Pressable style={styles.processingModalDismissButton} onPress={() => setProcessingError(null)}>
+                    <Text style={styles.processingModalDismissButtonText}>Close</Text>
+                  </Pressable>
+                </View>
               )}
             </View>
           </View>
@@ -1940,7 +1943,7 @@ function HomeScreen({ navigation, route }) {
           onConfirm={handleLogoutConfirm}
         />
 
-        {/* Image Processing Modal */}
+        {/* Image Processing Modal - same error layout as Voice Input */}
         <Modal
           visible={isProcessingImage || !!processingError}
           transparent={true}
@@ -1952,7 +1955,7 @@ function HomeScreen({ navigation, route }) {
           }}
         >
           <View style={styles.processingModalOverlay}>
-            <View style={styles.processingModalContent}>
+            <View style={[styles.processingModalContent, processingError && styles.processingModalContentError]}>
               {isProcessingImage && !processingError && (
                 <>
                   <ActivityIndicator size="large" color="#FF6B35" />
@@ -1961,17 +1964,20 @@ function HomeScreen({ navigation, route }) {
                 </>
               )}
               {processingError && (
-                <>
-                  <Ionicons name="warning-outline" size={48} color="#E53935" />
-                  <Text style={styles.processingModalTitle}>Processing Failed</Text>
-                  <Text style={styles.processingModalText}>{processingError}</Text>
-                  <TouchableOpacity 
-                    style={styles.processingModalButton}
-                    onPress={() => setProcessingError(null)}
-                  >
-                    <Text style={styles.processingModalButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </>
+                <View style={styles.processingModalErrorCard}>
+                  <View style={styles.processingModalErrorHeader}>
+                    <Text style={styles.processingModalErrorTitle}>Error</Text>
+                    <Pressable onPress={() => setProcessingError(null)} style={styles.processingModalCloseButton} hitSlop={12}>
+                      <Ionicons name="close" size={24} color="#333" />
+                    </Pressable>
+                  </View>
+                  <ScrollView style={styles.processingModalErrorScroll} contentContainerStyle={styles.processingModalErrorScrollContent} showsVerticalScrollIndicator>
+                    <Text style={styles.processingModalErrorText}>{processingError}</Text>
+                  </ScrollView>
+                  <Pressable style={styles.processingModalDismissButton} onPress={() => setProcessingError(null)}>
+                    <Text style={styles.processingModalDismissButtonText}>Close</Text>
+                  </Pressable>
+                </View>
               )}
             </View>
           </View>
@@ -2703,6 +2709,12 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
+  processingModalContentError: {
+    width: '90%',
+    maxWidth: 400,
+    padding: 0,
+    alignItems: 'stretch',
+  },
   processingModalTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -2728,6 +2740,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',
+  },
+  // Image processing error modal - same layout as Voice Input error modal
+  processingModalErrorCard: {
+    width: '100%',
+    maxWidth: 400,
+    minWidth: 280,
+    overflow: 'hidden',
+  },
+  processingModalErrorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  processingModalErrorTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  processingModalCloseButton: {
+    padding: 4,
+  },
+  processingModalErrorScroll: {
+    maxHeight: 280,
+  },
+  processingModalErrorScrollContent: {
+    padding: 20,
+    paddingBottom: 24,
+  },
+  processingModalErrorText: {
+    fontSize: 14,
+    color: '#C62828',
+    lineHeight: 22,
+  },
+  processingModalDismissButton: {
+    backgroundColor: '#E85A24',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  processingModalDismissButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   // Settings Icon Styles
   settingsIconButton: {

@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -471,18 +472,28 @@ export default function VoiceInputScreen() {
                 onPress={handleContinue}
                 disabled={!canContinue || isSubmitting}
               >
-                {isSubmitting ? (
-                  <Text style={[styles.continueButtonText, styles.continueButtonTextEnabled]}>Processing…</Text>
-                ) : (
-                  <Text style={[styles.continueButtonText, canContinue && styles.continueButtonTextEnabled]}>
-                    Continue
-                  </Text>
-                )}
+                <Text style={[styles.continueButtonText, canContinue && styles.continueButtonTextEnabled]}>
+                  Continue
+                </Text>
               </Pressable>
             </View>
           </KeyboardAvoidingView>
         </View>
       </LinearGradient>
+
+      {/* Processing modal - same style as image processing */}
+      <Modal
+        visible={isSubmitting}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingContent}>
+            <ActivityIndicator size="large" color="#E85A24" />
+            <Text style={styles.processingText}>Please wait while we are processing...</Text>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={!!geminiError}
@@ -606,6 +617,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+  },
+  processingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  processingContent: {
+    alignItems: 'center',
+  },
+  processingText: {
+    marginTop: 20,
+    fontSize: 18,
+    color: '#FFF',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
