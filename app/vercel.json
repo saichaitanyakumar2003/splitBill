@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npx expo export --platform web && cp public/privacy-policy.html dist/privacy-policy.html",
   "outputDirectory": "dist",
   "framework": null,
   "installCommand": "npm install",
