@@ -526,7 +526,7 @@ export default function VoicePreviewScreen() {
                 )}
               </View>
 
-              {/* Split details: payer first, then split members (who owe what) */}
+              {/* Split details: split members (who owe what) */}
               <View style={styles.splitSection}>
                 <View style={styles.splitSectionHeader}>
                   <Text style={styles.sectionLabel}>Split details</Text>
@@ -534,21 +534,6 @@ export default function VoicePreviewScreen() {
                     <Ionicons name="add-circle" size={28} color="#FF6B35" />
                   </Pressable>
                 </View>
-                {/* Payer row: show who paid and total (so payer is part of split details) */}
-                {payerSelected && (
-                  <View style={styles.splitPayerDetailCard}>
-                    <View style={styles.splitPayerDetailRow}>
-                      <Text style={styles.splitPayerDetailLabel}>Payer</Text>
-                      <Text style={styles.splitPayerDetailName} numberOfLines={1}>
-                        {payerSelected.mailId === user?.mailId ? `${payerSelected.name} (You)` : payerSelected.name}
-                      </Text>
-                    </View>
-                    <View style={styles.splitPayerDetailRow}>
-                      <Text style={styles.splitPayerDetailLabel}>Paid</Text>
-                      <Text style={styles.splitPayerDetailAmount}>₹{Number(totalAmount).toFixed(2)}</Text>
-                    </View>
-                  </View>
-                )}
                 <Text style={styles.splitMembersSubLabel}>Split members (who owe)</Text>
                 {splitSelections.map((item, index) => {
                   const state = splitSearchState[index] || {};
@@ -954,38 +939,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
-  },
-  splitPayerDetailCard: {
-    backgroundColor: 'rgba(232, 90, 36, 0.08)',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 90, 36, 0.25)',
-  },
-  splitPayerDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  splitPayerDetailLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  splitPayerDetailName: {
-    fontSize: 15,
-    color: '#333',
-    fontWeight: '600',
-    flex: 1,
-    marginLeft: 8,
-    textAlign: 'right',
-  },
-  splitPayerDetailAmount: {
-    fontSize: 16,
-    color: '#E85A24',
-    fontWeight: '700',
   },
   splitMembersSubLabel: {
     fontSize: 13,

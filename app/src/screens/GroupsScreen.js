@@ -1691,12 +1691,21 @@ export default function GroupsScreen({ route }) {
                     </Text>
                   </View>
 
+                  {(currentExpense.payer || currentExpense.paidBy) && (
+                    <View style={styles.modalPayerRow}>
+                      <Text style={styles.modalPayerLabel}>Paid by:</Text>
+                      <Text style={styles.modalPayerName} numberOfLines={1}>
+                        {currentExpense.paidByName || getMemberName(currentExpense.payer || currentExpense.paidBy)}
+                      </Text>
+                    </View>
+                  )}
+
                   <ScrollView style={styles.membersList}>
                     {expenseMembers.map((member, index) => (
                       <View key={member.mailId || index} style={styles.memberRow}>
                         <View style={styles.memberInfo}>
                           <Text style={styles.memberName}>{member.name}</Text>
-                          {member.mailId === currentExpense.payer && (
+                          {member.mailId === (currentExpense.payer || currentExpense.paidBy) && (
                             <Text style={styles.payerBadge}>Payer</Text>
                           )}
                         </View>
@@ -2284,12 +2293,21 @@ export default function GroupsScreen({ route }) {
                   </Text>
                 </View>
 
+                {(currentExpense.payer || currentExpense.paidBy) && (
+                  <View style={styles.modalPayerRow}>
+                    <Text style={styles.modalPayerLabel}>Paid by:</Text>
+                    <Text style={styles.modalPayerName} numberOfLines={1}>
+                      {currentExpense.paidByName || getMemberName(currentExpense.payer || currentExpense.paidBy)}
+                    </Text>
+                  </View>
+                )}
+
                 <ScrollView style={styles.membersList}>
                   {expenseMembers.map((member, index) => (
                     <View key={member.mailId || index} style={styles.memberRow}>
                       <View style={styles.memberInfo}>
                         <Text style={styles.memberName}>{member.name}</Text>
-                        {member.mailId === currentExpense.payer && (
+                        {member.mailId === (currentExpense.payer || currentExpense.paidBy) && (
                           <Text style={styles.payerBadge}>Payer</Text>
                         )}
                       </View>
@@ -3698,6 +3716,24 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FF6B35',
+  },
+  modalPayerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  modalPayerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginRight: 8,
+  },
+  modalPayerName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
   },
   membersList: {
     maxHeight: 300,
