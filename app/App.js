@@ -51,6 +51,7 @@ import VoicePreviewScreen from './src/screens/VoicePreviewScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
+import { AnalysisProvider, useAnalysis } from './src/context/AnalysisContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -578,6 +579,18 @@ function HomeScreen({ navigation, route }) {
   const [processingError, setProcessingError] = useState(null);
   
   const { user, logout, token, isAuthenticated } = useAuth();
+  const {
+    userAnalysisData,
+    setUserAnalysisData,
+    analysisLoading,
+    setAnalysisLoading,
+    aiSummary,
+    setAiSummary,
+    aiSummaryLoading,
+    setAiSummaryLoading,
+    aiSummaryUsage,
+    setAiSummaryUsage,
+  } = useAnalysis();
   const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
   
   // API Base URL for analysis endpoints
@@ -821,15 +834,8 @@ function HomeScreen({ navigation, route }) {
   const [analysisCategories, setAnalysisCategories] = useState(['food', 'travel', 'entertainment', 'shopping', 'others']);
   const [analysisCategoryModalVisible, setAnalysisCategoryModalVisible] = useState(false);
 
-  // User analysis data state (used for both Expense Insights and Analysis sections)
-  const [userAnalysisData, setUserAnalysisData] = useState(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
+  // Analysis/summary state lives in AnalysisContext so it persists when navigating away from Home (no refetch on return)
   const [selectedPieSlice, setSelectedPieSlice] = useState(null); // Selected category for highlighting in pie chart
-
-  // AI Summary state (persistent across app restarts via AsyncStorage)
-  const [aiSummary, setAiSummary] = useState(null); // { summary: [], hasData: boolean, generatedAt: string, date: string }
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [aiSummaryUsage, setAiSummaryUsage] = useState({ remaining: 2, used: 0, limit: 2 }); // Daily usage tracking
   const [showLimitReachedPopup, setShowLimitReachedPopup] = useState(false); // Show limit reached message inline
 
   // AsyncStorage key for AI summary
@@ -915,12 +921,10 @@ function HomeScreen({ navigation, route }) {
     return months;
   };
 
-  // Fetch user analysis data from API (used for both Expense Insights and Analysis)
+  // Fetch user analysis data from API and put fresh data into context (used for Insights + Analysis)
   const fetchUserAnalysisData = async () => {
     if (!token) return;
-    
     setAnalysisLoading(true);
-    
     try {
       const response = await fetch(`${API_BASE_URL}/api/analysis/user-data`, {
         headers: {
@@ -928,9 +932,7 @@ function HomeScreen({ navigation, route }) {
           'Content-Type': 'application/json',
         },
       });
-      
       const data = await response.json();
-      
       if (data.success) {
         setUserAnalysisData(data.data);
       } else {
@@ -945,13 +947,20 @@ function HomeScreen({ navigation, route }) {
     }
   };
 
-  // Fetch analysis data when user logs in
+  // Refresh insights + analysis + summary usage: always hits API and updates context with fresh data
+  const handleRefreshInsightsAndAnalysis = () => {
+    setSelectedPieSlice(null);
+    fetchUserAnalysisData();
+    fetchAISummaryUsage();
+  };
+
+  // Fetch analysis data only when logged in and cache is empty (avoids refetch every time we return to Home)
   useEffect(() => {
-    if (token) {
+    if (token && userAnalysisData === null) {
       fetchUserAnalysisData();
-      fetchAISummaryUsage(); // Also fetch AI summary usage
+      fetchAISummaryUsage();
     }
-  }, [token]);
+  }, [token, userAnalysisData]);
 
   // Reset pie slice selection when month or categories change
   useEffect(() => {
@@ -1359,10 +1368,7 @@ function HomeScreen({ navigation, route }) {
                 <Text style={styles.androidSectionTitle}>Expense Insights</Text>
                 <TouchableOpacity 
                   style={styles.androidRefreshButton}
-                  onPress={() => {
-                    setSelectedPieSlice(null);
-                    fetchUserAnalysisData();
-                  }}
+                  onPress={handleRefreshInsightsAndAnalysis}
                   disabled={analysisLoading}
                 >
                   {analysisLoading ? (
@@ -1598,7 +1604,7 @@ function HomeScreen({ navigation, route }) {
                 <Text style={styles.androidSectionTitle}>Analysis</Text>
                 <TouchableOpacity 
                   style={styles.androidRefreshButton}
-                  onPress={() => fetchUserAnalysisData()}
+                  onPress={handleRefreshInsightsAndAnalysis}
                   disabled={analysisLoading}
                 >
                   {analysisLoading ? (
@@ -1714,15 +1720,13 @@ function HomeScreen({ navigation, route }) {
                 <TouchableOpacity 
                   style={styles.androidRefreshButton}
                   onPress={() => {
+                    // Always fetch fresh usage; if summary exists and we have quota, regenerate summary
+                    fetchAISummaryUsage();
                     if (aiSummary) {
-                      // If summary exists, clear it first then regenerate
                       clearAISummary();
                       if (aiSummaryUsage.remaining > 0) {
                         generateAISummary();
                       }
-                    } else {
-                      // If no summary, just fetch usage stats
-                      fetchAISummaryUsage();
                     }
                   }}
                   disabled={aiSummaryLoading}
@@ -2439,7 +2443,9 @@ export default function App() {
       <AuthProvider>
         <AuthNetworkBridge>
           <StoreProvider>
-            <AppContent />
+            <AnalysisProvider>
+              <AppContent />
+            </AnalysisProvider>
           </StoreProvider>
         </AuthNetworkBridge>
       </AuthProvider>
