@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Group = require('../models/Group');
 const ConsolidatedEdges = require('../models/ConsolidatedEdges');
 const EditHistory = require('../models/EditHistory');
+const Analysis = require('../models/Analysis');
 const { authenticate } = require('../middleware/auth');
 const { sendPasswordResetEmail, generateTemporaryPassword } = require('../utils/email');
 const { getPlainPassword } = require('../utils/rsa'); // when RSA_PRIVATE_KEY is set, decrypts password
@@ -468,6 +469,39 @@ router.get('/search', authenticate, async (req, res) => {
 });
 
 router.post('/logout', authenticate, (req, res) => res.json({ success: true }));
+
+// Delete account (no auth token; verify with email + password). For Data safety / Play Console.
+router.post('/delete-account', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password required' });
+    }
+    const plainPassword = getPlainPassword(password);
+    if (!plainPassword) {
+      return res.status(400).json({ success: false, message: 'Invalid password' });
+    }
+
+    const mailId = email.toLowerCase().trim();
+    const user = await User.findByMailIdWithPassword(mailId);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Account not found' });
+    }
+
+    const passwordResult = await user.verifyPassword(plainPassword);
+    if (!passwordResult.valid) {
+      return res.status(401).json({ success: false, message: 'Wrong password' });
+    }
+
+    await Analysis.deleteOne({ _id: mailId });
+    await User.deleteOne({ _id: mailId });
+
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (e) {
+    console.error('Delete account error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 
 // Add a previous mail to user's list
 router.post('/previous-mails', authenticate, async (req, res) => {

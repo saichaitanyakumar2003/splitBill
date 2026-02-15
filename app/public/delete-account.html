@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete account - SplitBill</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 24px; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: #fff; max-width: 420px; width: 100%; padding: 28px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    h1 { color: #E85A24; font-size: 1.35rem; margin: 0 0 8px 0; }
+    .sub { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
+    label { display: block; font-size: 0.9rem; font-weight: 600; color: #333; margin-bottom: 6px; }
+    input { width: 100%; padding: 12px 14px; font-size: 1rem; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 16px; }
+    input:focus { outline: none; border-color: #E85A24; }
+    button { width: 100%; padding: 14px; font-size: 1rem; font-weight: 600; color: #fff; background: #E85A24; border: none; border-radius: 10px; cursor: pointer; margin-top: 8px; }
+    button:hover { background: #d14a1a; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg { margin-top: 16px; padding: 12px; border-radius: 10px; font-size: 0.9rem; display: none; }
+    .msg.error { background: #fee; color: #c00; border: 1px solid #fcc; display: block; }
+    .msg.success { background: #efe; color: #060; border: 1px solid #cfc; display: block; }
+    .back { display: inline-block; margin-top: 20px; font-size: 0.9rem; color: #E85A24; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Delete your account</h1>
+    <p class="sub">Enter your email and password to permanently delete your SplitBill account and data.</p>
+
+    <form id="form" action="#" method="post">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required placeholder="your@email.com" autocomplete="email">
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required placeholder="Your password" autocomplete="current-password">
+
+      <button type="submit" id="btn">Delete my account</button>
+    </form>
+
+    <div id="msg" class="msg" role="alert"></div>
+    <a href="/" class="back">← Back to SplitBill</a>
+  </div>
+
+  <script>
+    (function() {
+      var API_BASE = 'https://splitbill-i6ou.onrender.com/api';
+      // Same RSA public key as the app (backend decrypts with RSA_PRIVATE_KEY)
+      var RSA_PUBLIC_KEY_PEM = '-----BEGIN PUBLIC KEY-----\n' +
+        'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDaGfm33fXudlrkXY+maYp3+n1G\n' +
+        'Dv9PaSSMSSETDrzmnELGJLx+OEmvPMZIvQUJlbG4ycppltpXAywTSjH8M+w/iVqv\n' +
+        'F7/WYYiijyIJ+u1Nx2ILB1+le8CfmBlehPW7BjCa8ARUZfl8JHBNc83j8AwNdfFZ\n' +
+        'q4Ev6yc4sUZntYZaIQIDAQAB\n' +
+        '-----END PUBLIC KEY-----';
+
+      function pemToBinary(pem) {
+        var b64 = pem
+          .replace(/-----BEGIN PUBLIC KEY-----/, '')
+          .replace(/-----END PUBLIC KEY-----/, '')
+          .replace(/\s/g, '');
+        var raw = atob(b64);
+        var arr = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        return arr.buffer;
+      }
+
+      function arrayBufferToBase64(buffer) {
+        var bytes = new Uint8Array(buffer);
+        var binary = '';
+        for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function encryptPassword(plainPassword) {
+        return crypto.subtle
+          .importKey(
+            'spki',
+            pemToBinary(RSA_PUBLIC_KEY_PEM),
+            { name: 'RSA-OAEP', hash: 'SHA-256' },
+            false,
+            ['encrypt']
+          )
+          .then(function(publicKey) {
+            var enc = new TextEncoder();
+            return crypto.subtle.encrypt(
+              { name: 'RSA-OAEP' },
+              publicKey,
+              enc.encode(plainPassword)
+            );
+          })
+          .then(function(cipherBuffer) {
+            return arrayBufferToBase64(cipherBuffer);
+          });
+      }
+
+      var form = document.getElementById('form');
+      var btn = document.getElementById('btn');
+      var msg = document.getElementById('msg');
+
+      function showMessage(text, isError) {
+        msg.textContent = text;
+        msg.className = 'msg ' + (isError ? 'error' : 'success');
+        msg.style.display = 'block';
+      }
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var email = document.getElementById('email').value.trim();
+        var password = document.getElementById('password').value;
+        if (!email || !password) {
+          showMessage('Please enter email and password.', true);
+          return;
+        }
+
+        btn.disabled = true;
+        showMessage('Deleting account…', false);
+
+        encryptPassword(password)
+          .then(function(encryptedPassword) {
+            return fetch(API_BASE + '/auth/delete-account', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email, password: encryptedPassword })
+            });
+          })
+          .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+          .then(function(result) {
+            if (result.ok) {
+              showMessage('Your account has been deleted successfully.', false);
+              form.reset();
+            } else {
+              showMessage(result.data.message || 'Could not delete account. Check your email and password.', true);
+            }
+          })
+          .catch(function(err) {
+            showMessage(err && err.message ? err.message : 'Network or encryption error. Please try again.', true);
+          })
+          .finally(function() {
+            btn.disabled = false;
+          });
+      });
+    })();
+  </script>
+</body>
+</html>
