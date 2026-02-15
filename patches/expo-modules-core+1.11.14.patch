@@ -1,0 +1,12 @@
+diff --git a/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt b/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt
+index 0000000..1111111 100644
+--- a/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt
++++ b/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt
+@@ -164,7 +164,7 @@
+     try {
+       context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)?.run {
+-        return requestedPermissions.contains(permission)
++        return requestedPermissions?.contains(permission) == true
+       }
+       return false
+     } catch (_: PackageManager.NameNotFoundException) {
