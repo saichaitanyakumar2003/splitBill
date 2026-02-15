@@ -2,9 +2,9 @@
  * API Helper - Wraps fetch calls with auth token and network error detection
  */
 
-import ENV from '../config/env';
+import ENV, { getRandomApiEndpoint } from '../config/env';
 
-// API Base URL - from centralized config
+// API Base URL - from centralized config (for code that needs a single default)
 export const API_BASE_URL = ENV.API_BASE_URL;
 
 let networkErrorCallback = null;
@@ -67,8 +67,9 @@ export const apiFetch = async (url, options = {}) => {
  * @returns {Promise<Response>}
  */
 export const authFetch = async (endpoint, options = {}) => {
-  // Determine if endpoint is full URL or relative path
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  // Determine if endpoint is full URL or relative path; use random server for relative paths
+  const baseUrl = getRandomApiEndpoint().baseUrl;
+  const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
   
   // Build headers with auth token
   const headers = {

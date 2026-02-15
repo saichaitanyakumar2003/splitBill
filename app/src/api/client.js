@@ -1,8 +1,6 @@
-import ENV from '../config/env';
+import { getRandomApiEndpoint } from '../config/env';
 import { getAuthToken } from '../utils/apiHelper';
 import { scanBillWithGemini } from '../utils/geminiOCR';
-
-const API_BASE_URL = ENV.API_BASE_URL;
 
 // Cache for OCR config (API key)
 let ocrConfigCache = null;
@@ -11,7 +9,8 @@ const OCR_CONFIG_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 class ApiClient {
   async request(endpoint, options = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const baseUrl = getRandomApiEndpoint().baseUrl;
+    const url = `${baseUrl}${endpoint}`;
     const authToken = getAuthToken();
     
     const config = {

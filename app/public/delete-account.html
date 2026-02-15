@@ -44,7 +44,13 @@
 
   <script>
     (function() {
-      var API_BASE = 'https://splitbill-i6ou.onrender.com/api';
+      var API_BASES = [
+        'https://splitbill-i6ou.onrender.com/api',
+        'https://splitbill-37og.onrender.com/api'
+      ];
+      function getRandomApiBase() {
+        return API_BASES[Math.floor(Math.random() * API_BASES.length)];
+      }
       // Same RSA public key as the app (backend decrypts with RSA_PRIVATE_KEY)
       var RSA_PUBLIC_KEY_PEM = '-----BEGIN PUBLIC KEY-----\n' +
         'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDaGfm33fXudlrkXY+maYp3+n1G\n' +
@@ -117,7 +123,7 @@
 
         encryptPassword(password)
           .then(function(encryptedPassword) {
-            return fetch(API_BASE + '/auth/delete-account', {
+            return fetch(getRandomApiBase() + '/auth/delete-account', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: email, password: encryptedPassword })

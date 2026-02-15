@@ -50,33 +50,51 @@ jobs:
       - name: 🚀 Deploy to Render
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_DEPLOY_HOOK_URL_1: ${{ secrets.RENDER_DEPLOY_HOOK_URL_1 }}
         run: |
-          echo "🚀 Triggering Render deployment..."
+          echo "🚀 Triggering Render deployment(s)..."
           
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "⚠️ RENDER_DEPLOY_HOOK_URL secret not set. Skipping deployment."
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ] && [ -z "$RENDER_DEPLOY_HOOK_URL_1" ]; then
+            echo "⚠️ No RENDER_DEPLOY_HOOK_URL or RENDER_DEPLOY_HOOK_URL_1 secret set. Skipping deployment."
             exit 0
           fi
           
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
+          trigger_hook() {
+            local name="$1"
+            local url="$2"
+            if [ -z "$url" ]; then
+              echo "⏭️ Skipping $name (not set)"
+              return 0
+            fi
+            response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$url")
+            if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
+              echo "✅ $name triggered successfully! (HTTP $response)"
+              return 0
+            else
+              echo "❌ $name failed. HTTP status: $response"
+              return 1
+            fi
+          }
           
-          # Check for any 2xx success status code
-          if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
-            echo "✅ Render deployment triggered successfully! (HTTP $response)"
-            echo "⏳ Render is now building and deploying your backend..."
-            echo "🔗 Check status at: https://dashboard.render.com"
-          else
-            echo "❌ Failed to trigger deployment. HTTP status: $response"
+          failed=0
+          trigger_hook "Render deploy (RENDER_DEPLOY_HOOK_URL)" "$RENDER_DEPLOY_HOOK_URL" || failed=1
+          trigger_hook "Render deploy (RENDER_DEPLOY_HOOK_URL_1)" "$RENDER_DEPLOY_HOOK_URL_1" || failed=1
+          
+          if [ $failed -eq 1 ]; then
             exit 1
           fi
+          
+          echo "⏳ Render is now building and deploying your backend(s)..."
+          echo "🔗 Check status at: https://dashboard.render.com"
 
       - name: 📋 Deployment Summary
         run: |
           echo "=========================================="
           echo "✅ BACKEND DEPLOYMENT TRIGGERED!"
           echo "=========================================="
-          echo "🖥️ Backend URL: https://splitbill-i6ou.onrender.com"
-          echo "❤️ Health Check: https://splitbill-i6ou.onrender.com/health"
+          echo "🖥️ Backend 1: https://splitbill-i6ou.onrender.com"
+          echo "🖥️ Backend 2: https://splitbill-37og.onrender.com"
+          echo "❤️ Health: /health on either URL"
           echo "📅 Completed at: $(date)"
           echo "⏳ Note: Render may take 2-5 mins to complete deployment"
           echo "=========================================="

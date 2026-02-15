@@ -26,7 +26,7 @@ Notifications.getLastNotificationResponseAsync().then(response => {
 });
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import ENV from './src/config/env';
+import ENV, { getRandomApiEndpoint } from './src/config/env';
 import { api } from './src/api/client';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -593,9 +593,6 @@ function HomeScreen({ navigation, route }) {
   } = useAnalysis();
   const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
   
-  // API Base URL for analysis endpoints
-  const API_BASE_URL = ENV.API_HOST;
-  
   // Track screen width for responsive layout (especially for mobile web)
   const [screenWidth, setScreenWidth] = useState(Dimensions.get('window').width);
   
@@ -926,7 +923,7 @@ function HomeScreen({ navigation, route }) {
     if (!token) return;
     setAnalysisLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/user-data`, {
+      const response = await fetch(`${getRandomApiEndpoint().host}/api/analysis/user-data`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -972,7 +969,7 @@ function HomeScreen({ navigation, route }) {
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/ai-summary/usage`, {
+      const response = await fetch(`${getRandomApiEndpoint().host}/api/analysis/ai-summary/usage`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -1001,7 +998,7 @@ function HomeScreen({ navigation, route }) {
     setAiSummaryLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/ai-summary`, {
+      const response = await fetch(`${getRandomApiEndpoint().host}/api/analysis/ai-summary`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

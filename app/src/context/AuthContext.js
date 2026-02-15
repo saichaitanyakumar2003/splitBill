@@ -4,11 +4,8 @@ import { Platform } from 'react-native';
 import { apiFetch, reportNetworkError, setAuthToken } from '../utils/apiHelper';
 import { encryptWithPublicKey } from '../utils/passwordEncrypt';
 import { RSA_PUBLIC_KEY } from '../config/rsaPublicKey';
-import ENV from '../config/env';
+import { getRandomApiEndpoint } from '../config/env';
 import { initializePushNotifications } from '../utils/notifications';
-
-// API Base URL - from centralized config
-const API_BASE_URL = ENV.API_BASE_URL;
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -137,7 +134,7 @@ export const AuthProvider = ({ children }) => {
    */
   const verifyToken = async (authToken) => {
     try {
-      const response = await apiFetch(`${API_BASE_URL}/auth/me`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -172,7 +169,7 @@ export const AuthProvider = ({ children }) => {
       const payload = RSA_PUBLIC_KEY
         ? (encryptWithPublicKey(RSA_PUBLIC_KEY, password) || password)
         : password;
-      const response = await apiFetch(`${API_BASE_URL}/auth/login`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -203,7 +200,7 @@ export const AuthProvider = ({ children }) => {
       const payload = RSA_PUBLIC_KEY
         ? (encryptWithPublicKey(RSA_PUBLIC_KEY, password) || password)
         : password;
-      const response = await apiFetch(`${API_BASE_URL}/auth/register`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -242,7 +239,7 @@ export const AuthProvider = ({ children }) => {
         body.userInfo = userInfo;
       }
 
-      const response = await apiFetch(`${API_BASE_URL}/auth/google`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -270,7 +267,7 @@ export const AuthProvider = ({ children }) => {
    */
   const loginWithApple = async (identityToken, email, fullName) => {
     try {
-      const response = await apiFetch(`${API_BASE_URL}/auth/apple`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/apple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,7 +329,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // Call backend to invalidate session
       if (token) {
-        await apiFetch(`${API_BASE_URL}/auth/logout`, {
+        await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -356,7 +353,7 @@ export const AuthProvider = ({ children }) => {
     try {
       if (!token) return false;
       
-      const response = await apiFetch(`${API_BASE_URL}/auth/refresh`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -398,7 +395,7 @@ export const AuthProvider = ({ children }) => {
         return { success: false, message: 'Not authenticated' };
       }
 
-      const response = await apiFetch(`${API_BASE_URL}/auth/profile`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -435,7 +432,7 @@ export const AuthProvider = ({ children }) => {
       const payload = RSA_PUBLIC_KEY
         ? (encryptWithPublicKey(RSA_PUBLIC_KEY, newPassword) || newPassword)
         : newPassword;
-      const response = await apiFetch(`${API_BASE_URL}/auth/password`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/password`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -467,7 +464,7 @@ export const AuthProvider = ({ children }) => {
         return { success: false, message: 'Not authenticated' };
       }
 
-      const response = await apiFetch(`${API_BASE_URL}/auth/change-email`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/change-email`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -497,7 +494,7 @@ export const AuthProvider = ({ children }) => {
    */
   const forgotPassword = async (email) => {
     try {
-      const response = await apiFetch(`${API_BASE_URL}/auth/forgot-password`, {
+      const response = await apiFetch(`${getRandomApiEndpoint().baseUrl}/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

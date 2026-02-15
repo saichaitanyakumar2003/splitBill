@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { setNetworkErrorCallback, isNetworkError } from '../utils/apiHelper';
-import ENV from '../config/env';
-
-const API_BASE = ENV.API_HOST;
+import { getRandomApiEndpoint } from '../config/env';
 const HEALTH_CHECK_TIMEOUT = 5000;
 
 const NetworkContext = createContext();
@@ -43,7 +41,8 @@ export function NetworkProvider({ children }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
 
-      const response = await fetch(`${API_BASE}/health`, {
+      const host = getRandomApiEndpoint().host;
+      const response = await fetch(`${host}/health`, {
         method: 'GET',
         signal: controller.signal,
       });
