@@ -6,9 +6,9 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 🌐 **Web Link:** [https://splitbill-sand.vercel.app/](https://splitbill-sand.vercel.app/)
 
-📄 **Privacy Policy:** [https://splitbill-sand.vercel.app/privacy-policy.html](https://splitbill-sand.vercel.app/privacy-policy.html)
+📄 **Privacy Policy:** [https://splitbill-sand.vercel.app/privacy-policy](https://splitbill-sand.vercel.app/privacy-policy)
 
-🗑️ **Delete your account:** [https://splitbill-sand.vercel.app/delete-account.html](https://splitbill-sand.vercel.app/delete-account.html) — Enter your email and password to permanently delete your SplitBill account and data. No login required.
+🗑️ **Delete your account:** [https://splitbill-sand.vercel.app/delete-account](https://splitbill-sand.vercel.app/delete-account) — Enter your email and password to permanently delete your SplitBill account and data. No login required.
 
 📱 **Download Android App:** 
 
@@ -133,8 +133,8 @@ Backend runs on `http://localhost:3001`
 
 | Link | Description |
 |------|-------------|
-| [Privacy Policy](https://splitbill-sand.vercel.app/privacy-policy.html) | How we collect, use, and protect your data. |
-| [Delete account](https://splitbill-sand.vercel.app/delete-account.html) | Permanently delete your account and data (email + password; password is sent encrypted). |
+| [Privacy Policy](https://splitbill-sand.vercel.app/privacy-policy) | How we collect, use, and protect your data. |
+| [Delete account](https://splitbill-sand.vercel.app/delete-account) | Permanently delete your account and data (email + password; password is sent encrypted). |
 
 **Delete account API (for reference):** `POST /api/auth/delete-account` — Body: `{ "email": "user@example.com", "password": "<plain or RSA-encrypted>" }`. No auth header required. Returns `{ "success": true, "message": "Account deleted successfully" }` on success.
 
