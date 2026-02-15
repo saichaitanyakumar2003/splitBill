@@ -6,6 +6,10 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 🌐 **Web Link:** [https://splitbill-sand.vercel.app/](https://splitbill-sand.vercel.app/)
 
+📄 **Privacy Policy:** [https://splitbill-sand.vercel.app/privacy-policy.html](https://splitbill-sand.vercel.app/privacy-policy.html)
+
+🗑️ **Delete your account:** [https://splitbill-sand.vercel.app/delete-account.html](https://splitbill-sand.vercel.app/delete-account.html) — Enter your email and password to permanently delete your SplitBill account and data. No login required.
+
 📱 **Download Android App:** 
 
 [https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-5e7c1795-4b39-4a72-9174-3efb7e1909f0.apk](https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-5e7c1795-4b39-4a72-9174-3efb7e1909f0.apk)
@@ -124,6 +128,15 @@ npm install
 npm run dev
 ```
 Backend runs on `http://localhost:3001`
+
+### Privacy policy & delete account
+
+| Link | Description |
+|------|-------------|
+| [Privacy Policy](https://splitbill-sand.vercel.app/privacy-policy.html) | How we collect, use, and protect your data. |
+| [Delete account](https://splitbill-sand.vercel.app/delete-account.html) | Permanently delete your account and data (email + password; password is sent encrypted). |
+
+**Delete account API (for reference):** `POST /api/auth/delete-account` — Body: `{ "email": "user@example.com", "password": "<plain or RSA-encrypted>" }`. No auth header required. Returns `{ "success": true, "message": "Account deleted successfully" }` on success.
 
 ## 🏗️ Project Structure
 
