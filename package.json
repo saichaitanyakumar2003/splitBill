@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": ["app", "backend"],
-  "devDependencies": {
-    "patch-package": "^8.0.0"
-  },
   "scripts": {
     "app": "cd app && npm start",
     "app:web": "cd app && npm run web",
@@ -13,7 +10,6 @@
     "app:ios": "cd app && npm run ios",
     "backend": "cd backend && npm start",
     "backend:dev": "cd backend && npm run dev",
-    "install:all": "npm install && cd app && npm install && cd ../backend && npm install",
-    "postinstall": "patch-package"
+    "install:all": "npm install && cd app && npm install && cd ../backend && npm install"
   }
 }
