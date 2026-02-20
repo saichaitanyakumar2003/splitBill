@@ -48,6 +48,8 @@ import BillScanScreen from './src/screens/BillScanScreen';
 import AddExternalTransactionScreen from './src/screens/AddExternalTransactionScreen';
 import VoiceInputScreen from './src/screens/VoiceInputScreen';
 import VoicePreviewScreen from './src/screens/VoicePreviewScreen';
+import HomeBannerAd from './src/components/HomeBannerAd';
+import OrangeSectionCarousel from './src/components/OrangeSectionCarousel';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NetworkProvider, useNetwork } from './src/context/NetworkContext';
 import { StoreProvider, useStore } from './src/context/StoreContext';
@@ -1095,10 +1097,11 @@ function HomeScreen({ navigation, route }) {
             </View>
           </View>
           
-          {/* Logo - without text */}
-          <View style={styles.androidLogoContainer}>
-            <Logo isMobile={true} hideText={true} />
-          </View>
+          {/* Orange section: horizontal carousel (SplitBill branding + Ad) with pagination dots */}
+          <OrangeSectionCarousel
+            slide1={<Logo isMobile={true} hideText={true} />}
+            slide2={<HomeBannerAd />}
+          />
         </LinearGradient>
 
         {/* Native Mobile: Settings Panel */}
