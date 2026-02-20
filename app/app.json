@@ -69,13 +69,6 @@
         {
           "color": "#FF6B35"
         }
-      ],
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-4564304850605749~7400225557",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
-        }
       ]
     ],
     "updates": {

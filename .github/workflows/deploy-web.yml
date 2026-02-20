@@ -44,6 +44,8 @@ jobs:
 
       - name: 🏗️ Build Expo Web
         working-directory: ./app
+        env:
+          EXPO_PLATFORM: web
         run: |
           echo "🏗️ Building Expo web app..."
           npx expo export --platform web
