@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NUM_PAGES = 2;
+const AUTO_SWIPE_INTERVAL_MS = 2000;
 
 export default function OrangeSectionCarousel({ slide1, slide2 }) {
   const [page, setPage] = useState(0);
+  const scrollRef = useRef(null);
 
   const onScroll = (e) => {
     const offsetX = e.nativeEvent.contentOffset.x;
@@ -13,9 +15,22 @@ export default function OrangeSectionCarousel({ slide1, slide2 }) {
     if (index >= 0 && index < NUM_PAGES) setPage(index);
   };
 
+  // Auto-swipe between logo and ad
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPage((prev) => {
+        const next = (prev + 1) % NUM_PAGES;
+        scrollRef.current?.scrollTo({ x: next * SCREEN_WIDTH, animated: true });
+        return next;
+      });
+    }, AUTO_SWIPE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}

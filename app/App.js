@@ -1097,7 +1097,7 @@ function HomeScreen({ navigation, route }) {
             </View>
           </View>
           
-          {/* Orange section: horizontal carousel (SplitBill branding + Ad) with pagination dots */}
+          {/* Orange section: auto-swiper for logo + ad glimpse */}
           <OrangeSectionCarousel
             slide1={<Logo isMobile={true} hideText={true} />}
             slide2={<HomeBannerAd />}
