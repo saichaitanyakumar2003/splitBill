@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   slide: {
     width: SCREEN_WIDTH,
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
   },
   dots: {

@@ -17,8 +17,8 @@ export default function HomeBannerAd() {
         await pkg.default().initialize();
         if (!mounted) return;
         const adUnitId = 'ca-app-pub-4564304850605749/4687256712';
-        // Prefer adaptive banner for full-width fit (API may be async)
-        let size = BannerAdSize.BANNER;
+        // Prefer adaptive banner for full-width; fallback to larger fixed size
+        let size = BannerAdSize.FULL_BANNER ?? BannerAdSize.LARGE_BANNER ?? BannerAdSize.BANNER;
         try {
           if (typeof BannerAdSize.getAnchoredAdaptiveBannerSize === 'function') {
             const adaptiveSize = await BannerAdSize.getAnchoredAdaptiveBannerSize(SCREEN_WIDTH);
@@ -49,11 +49,11 @@ export default function HomeBannerAd() {
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    width: SCREEN_WIDTH,
     alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
-    marginTop: 8,
+    marginTop: 4,
   },
 });
