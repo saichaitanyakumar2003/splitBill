@@ -5,7 +5,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const NUM_PAGES = 2;
 const AUTO_SWIPE_INTERVAL_MS = 2000;
 // Carousel height: enough room for logo without being too tall
-const CAROUSEL_MIN_HEIGHT = Math.min(200, Math.round(SCREEN_HEIGHT * 0.24));
+const CAROUSEL_MIN_HEIGHT = Math.min(205, Math.round(SCREEN_HEIGHT * 0.255));
 
 export default function OrangeSectionCarousel({ slide1, slide2 }) {
   const [page, setPage] = useState(0);
