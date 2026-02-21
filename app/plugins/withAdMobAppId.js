@@ -2,12 +2,13 @@
  * Custom Expo config plugin that injects Google AdMob App IDs into native projects.
  * Does NOT require "react-native-google-mobile-ads" in the config context, so it
  * won't break expo config / eas update / web builds (that package fails to load there).
- * The runtime JS from react-native-google-mobile-ads still runs in the app; only the
- * official plugin is replaced by this one.
+ * Also injects rootProject.ext.googleMobileAdsJson so the library's Android build.gradle
+ * can read android_app_id (avoids "Cannot get property 'googleMobileAdsJson'" build failure).
  */
 const {
   withAndroidManifest,
   withInfoPlist,
+  withProjectBuildGradle,
 } = require('@expo/config-plugins');
 
 const ANDROID_META_NAME = 'com.google.android.gms.ads.APPLICATION_ID';
@@ -36,6 +37,29 @@ function withAdMobAppId(config, options = {}) {
           });
         }
       }
+      return cfg;
+    });
+
+    // react-native-google-mobile-ads android/build.gradle expects rootProject.ext.googleMobileAdsJson
+    // with getStringValue("android_app_id", "") and isFlagEnabled(...). Inject that so the build succeeds.
+    config = withProjectBuildGradle(config, (cfg) => {
+      const gradle = cfg.modResults.contents;
+      const marker = '// AdMob ext.googleMobileAdsJson (withAdMobAppId plugin)';
+      if (gradle.includes(marker)) return cfg;
+      const appIdEscaped = androidAppId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const block = `
+${marker}
+ext.googleMobileAdsJson = new groovy.util.Expando(
+  getStringValue: { String key, String defaultValue ->
+    if (key == "android_app_id") return "${appIdEscaped}"
+    return defaultValue
+  },
+  isFlagEnabled: { String key, boolean defaultValue ->
+    return defaultValue
+  }
+)
+`;
+      cfg.modResults.contents = gradle.trimEnd() + block;
       return cfg;
     });
   }
