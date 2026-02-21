@@ -1097,22 +1097,9 @@ function HomeScreen({ navigation, route }) {
             </View>
           </View>
           
-          {/* Logo always visible at top */}
-          <Logo isMobile={true} hideText={true} />
-          {/* Auto-swiper below: tagline slide + ad (logo stays visible above) */}
+          {/* Orange section: auto-swiper (logo + ad), taller height so logo is not shrinked */}
           <OrangeSectionCarousel
-            slide1={
-              <View style={styles.carouselTaglineSlide}>
-                <Text style={styles.carouselTaglineText}>Split smart. Pay fair.</Text>
-                <View style={styles.taglineRow}>
-                  <Text style={styles.taglineIcon}>🧾</Text>
-                  <Text style={styles.taglineArrow}>→</Text>
-                  <Text style={styles.taglineIcon}>👥</Text>
-                  <Text style={styles.taglineArrow}>→</Text>
-                  <Text style={styles.taglineIcon}>✅</Text>
-                </View>
-              </View>
-            }
+            slide1={<Logo isMobile={true} hideText={true} />}
             slide2={<HomeBannerAd />}
           />
         </LinearGradient>
@@ -3218,16 +3205,6 @@ const styles = StyleSheet.create({
   taglineArrow: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.7)',
-  },
-  carouselTaglineSlide: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-  },
-  carouselTaglineText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.95)',
-    letterSpacing: 1.2,
   },
   
   // Options styles
