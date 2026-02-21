@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 
 const isAndroid = Platform.OS === 'android';
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function HomeBannerAd() {
   const [AdContent, setAdContent] = useState(null);
@@ -17,17 +16,9 @@ export default function HomeBannerAd() {
         await pkg.default().initialize();
         if (!mounted) return;
         const adUnitId = 'ca-app-pub-4564304850605749/4687256712';
-        // Prefer adaptive banner for full-width; fallback to larger fixed size
-        let size = BannerAdSize.FULL_BANNER ?? BannerAdSize.LARGE_BANNER ?? BannerAdSize.BANNER;
-        try {
-          if (typeof BannerAdSize.getAnchoredAdaptiveBannerSize === 'function') {
-            const adaptiveSize = await BannerAdSize.getAnchoredAdaptiveBannerSize(SCREEN_WIDTH);
-            if (adaptiveSize) size = adaptiveSize;
-          }
-        } catch (_) {}
-        if (!mounted) return;
+        // Keep small width (standard BANNER 320x50) so it doesn't overlap the logo
         setAdContent(() => {
-          const Wrapper = () => <BannerAd unitId={adUnitId} size={size} />;
+          const Wrapper = () => <BannerAd unitId={adUnitId} size={BannerAdSize.BANNER} />;
           return Wrapper;
         });
       } catch (e) {
@@ -49,11 +40,8 @@ export default function HomeBannerAd() {
 
 const styles = StyleSheet.create({
   container: {
-    width: SCREEN_WIDTH,
-    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
-    marginTop: 4,
   },
 });

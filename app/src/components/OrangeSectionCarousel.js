@@ -4,8 +4,8 @@ import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const NUM_PAGES = 2;
 const AUTO_SWIPE_INTERVAL_MS = 2000;
-// Taller carousel so logo has room and doesn't get shrinked
-const CAROUSEL_MIN_HEIGHT = Math.min(260, Math.round(SCREEN_HEIGHT * 0.32));
+// Carousel height: enough room for logo without being too tall
+const CAROUSEL_MIN_HEIGHT = Math.min(200, Math.round(SCREEN_HEIGHT * 0.24));
 
 export default function OrangeSectionCarousel({ slide1, slide2 }) {
   const [page, setPage] = useState(0);
