@@ -1,6 +1,6 @@
 # 💰 SplitBill
 
-A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign items to friends, and calculate fair splits instantly.
+A modern bill-splitting app with OCR receipt scanning and GenAI voice. Scan receipts or speak an expense — voice is automatically translated into an expense and added with ease. Assign items to friends and calculate fair splits instantly.
 
 ![SplitBill](https://img.shields.io/badge/SplitBill-v1.0.0-FF6B35?style=for-the-badge)
 
@@ -12,20 +12,23 @@ A modern bill-splitting app with OCR receipt scanning. Scan receipts, assign ite
 
 📱 **Download Android App:** 
 
-[https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-5e7c1795-4b39-4a72-9174-3efb7e1909f0.apk](https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-5e7c1795-4b39-4a72-9174-3efb7e1909f0.apk)
+[https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-80ff5b77-0e58-4140-9a86-6743f03880ed.apk](https://github.com/saichaitanyakumar2003/splitBill/releases/download/v1.0.0/application-80ff5b77-0e58-4140-9a86-6743f03880ed.apk)
 
 > **Note:** Google OAuth SSO is available only for web users. Mobile users can sign up/login using email. **If you signed in via SSO on web and want to use the Android app, please set a password in your Profile settings on web first, then sign in on Android using your email and password.**
 
 > 🔄 **App Updates:** If you see an update banner in the app, please update immediately to get the latest bug fixes and features. Updates are pushed frequently to improve your experience.
 
+> 📱 **Android gets the crazy stuff:** Only the **Android app** includes expense insights (pie/bar charts, AI summaries) and **voice automation** (speak an expense, it’s added automatically). The web app does not have these features — use Android for the full experience.
+
 ---
 
 ## 🆓 Why SplitBill?
 
-Other expense-splitting apps charge **$4.99/month or more** for premium features like OCR scanning and analytics. **SplitBill gives you everything for FREE.**
+ **SplitBill gives you everything for FREE.**
 
 ### What You Get — 100% Free:
 - **📸 AI-Powered OCR Scanning** — Scan any receipt and extract items automatically
+- **🎤 GenAI Voice-to-Expense** — Speak an expense; it’s automatically translated and added with ease
 - **🧮 Item-Level Splitting** — Assign specific items to specific people
 - **📊 Expense Analytics** — Track spending by category with interactive charts
 - **🤖 AI-Powered Insights** — Get personalized spending summaries and saving tips
@@ -48,6 +51,10 @@ SplitBill uses **Google Gemini 2.5 Flash** — one of the most advanced multimod
 - 💡 **Tax-inclusive bill handling** — correctly handles Indian GST bills
 - ⚡ **Fast processing** — results in seconds
 
+### Voice-to-Expense (Language AI)
+- 🎤 **Speak an expense** — e.g. “Coffee 200 rupees” or “Dinner at cafe, 1500” — and it’s turned into an expense and added automatically
+- 🌐 **Natural language** — Works in your language; no need to type amounts or titles
+
 ### Expense Analytics (Language AI)
 - 🏷️ **Auto-categorization** of expenses into Food, Travel, Entertainment, Shopping, Others
 - 📈 **Spending pattern analysis** across months
@@ -59,6 +66,7 @@ SplitBill uses **Google Gemini 2.5 Flash** — one of the most advanced multimod
 ## ✨ Features
 
 - **📸 OCR Receipt Scanning** - Take a photo of any receipt and automatically extract items and prices using AI
+- **🎤 GenAI Voice-to-Expense** - Speak an expense; it’s automatically translated into an expense and added with ease
 - **🧮 Smart Splitting** - Assign specific items to specific people with proportional or equal tax/tip distribution
 - **📊 Clear Breakdowns** - See exactly what each person owes with detailed item breakdowns
 - **📤 Easy Sharing** - Share split summaries with your friends
