@@ -64,7 +64,6 @@ jobs:
           echo "=========================================="
           echo "✅ OTA UPDATE SUCCESSFUL!"
           echo "=========================================="
-          echo "📱 Update published to: development, preview, production"
           echo "📱 Users will receive the update on next app restart"
           echo "📅 Completed at: $(date)"
           echo "=========================================="
